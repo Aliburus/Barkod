@@ -6,7 +6,7 @@ import Navigation from "../../components/Layout/Navigation";
 import type { Tab } from "../page";
 
 export default function Page() {
-  const [activeTab, setActiveTab] = useState<Tab>("products");
+  const [activeTab, setActiveTab] = useState<Tab>("customers");
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <Header

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { paymentService } from "../../services/paymentService";
 
 interface Payment {
   id: string;
@@ -88,31 +89,29 @@ const PaymentsPage: React.FC = () => {
     form.amount,
   ]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  React.useEffect(() => {
+    paymentService.getAll().then(setPayments);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.isInstallment && installments.length > 0) {
-      installments.forEach((inst) => {
-        setPayments((prev) => [
-          ...prev,
-          {
-            ...form,
-            date: inst.date,
-            amount: inst.amount,
-            isInstallment: true,
-            id: Date.now().toString() + Math.random().toString(36).slice(2),
-          },
-        ]);
-      });
-    } else {
-      setPayments((prev) => [
-        ...prev,
-        {
+      for (const inst of installments) {
+        await paymentService.create({
           ...form,
-          amount: parseFloat(form.amount),
-          isInstallment: false,
-          id: Date.now().toString() + Math.random().toString(36).slice(2),
-        },
-      ]);
+          date: inst.date,
+          amount: inst.amount,
+          isInstallment: true,
+        });
+      }
+      paymentService.getAll().then(setPayments);
+    } else {
+      await paymentService.create({
+        ...form,
+        amount: parseFloat(form.amount),
+        isInstallment: false,
+      });
+      paymentService.getAll().then(setPayments);
     }
     setForm({
       company: "",
