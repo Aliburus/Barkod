@@ -77,47 +77,79 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
 
   return (
     <nav className="bg-gray-900 dark:bg-gray-900 shadow-sm border-b border-gray-800 dark:border-gray-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+      <div className="max-w-7xl mx-auto px-0 sm:px-4 lg:px-8">
         <div
-          className="relative flex justify-center items-center py-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 gap-0 sm:gap-8"
+          className="relative flex items-center py-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 gap-0 sm:gap-8"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
-          {loading && (
-            <div className="absolute left-1/2 -translate-x-1/2 z-10">
-              <Loader2 className="animate-spin w-6 h-6 text-primary-600 dark:text-primary-400" />
-            </div>
-          )}
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setLoading(true);
-                  router.push(tab.route);
-                  onTabChange(tab.id);
-                  setTimeout(() => setLoading(false), 500);
-                }}
-                className={`flex flex-col items-center gap-1 px-4 py-2 text-xs font-semibold border-b-[3px] transition-all duration-200 whitespace-nowrap rounded-none bg-transparent focus:outline-none focus:ring-0 ${
-                  isActive
-                    ? `border-primary-500 text-white ${tab.color}`
-                    : "border-transparent text-gray-400 hover:text-white hover:border-gray-600"
-                }`}
-                disabled={loading}
-                style={{ minWidth: 80 }}
-              >
-                <Icon
-                  className={`w-5 h-5 mb-0.5 ${
-                    isActive ? tab.color + " text-white" : "text-gray-400"
+          <div className="pl-2 sm:pl-0 flex-shrink-0" style={{ minWidth: 0 }}>
+            {/* Barkod Tara tabı */}
+            {tabs.slice(0, 1).map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setLoading(true);
+                    router.push(tab.route);
+                    onTabChange(tab.id);
+                    setTimeout(() => setLoading(false), 500);
+                  }}
+                  className={`flex flex-col items-center gap-1 px-4 py-2 text-xs font-semibold border-b-[3px] transition-all duration-200 whitespace-nowrap rounded-none bg-transparent focus:outline-none focus:ring-0 ${
+                    isActive
+                      ? `border-primary-500 text-white ${tab.color}`
+                      : "border-transparent text-gray-400 hover:text-white hover:border-gray-600"
                   }`}
-                />
-                <span className={isActive ? "text-white" : "text-gray-400"}>
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
+                  disabled={loading}
+                  style={{ minWidth: 80 }}
+                >
+                  <Icon
+                    className={`w-5 h-5 mb-0.5 ${
+                      isActive ? tab.color + " text-white" : "text-gray-400"
+                    }`}
+                  />
+                  <span className={isActive ? "text-white" : "text-gray-400"}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex-1 flex gap-0 sm:gap-8 min-w-0 overflow-x-auto">
+            {/* Diğer tablar */}
+            {tabs.slice(1).map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setLoading(true);
+                    router.push(tab.route);
+                    onTabChange(tab.id);
+                    setTimeout(() => setLoading(false), 500);
+                  }}
+                  className={`flex flex-col items-center gap-1 px-4 py-2 text-xs font-semibold border-b-[3px] transition-all duration-200 whitespace-nowrap rounded-none bg-transparent focus:outline-none focus:ring-0 ${
+                    isActive
+                      ? `border-primary-500 text-white ${tab.color}`
+                      : "border-transparent text-gray-400 hover:text-white hover:border-gray-600"
+                  }`}
+                  disabled={loading}
+                  style={{ minWidth: 80 }}
+                >
+                  <Icon
+                    className={`w-5 h-5 mb-0.5 ${
+                      isActive ? tab.color + " text-white" : "text-gray-400"
+                    }`}
+                  />
+                  <span className={isActive ? "text-white" : "text-gray-400"}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </nav>

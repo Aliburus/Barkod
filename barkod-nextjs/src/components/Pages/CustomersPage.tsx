@@ -116,7 +116,7 @@ const CustomersPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
+    <div className="max-w-2xl mx-auto p-2 sm:p-4">
       <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
         Müşteriler
       </h2>
@@ -129,7 +129,7 @@ const CustomersPage: React.FC = () => {
           value={form.name}
           onChange={handleChange}
           placeholder="Müşteri Adı"
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
           required
         />
         <input
@@ -137,18 +137,18 @@ const CustomersPage: React.FC = () => {
           value={form.phone}
           onChange={handleChange}
           placeholder="Telefon"
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
         />
         <input
           name="address"
           value={form.address}
           onChange={handleChange}
           placeholder="Adres"
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
         />
         <button
           type="submit"
-          className="w-full bg-primary-600 text-white py-2 rounded hover:bg-primary-700 transition-colors font-semibold"
+          className="w-full bg-primary-600 text-white py-2 rounded hover:bg-primary-700 transition-colors font-semibold text-sm"
           disabled={loading}
         >
           {loading ? "Ekleniyor..." : "Müşteri Ekle"}
@@ -167,7 +167,7 @@ const CustomersPage: React.FC = () => {
             {customers.map((c) => (
               <div
                 key={c.id}
-                className={`grid grid-cols-3 gap-2 items-center py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors ${
+                className={`grid grid-cols-1 sm:grid-cols-3 gap-2 items-center py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors ${
                   customerColors[c.id] === "yellow"
                     ? "bg-yellow-100 dark:bg-yellow-900/20"
                     : customerColors[c.id] === "red"
@@ -210,11 +210,11 @@ const CustomersPage: React.FC = () => {
       </div>
       {trxModal && selectedCustomer && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-1 sm:p-4"
           onClick={() => setTrxModal(false)}
         >
           <div
-            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative"
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-2 sm:p-6 relative"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -306,14 +306,14 @@ const CustomersPage: React.FC = () => {
                   type="number"
                   min="0"
                   step="0.01"
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                   required
                 />
                 <select
                   name="type"
                   value={trxForm.type}
                   onChange={handleTrxChange}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                 >
                   <option value="borc">Borç</option>
                   <option value="odeme">Ödeme</option>
@@ -324,11 +324,11 @@ const CustomersPage: React.FC = () => {
                 value={trxForm.description}
                 onChange={handleTrxChange}
                 placeholder="Açıklama (isteğe bağlı)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
               />
               <button
                 type="submit"
-                className="w-full bg-primary-600 text-white py-2 rounded hover:bg-primary-700 transition-colors font-semibold"
+                className="w-full bg-primary-600 text-white py-2 rounded hover:bg-primary-700 transition-colors font-semibold text-sm"
                 disabled={trxLoading}
               >
                 {trxLoading ? "Kaydediliyor..." : "Hareket Ekle"}
