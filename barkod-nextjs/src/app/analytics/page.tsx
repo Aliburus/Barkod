@@ -7,13 +7,7 @@ import type { Tab } from "../page";
 import { productService } from "../../services/productService";
 import { Product, Sale } from "../../types";
 
-export default function Page({
-  showTotalValue,
-  onToggleTotalValue,
-}: {
-  showTotalValue: boolean;
-  onToggleTotalValue: () => void;
-}) {
+export default function Page() {
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -29,8 +23,8 @@ export default function Page({
         lowStockCount={products.filter((p) => p.stock <= 5).length}
         activeTab={activeTab}
         onAddProduct={() => {}}
-        showTotalValue={showTotalValue}
-        onToggleTotalValue={onToggleTotalValue}
+        showTotalValue={false}
+        onToggleTotalValue={() => {}}
       />
       <Navigation
         activeTab={activeTab}
@@ -40,7 +34,7 @@ export default function Page({
         <AnalyticsPage
           products={products}
           sales={sales}
-          showTotalValue={showTotalValue}
+          showTotalValue={false}
         />
       </main>
     </div>

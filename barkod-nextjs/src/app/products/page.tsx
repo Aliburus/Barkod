@@ -8,13 +8,7 @@ import { Product } from "../../types";
 import type { Tab } from "../page";
 import ProductForm from "../../components/ProductForm";
 
-export default function Page({
-  showTotalValue,
-  onToggleTotalValue,
-}: {
-  showTotalValue: boolean;
-  onToggleTotalValue: () => void;
-}) {
+export default function Page() {
   const [products, setProducts] = useState<Product[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("products");
   const [showProductForm, setShowProductForm] = useState(false);
@@ -32,8 +26,8 @@ export default function Page({
           setEditingProduct(null);
           setShowProductForm(true);
         }}
-        showTotalValue={showTotalValue}
-        onToggleTotalValue={onToggleTotalValue}
+        showTotalValue={true}
+        onToggleTotalValue={() => {}}
       />
       <Navigation
         activeTab={activeTab}
@@ -45,7 +39,7 @@ export default function Page({
           onEdit={() => {}}
           onDelete={() => {}}
           onView={() => {}}
-          showTotalValue={showTotalValue}
+          showTotalValue={true}
         />
       </main>
       {showProductForm && (
