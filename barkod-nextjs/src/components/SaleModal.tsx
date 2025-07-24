@@ -1,8 +1,9 @@
 "use client";
 import React, { useState } from "react";
 import { Product, Sale } from "../types";
-import { ShoppingCart, X, Plus, Minus } from "lucide-react";
+import { ShoppingCart, X, Plus, Minus, Edit2, Check } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
+import { productService } from "../services/productService";
 
 interface SaleModalProps {
   product: Product;
@@ -12,6 +13,10 @@ interface SaleModalProps {
 
 const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
   const [quantity, setQuantity] = useState(1);
+  const [editingStock, setEditingStock] = useState(false);
+  const [stockValue, setStockValue] = useState(product.stock.toString());
+  const [loading, setLoading] = useState(false);
+  const [currentStock, setCurrentStock] = useState(product.stock);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("tr-TR", {
@@ -52,6 +57,16 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
     }
   };
 
+  const handleStockUpdate = async () => {
+    setLoading(true);
+    const updated = await productService.update(product.barcode, {
+      stock: parseInt(stockValue),
+    });
+    setCurrentStock(updated.stock);
+    setEditingStock(false);
+    setLoading(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div
@@ -83,7 +98,42 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
               <div className="text-2xl font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1">
                 {formatPrice(product.price)}
               </div>
-              <p>Mevcut Stok: {product.stock} adet</p>
+              <p className="flex items-center gap-1">
+                Mevcut Stok:{" "}
+                {editingStock ? (
+                  <>
+                    <input
+                      type="number"
+                      value={stockValue}
+                      onChange={(e) => setStockValue(e.target.value)}
+                      className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      disabled={loading}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleStockUpdate();
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleStockUpdate}
+                      className="ml-1 text-success-600 hover:text-success-800"
+                      disabled={loading}
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {currentStock} adet
+                    <button
+                      onClick={() => setEditingStock(true)}
+                      className="ml-1 text-gray-400 hover:text-primary-600"
+                      title="Stok Güncelle"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </p>
               {product.brand && <p>Marka: {product.brand}</p>}
               {product.category && <p>Kategori: {product.category}</p>}
             </div>

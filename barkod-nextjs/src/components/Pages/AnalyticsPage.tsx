@@ -208,11 +208,11 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             En Çok Satan Ürünler
           </h3>
-          <div className="flex gap-3 overflow-x-auto pb-2 max-w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {topProducts.slice(0, 6).map((product, index) => (
               <div
                 key={product.name}
-                className="min-w-[180px] flex-shrink-0 flex flex-col justify-between bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3"
+                className="flex flex-col justify-between bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-3"
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-6 h-6 bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-full flex items-center justify-center text-sm font-medium">
@@ -250,11 +250,11 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             En Çok Satılan Kategoriler
           </h3>
-          <div className="flex gap-3 overflow-x-auto pb-2 max-w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {categorySales.slice(0, 6).map((category) => (
               <div
                 key={category.category}
-                className="min-w-[180px] flex-shrink-0 border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-900/20"
+                className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-900/20"
               >
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-gray-900 dark:text-white truncate">
