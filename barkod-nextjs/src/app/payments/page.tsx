@@ -1,3 +1,5 @@
+"use client";
+
 import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
 import PaymentsPage from "../../components/Pages/PaymentsPage";
