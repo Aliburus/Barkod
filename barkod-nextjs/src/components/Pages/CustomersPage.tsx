@@ -144,7 +144,7 @@ const CustomersPage: React.FC = () => {
         ) : (
           <ul className="divide-y divide-gray-200 dark:divide-gray-700">
             {customers.map((c) => (
-              <li
+              <div
                 key={c.id}
                 className={`grid grid-cols-3 gap-2 items-center py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors ${
                   customerColors[c.id] === "yellow"
@@ -157,31 +157,67 @@ const CustomersPage: React.FC = () => {
                 }`}
                 onClick={() => openCustomerDetail(c)}
               >
-                <span className="font-medium text-gray-900 dark:text-white truncate">
-                  {c.name}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-300 truncate">
+                <div className="flex items-center gap-2">
+                  {/* Renkli badge */}
+                  {customerColors[c.id] && (
+                    <span
+                      className={`inline-block w-3 h-3 rounded-full border border-gray-300 mr-1 ${
+                        customerColors[c.id] === "yellow"
+                          ? "bg-yellow-400"
+                          : customerColors[c.id] === "red"
+                          ? "bg-red-500"
+                          : customerColors[c.id] === "blue"
+                          ? "bg-blue-500"
+                          : ""
+                      }`}
+                    ></span>
+                  )}
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {c.name}
+                  </span>
+                </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   {c.phone}
                 </span>
-                <span className="text-sm text-gray-500 dark:text-gray-300 truncate text-right">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   {c.address}
                 </span>
-              </li>
+              </div>
             ))}
           </ul>
         )}
       </div>
       {trxModal && selectedCustomer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setTrxModal(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setTrxModal(false)}
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               Kapat
             </button>
-            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
-              {selectedCustomer.name} Detay
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+              {/* Renkli badge */}
+              {customerColors[selectedCustomer.id] && (
+                <span
+                  className={`inline-block w-4 h-4 rounded-full border border-gray-300 mr-1 ${
+                    customerColors[selectedCustomer.id] === "yellow"
+                      ? "bg-yellow-400"
+                      : customerColors[selectedCustomer.id] === "red"
+                      ? "bg-red-500"
+                      : customerColors[selectedCustomer.id] === "blue"
+                      ? "bg-blue-500"
+                      : ""
+                  }`}
+                ></span>
+              )}
+              {selectedCustomer.name}
             </h2>
             <div className="mb-2 text-sm text-gray-700 dark:text-gray-300">
               Telefon: {selectedCustomer.phone || "-"}

@@ -5,7 +5,6 @@ import { BarChart3, Package, AlertTriangle, Download } from "lucide-react";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 import ExcelJS from "exceljs";
-import Header from "../Layout/Header";
 
 interface SalesPageProps {
   sales: Sale[];
@@ -178,292 +177,283 @@ const SalesPage: React.FC<SalesPageProps> = ({
   const dailySalesData = getDailySalesData();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors pb-8">
-      <Header
-        lowStockCount={products.filter((p) => p.stock <= 5).length}
-        activeTab="sales"
-        onAddProduct={() => {}}
-        showTotalValue={showTotalValue}
-        onToggleTotalValue={() => {}}
-      />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        {/* İstatistik kutuları */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Toplam Satış
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+      {/* İstatistik kutuları */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Toplam Satış
+              </p>
+              {showTotalValue ? (
+                <p className="text-2xl font-bold text-success-600">
+                  {formatPrice(stats.totalSales)}
                 </p>
-                {showTotalValue ? (
-                  <p className="text-2xl font-bold text-success-600">
-                    {formatPrice(stats.totalSales)}
-                  </p>
-                ) : (
-                  <p className="text-2xl font-bold text-success-600 select-none tracking-widest">
-                    ***
-                  </p>
-                )}
-              </div>
-              <BarChart3 className="w-8 h-8 text-success-600" />
+              ) : (
+                <p className="text-2xl font-bold text-success-600 select-none tracking-widest">
+                  ***
+                </p>
+              )}
             </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Satılan Ürün
-                </p>
-                <p className="text-2xl font-bold text-primary-600">
-                  {stats.totalItems}
-                </p>
-              </div>
-              <Package className="w-8 h-8 text-primary-600" />
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  İşlem Sayısı
-                </p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {stats.transactions}
-                </p>
-              </div>
-              <BarChart3 className="w-8 h-8 text-purple-600" />
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Ortalama İşlem Tutarı
-                </p>
-                {showTotalValue ? (
-                  <p className="text-2xl font-bold text-orange-600">
-                    {formatPrice(stats.avgTransaction)}
-                  </p>
-                ) : (
-                  <p className="text-2xl font-bold text-orange-600 select-none tracking-widest">
-                    ***
-                  </p>
-                )}
-              </div>
-              <BarChart3 className="w-8 h-8 text-orange-600" />
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Ortalama İşlem Tutarı
-            </p>
+            <BarChart3 className="w-8 h-8 text-success-600" />
           </div>
         </div>
-        {/* Filtre/search barlar ve satış geçmişi */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex gap-2">
-              {[
-                { value: "today", label: "Bugün" },
-                { value: "week", label: "Bu Hafta" },
-                { value: "month", label: "Bu Ay" },
-                { value: "custom", label: "Özel" },
-              ].map((period) => (
-                <button
-                  key={period.value}
-                  onClick={() =>
-                    setSelectedPeriod(
-                      period.value as "today" | "week" | "month" | "custom"
-                    )
-                  }
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    selectedPeriod === period.value
-                      ? "bg-primary-600 text-white"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  }`}
-                >
-                  {period.label}
-                </button>
-              ))}
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Satılan Ürün
+              </p>
+              <p className="text-2xl font-bold text-primary-600">
+                {stats.totalItems}
+              </p>
             </div>
+            <Package className="w-8 h-8 text-primary-600" />
+          </div>
+        </div>
 
-            {selectedPeriod === "custom" && (
-              <div className="flex gap-2 items-center">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-                <span className="text-gray-500 dark:text-gray-400">-</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-            )}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                İşlem Sayısı
+              </p>
+              <p className="text-2xl font-bold text-purple-600">
+                {stats.transactions}
+              </p>
+            </div>
+            <BarChart3 className="w-8 h-8 text-purple-600" />
+          </div>
+        </div>
 
-            <div className="flex-1">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Ortalama İşlem Tutarı
+              </p>
+              {showTotalValue ? (
+                <p className="text-2xl font-bold text-orange-600">
+                  {formatPrice(stats.avgTransaction)}
+                </p>
+              ) : (
+                <p className="text-2xl font-bold text-orange-600 select-none tracking-widest">
+                  ***
+                </p>
+              )}
+            </div>
+            <BarChart3 className="w-8 h-8 text-orange-600" />
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Ortalama İşlem Tutarı
+          </p>
+        </div>
+      </div>
+      {/* Filtre/search barlar ve satış geçmişi */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex gap-2">
+            {[
+              { value: "today", label: "Bugün" },
+              { value: "week", label: "Bu Hafta" },
+              { value: "month", label: "Bu Ay" },
+              { value: "custom", label: "Özel" },
+            ].map((period) => (
+              <button
+                key={period.value}
+                onClick={() =>
+                  setSelectedPeriod(
+                    period.value as "today" | "week" | "month" | "custom"
+                  )
+                }
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedPeriod === period.value
+                    ? "bg-primary-600 text-white"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+              >
+                {period.label}
+              </button>
+            ))}
+          </div>
+
+          {selectedPeriod === "custom" && (
+            <div className="flex gap-2 items-center">
               <input
-                type="text"
-                placeholder="Ürün veya barkod ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+              <span className="text-gray-500 dark:text-gray-400">-</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
-
-            <button
-              onClick={exportToExcel}
-              className="bg-success-600 hover:bg-success-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium"
-            >
-              <Download className="w-4 h-4" />
-              Excel İndir
-            </button>
-          </div>
-        </div>
-
-        {/* Daily Sales Chart */}
-        {dailySalesData.length > 1 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Günlük Satış Grafiği
-            </h3>
-            <div className="h-64 flex items-end justify-between gap-2">
-              {dailySalesData.map(([date, amount]) => {
-                const maxAmount = Math.max(
-                  ...dailySalesData.map(([, amt]) => amt)
-                );
-                const height = (amount / maxAmount) * 100;
-                return (
-                  <div key={date} className="flex-1 flex flex-col items-center">
-                    <div
-                      className="w-full bg-primary-600 rounded-t transition-all duration-300 hover:bg-primary-700 min-h-[4px]"
-                      style={{ height: `${height}%` }}
-                      title={`${formatDate(date)}: ${formatPrice(amount)}`}
-                    />
-                    <span className="text-xs text-gray-500 dark:text-gray-400 mt-2 transform -rotate-45 origin-left">
-                      {format(parseISO(date), "dd/MM", { locale: tr })}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Sales List */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Satış Geçmişi ({filteredSales.length})
-            </h2>
-          </div>
-
-          {groupedSalesArr.length === 0 ? (
-            <div className="text-center py-12">
-              <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400 text-lg">
-                Satış bulunamadı
-              </p>
-              <p className="text-gray-400 text-sm">
-                Satış yapmak için ürün seçin veya barkod okutun.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {groupedSalesArr.map((salesGroup) => {
-                const first = salesGroup[0];
-                const totalQty = salesGroup.reduce(
-                  (sum, s) => sum + s.quantity,
-                  0
-                );
-                const price = first.price;
-                return (
-                  <div key={first.barcode}>
-                    <div
-                      className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors cursor-pointer shadow-sm"
-                      onClick={() => {
-                        setSelectedSaleProduct(first.barcode);
-                        setShowSaleModal(true);
-                      }}
-                    >
-                      <div>
-                        <div className="font-semibold text-base text-gray-900 dark:text-white tracking-tight">
-                          {first.productName}
-                        </div>
-                        <div className="text-xs text-primary-700 dark:text-primary-300 font-mono tracking-wider">
-                          {first.barcode}
-                        </div>
-                      </div>
-                      {showTotalValue ? (
-                        <div className="text-right font-bold text-lg text-primary-600 dark:text-primary-400">
-                          {totalQty} x {formatPrice(price)} ={" "}
-                          {formatPrice(totalQty * price)}
-                        </div>
-                      ) : (
-                        <div className="text-right font-bold text-lg text-primary-600 dark:text-primary-400 select-none tracking-widest">
-                          ***
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           )}
+
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="Ürün veya barkod ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <button
+            onClick={exportToExcel}
+            className="bg-success-600 hover:bg-success-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium"
+          >
+            <Download className="w-4 h-4" />
+            Excel İndir
+          </button>
         </div>
-        {/* Satış Detay Modalı */}
-        {showSaleModal && selectedSaleProduct && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
-              <button
-                onClick={() => setShowSaleModal(false)}
-                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                Kapat
-              </button>
-              <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
-                Satış Detayları
-              </h2>
-              <div className="space-y-2">
-                {groupedSales[selectedSaleProduct].map((sale, idx) => (
+      </div>
+
+      {/* Daily Sales Chart */}
+      {dailySalesData.length > 1 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Günlük Satış Grafiği
+          </h3>
+          <div className="h-64 flex items-end justify-between gap-2">
+            {dailySalesData.map(([date, amount]) => {
+              const maxAmount = Math.max(
+                ...dailySalesData.map(([, amt]) => amt)
+              );
+              const height = (amount / maxAmount) * 100;
+              return (
+                <div key={date} className="flex-1 flex flex-col items-center">
                   <div
-                    key={sale.id + idx}
-                    className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 py-2"
+                    className="w-full bg-primary-600 rounded-t transition-all duration-300 hover:bg-primary-700 min-h-[4px]"
+                    style={{ height: `${height}%` }}
+                    title={`${formatDate(date)}: ${formatPrice(amount)}`}
+                  />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-2 transform -rotate-45 origin-left">
+                    {format(parseISO(date), "dd/MM", { locale: tr })}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Sales List */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Satış Geçmişi ({filteredSales.length})
+          </h2>
+        </div>
+
+        {groupedSalesArr.length === 0 ? (
+          <div className="text-center py-12">
+            <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400 text-lg">
+              Satış bulunamadı
+            </p>
+            <p className="text-gray-400 text-sm">
+              Satış yapmak için ürün seçin veya barkod okutun.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {groupedSalesArr.map((salesGroup) => {
+              const first = salesGroup[0];
+              const totalQty = salesGroup.reduce(
+                (sum, s) => sum + s.quantity,
+                0
+              );
+              const price = first.price;
+              return (
+                <div key={first.barcode}>
+                  <div
+                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors cursor-pointer shadow-sm"
+                    onClick={() => {
+                      setSelectedSaleProduct(first.barcode);
+                      setShowSaleModal(true);
+                    }}
                   >
                     <div>
-                      <div className="font-medium text-gray-900 dark:text-white">
-                        {sale.productName}
+                      <div className="font-semibold text-base text-gray-900 dark:text-white tracking-tight">
+                        {first.productName}
                       </div>
-                      <div className="text-xs text-primary-700 dark:text-primary-300 font-mono">
-                        {sale.barcode}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-semibold text-primary-600 dark:text-primary-400">
-                        {showTotalValue
-                          ? `${sale.quantity} x ${formatPrice(sale.price)}`
-                          : "***"}
-                      </span>{" "}
-                      ={" "}
-                      <span className="font-semibold text-primary-600 dark:text-primary-400">
-                        {showTotalValue ? formatPrice(sale.total) : "***"}
-                      </span>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {formatDate(sale.soldAt)} {formatTime(sale.soldAt)}
+                      <div className="text-xs text-primary-700 dark:text-primary-300 font-mono tracking-wider">
+                        {first.barcode}
                       </div>
                     </div>
+                    {showTotalValue ? (
+                      <div className="text-right font-bold text-lg text-primary-600 dark:text-primary-400">
+                        {totalQty} x {formatPrice(price)} ={" "}
+                        {formatPrice(totalQty * price)}
+                      </div>
+                    ) : (
+                      <div className="text-right font-bold text-lg text-primary-600 dark:text-primary-400 select-none tracking-widest">
+                        ***
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
+      {/* Satış Detay Modalı */}
+      {showSaleModal && selectedSaleProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
+            <button
+              onClick={() => setShowSaleModal(false)}
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              Kapat
+            </button>
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+              Satış Detayları
+            </h2>
+            <div className="space-y-2">
+              {groupedSales[selectedSaleProduct].map((sale, idx) => (
+                <div
+                  key={sale.id + idx}
+                  className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 py-2"
+                >
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {sale.productName}
+                    </div>
+                    <div className="text-xs text-primary-700 dark:text-primary-300 font-mono">
+                      {sale.barcode}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-semibold text-primary-600 dark:text-primary-400">
+                      {showTotalValue
+                        ? `${sale.quantity} x ${formatPrice(sale.price)}`
+                        : "***"}
+                    </span>{" "}
+                    ={" "}
+                    <span className="font-semibold text-primary-600 dark:text-primary-400">
+                      {showTotalValue ? formatPrice(sale.total) : "***"}
+                    </span>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatDate(sale.soldAt)} {formatTime(sale.soldAt)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
