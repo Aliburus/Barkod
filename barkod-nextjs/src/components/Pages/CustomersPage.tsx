@@ -5,6 +5,8 @@ import { Customer, AccountTransaction, Sale } from "../../types";
 import { customerService } from "../../services/customerService";
 import { accountTransactionService } from "../../services/customerService";
 import { productService } from "../../services/productService";
+import { parseISO, format } from "date-fns";
+import { tr } from "date-fns/locale";
 
 const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -101,6 +103,10 @@ const CustomersPage: React.FC = () => {
     .filter((t) => t.type === "odeme")
     .reduce((sum, t) => sum + t.amount, 0);
   const bakiye = totalBorc - totalOdeme;
+
+  const formatDateTime = (dateStr: string) => {
+    return format(parseISO(dateStr), "dd MMMM yyyy HH.mm", { locale: tr });
+  };
 
   // Renk seçme fonksiyonu
   const handleColorChange = async (customerId: string, color: string) => {
@@ -204,11 +210,11 @@ const CustomersPage: React.FC = () => {
       </div>
       {trxModal && selectedCustomer && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4"
           onClick={() => setTrxModal(false)}
         >
           <div
-            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative"
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -361,7 +367,7 @@ const CustomersPage: React.FC = () => {
                         {t.description}
                       </span>
                       <span className="text-xs text-gray-400">
-                        {new Date(t.date).toLocaleString("tr-TR")}
+                        {formatDateTime(t.date)}
                       </span>
                     </li>
                   ))}
@@ -392,7 +398,7 @@ const CustomersPage: React.FC = () => {
                         {s.paymentType || "-"}
                       </span>
                       <span className="text-xs text-gray-400">
-                        {new Date(s.soldAt).toLocaleString("tr-TR")}
+                        {formatDateTime(s.soldAt)}
                       </span>
                     </li>
                   ))}

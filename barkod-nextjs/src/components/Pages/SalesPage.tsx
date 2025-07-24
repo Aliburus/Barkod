@@ -121,12 +121,8 @@ const SalesPage: React.FC<SalesPageProps> = ({
     }).format(price);
   };
 
-  const formatTime = (dateStr: string) => {
-    return format(parseISO(dateStr), "HH:mm", { locale: tr });
-  };
-
-  const formatDate = (dateStr: string) => {
-    return format(parseISO(dateStr), "dd MMM yyyy", { locale: tr });
+  const formatDateTime = (dateStr: string) => {
+    return format(parseISO(dateStr), "dd MMMM yyyy HH.mm", { locale: tr });
   };
 
   const exportToExcel = async () => {
@@ -143,8 +139,8 @@ const SalesPage: React.FC<SalesPageProps> = ({
     ]);
     filteredSales.forEach((sale) => {
       worksheet.addRow([
-        formatDate(sale.soldAt),
-        formatTime(sale.soldAt),
+        format(parseISO(sale.soldAt), "dd MMM yyyy", { locale: tr }),
+        format(parseISO(sale.soldAt), "HH.mm", { locale: tr }),
         sale.productName,
         sale.barcode,
         sale.quantity,
@@ -334,7 +330,9 @@ const SalesPage: React.FC<SalesPageProps> = ({
                   <div
                     className="w-full bg-primary-600 rounded-t transition-all duration-300 hover:bg-primary-700 min-h-[4px]"
                     style={{ height: `${height}%` }}
-                    title={`${formatDate(date)}: ${formatPrice(amount)}`}
+                    title={`${format(parseISO(date), "dd/MM", {
+                      locale: tr,
+                    })}: ${formatPrice(amount)}`}
                   />
                   <span className="text-xs text-gray-500 dark:text-gray-400 mt-2 transform -rotate-45 origin-left">
                     {format(parseISO(date), "dd/MM", { locale: tr })}
@@ -409,8 +407,8 @@ const SalesPage: React.FC<SalesPageProps> = ({
       </div>
       {/* Satış Detay Modalı */}
       {showSaleModal && selectedSaleProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative">
             <button
               onClick={() => setShowSaleModal(false)}
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -445,7 +443,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
                       {showTotalValue ? formatPrice(sale.total) : "***"}
                     </span>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatDate(sale.soldAt)} {formatTime(sale.soldAt)}
+                      {formatDateTime(sale.soldAt)}
                     </div>
                   </div>
                 </div>

@@ -1,7 +1,8 @@
 "use client";
 import React, { useState } from "react";
 import { Product, Sale } from "../../types";
-import { parseISO } from "date-fns";
+import { parseISO, format } from "date-fns";
+import { tr } from "date-fns/locale";
 import {
   BarChart,
   Bar,
@@ -53,6 +54,10 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       style: "currency",
       currency: "TRY",
     }).format(price);
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    return format(parseISO(dateStr), "dd MMMM yyyy HH.mm", { locale: tr });
   };
 
   // En çok satan ürünler

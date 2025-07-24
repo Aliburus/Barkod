@@ -11,6 +11,8 @@ import {
   Check,
 } from "lucide-react";
 import { productService } from "../../services/productService";
+import { parseISO, format } from "date-fns";
+import { tr } from "date-fns/locale";
 
 interface ProductsPageProps {
   products: Product[];
@@ -40,6 +42,10 @@ const ProductDetailModal: React.FC<{
     setCurrentProduct(updated);
     setEditingStock(false);
     setLoading(false);
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    return format(parseISO(dateStr), "dd MMMM yyyy HH.mm", { locale: tr });
   };
 
   return (
@@ -122,11 +128,11 @@ const ProductDetailModal: React.FC<{
           </div>
           <div>
             <span className="font-semibold">Eklenme Tarihi:</span>{" "}
-            {currentProduct.createdAt}
+            {formatDateTime(currentProduct.createdAt)}
           </div>
           <div>
             <span className="font-semibold">Güncellenme Tarihi:</span>{" "}
-            {currentProduct.updatedAt}
+            {formatDateTime(currentProduct.updatedAt)}
           </div>
           <div>
             <span className="font-semibold">Alış Fiyatı:</span>{" "}

@@ -77,8 +77,11 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
 
   return (
     <nav className="bg-gray-900 dark:bg-gray-900 shadow-sm border-b border-gray-800 dark:border-gray-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="relative flex justify-center space-x-8 overflow-x-auto items-center py-2">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div
+          className="relative flex justify-center items-center py-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 gap-0 sm:gap-8"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           {loading && (
             <div className="absolute left-1/2 -translate-x-1/2 z-10">
               <Loader2 className="animate-spin w-6 h-6 text-primary-600 dark:text-primary-400" />
