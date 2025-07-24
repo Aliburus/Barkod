@@ -25,19 +25,9 @@ export default function Home() {
     message: string;
     type: "success" | "error" | "warning" | "info";
   } | null>(null);
-  const [showTotalValue, setShowTotalValue] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("showTotalValue");
-      return stored === null ? false : stored === "true";
-    }
-    return false;
-  });
-  const handleToggleTotalValue = () => {
-    setShowTotalValue((v) => {
-      localStorage.setItem("showTotalValue", (!v).toString());
-      return !v;
-    });
-  };
+  // showTotalValue state'ini localStorage'dan kaldır, sadece useState ile tut
+  const [showTotalValue, setShowTotalValue] = useState(false);
+  const handleToggleTotalValue = () => setShowTotalValue((v) => !v);
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [scannerActive, setScannerActive] = useState(false);
@@ -188,8 +178,10 @@ export default function Home() {
           setEditingProduct(null);
           setShowProductForm(true);
         }}
-        showTotalValue={showTotalValue}
-        onToggleTotalValue={handleToggleTotalValue}
+        showTotalValue={activeTab !== "scanner" ? showTotalValue : false}
+        onToggleTotalValue={
+          activeTab !== "scanner" ? handleToggleTotalValue : () => {}
+        }
         onBulkUpload={handleBulkUpload}
       />
       {notification && (
@@ -199,7 +191,10 @@ export default function Home() {
           onClose={() => setNotification(null)}
         />
       )}
-      <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <Navigation
+        activeTab={activeTab}
+        onTabChange={(tab) => setActiveTab(tab as Tab)}
+      />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === "products" && (
           <ProductsPage

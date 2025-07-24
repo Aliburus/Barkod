@@ -437,11 +437,13 @@ const SalesPage: React.FC<SalesPageProps> = ({
                   </div>
                   <div className="text-right">
                     <span className="font-semibold text-primary-600 dark:text-primary-400">
-                      {sale.quantity} x {formatPrice(sale.price)}
+                      {showTotalValue
+                        ? `${sale.quantity} x ${formatPrice(sale.price)}`
+                        : "***"}
                     </span>{" "}
                     ={" "}
                     <span className="font-semibold text-primary-600 dark:text-primary-400">
-                      {formatPrice(sale.total)}
+                      {showTotalValue ? formatPrice(sale.total) : "***"}
                     </span>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {formatDate(sale.soldAt)} {formatTime(sale.soldAt)}

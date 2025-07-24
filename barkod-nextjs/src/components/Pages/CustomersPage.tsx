@@ -21,6 +21,10 @@ const CustomersPage: React.FC = () => {
   });
   const [trxLoading, setTrxLoading] = useState(false);
   const [trxModal, setTrxModal] = useState(false);
+  // Customer tipine color eklemeden önce state ile localde tutacağım (db yoksa). Eğer db'de varsa oraya da eklenir.
+  const [customerColors, setCustomerColors] = useState<{
+    [id: string]: string;
+  }>({});
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -139,16 +143,24 @@ const CustomersPage: React.FC = () => {
             {customers.map((c) => (
               <li
                 key={c.id}
-                className="py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                className={`grid grid-cols-3 gap-2 items-center py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors ${
+                  customerColors[c.id] === "yellow"
+                    ? "bg-yellow-100 dark:bg-yellow-900/20"
+                    : customerColors[c.id] === "red"
+                    ? "bg-red-100 dark:bg-red-900/20"
+                    : customerColors[c.id] === "blue"
+                    ? "bg-blue-100 dark:bg-blue-900/20"
+                    : ""
+                }`}
                 onClick={() => openCustomerDetail(c)}
               >
-                <span className="font-medium text-gray-900 dark:text-white">
+                <span className="font-medium text-gray-900 dark:text-white truncate">
                   {c.name}
                 </span>
-                <span className="text-sm text-gray-500 dark:text-gray-300">
+                <span className="text-sm text-gray-500 dark:text-gray-300 truncate">
                   {c.phone}
                 </span>
-                <span className="text-sm text-gray-500 dark:text-gray-300">
+                <span className="text-sm text-gray-500 dark:text-gray-300 truncate text-right">
                   {c.address}
                 </span>
               </li>
@@ -173,6 +185,32 @@ const CustomersPage: React.FC = () => {
             </div>
             <div className="mb-2 text-sm text-gray-700 dark:text-gray-300">
               Adres: {selectedCustomer.address || "-"}
+            </div>
+            <div className="mb-4 flex gap-2 items-center">
+              <span className="font-semibold">Renk:</span>
+              {["yellow", "red", "blue"].map((color) => (
+                <button
+                  key={color}
+                  onClick={() =>
+                    setCustomerColors((prev) => ({
+                      ...prev,
+                      [selectedCustomer.id]: color,
+                    }))
+                  }
+                  className={`w-6 h-6 rounded-full border-2 ${
+                    color === "yellow"
+                      ? "bg-yellow-400 border-yellow-600"
+                      : color === "red"
+                      ? "bg-red-400 border-red-600"
+                      : "bg-blue-400 border-blue-600"
+                  } ${
+                    customerColors[selectedCustomer.id] === color
+                      ? "ring-2 ring-black"
+                      : ""
+                  }`}
+                  title={color}
+                />
+              ))}
             </div>
             <div className="mb-4">
               <div className="flex justify-between mb-2">
