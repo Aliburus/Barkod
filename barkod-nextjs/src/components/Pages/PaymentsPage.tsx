@@ -90,7 +90,14 @@ const PaymentsPage: React.FC = () => {
   ]);
 
   React.useEffect(() => {
-    paymentService.getAll().then(setPayments);
+    paymentService.getAll().then((data) => {
+      setPayments(
+        data.map((p: any, i: number) => ({
+          ...p,
+          id: p.id || p._id || String(i),
+        }))
+      );
+    });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,16 +109,32 @@ const PaymentsPage: React.FC = () => {
           date: inst.date,
           amount: inst.amount,
           isInstallment: true,
+          id: Date.now().toString() + Math.random().toString(36).slice(2),
         });
       }
-      paymentService.getAll().then(setPayments);
+      paymentService.getAll().then((data) => {
+        setPayments(
+          data.map((p: any, i: number) => ({
+            ...p,
+            id: p.id || p._id || String(i),
+          }))
+        );
+      });
     } else {
       await paymentService.create({
         ...form,
         amount: parseFloat(form.amount),
         isInstallment: false,
+        id: Date.now().toString() + Math.random().toString(36).slice(2),
       });
-      paymentService.getAll().then(setPayments);
+      paymentService.getAll().then((data) => {
+        setPayments(
+          data.map((p: any, i: number) => ({
+            ...p,
+            id: p.id || p._id || String(i),
+          }))
+        );
+      });
     }
     setForm({
       company: "",

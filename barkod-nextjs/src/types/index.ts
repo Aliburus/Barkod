@@ -52,7 +52,7 @@ export interface AccountTransaction {
 }
 
 export interface Payment {
-  id?: string;
+  id: string;
   company?: string;
   name?: string;
   amount: number;
