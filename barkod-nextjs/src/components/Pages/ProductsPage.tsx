@@ -30,6 +30,7 @@ const ProductDetailModal: React.FC<{
   const [stockValue, setStockValue] = useState(product.stock.toString());
   const [loading, setLoading] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(product);
+  const [paymentType, setPaymentType] = useState<string>("nakit");
 
   const handleStockUpdate = async () => {
     setLoading(true);
@@ -125,6 +126,19 @@ const ProductDetailModal: React.FC<{
           <div>
             <span className="font-semibold">Alış Fiyatı:</span>{" "}
             {currentProduct.purchasePrice} ₺
+          </div>
+          <div>
+            <span className="font-semibold">Ödeme Türü:</span>
+            <select
+              value={paymentType}
+              onChange={(e) => setPaymentType(e.target.value)}
+              className="ml-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="nakit">Nakit</option>
+              <option value="kredi">Kredi Kartı</option>
+              <option value="iban">IBAN</option>
+              <option value="havale">Havale</option>
+            </select>
           </div>
         </div>
       </div>

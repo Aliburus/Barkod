@@ -16,7 +16,10 @@ export default function Page() {
         showTotalValue={false}
         onToggleTotalValue={() => {}}
       />
-      <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <Navigation
+        activeTab={activeTab}
+        onTabChange={(tab) => setActiveTab(tab as Tab)}
+      />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <AccountTransactionsPage />
       </main>
