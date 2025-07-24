@@ -10,9 +10,19 @@ interface Payment {
   date: string;
 }
 
+interface PaymentForm {
+  company: string;
+  name: string;
+  amount: string;
+  date: string;
+  isInstallment: boolean;
+  installmentCount: number;
+  installmentStart: string;
+}
+
 const PaymentsPage: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<PaymentForm>({
     company: "",
     name: "",
     amount: "",
@@ -27,9 +37,14 @@ const PaymentsPage: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setForm((prev: any) => ({
+    setForm((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : name === "installmentCount"
+          ? Number(value)
+          : value,
     }));
   };
 
@@ -43,7 +58,7 @@ const PaymentsPage: React.FC = () => {
       setInstallments([]);
       return;
     }
-    const count = parseInt(form.installmentCount as any) || 0;
+    const count = form.installmentCount || 0;
     const total = parseFloat(form.amount) || 0;
     if (count < 1 || total <= 0) {
       setInstallments([]);
