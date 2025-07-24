@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 Barkod & Stok Yönetimi (Next.js)
 
-## Getting Started
+Küçük/orta ölçekli işletmeler için modern, güvenli ve hızlı barkodlu stok & satış yönetimi. Next.js (App Router), MongoDB, Tailwind, koyu/açık tema, Excel ile toplu yükleme ve gelişmiş analiz özellikleriyle.
 
-First, run the development server:
+---
+
+## 🔧 Kurulum
+
+### Gereksinimler
+
+- Node.js >= 18
+- npm veya yarn
+- MongoDB bağlantı adresi
+
+### Adımlar
 
 ```bash
+cd barkod-nextjs
+cp .env.local.example .env.local # .env dosyanı oluştur
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### .env.local Örneği
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+MONGO_URI=mongodb+srv://kullanici:sifre@cluster.mongodb.net/dbadi
+NEXT_PUBLIC_BACKEND_URL=http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🚀 Kullanım
 
-To learn more about Next.js, take a look at the following resources:
+- Uygulama: `http://localhost:3000`
+- Tüm API ve frontend tek Next.js projesinde
+- Tüm ayarlar `.env.local` dosyasından alınır
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🌟 Özellikler
 
-## Deploy on Vercel
+- Barkod ile ürün arama ve satış
+- Ürün ekleme, silme, düzenleme (tekil & Excel ile toplu)
+- Satış işlemleri ve geçmişi, Excel'e aktarım
+- Stok durumu ve kritik stok uyarıları
+- Analitik sayfasında grafiklerle satış ve stok analizi
+- Koyu/açık tema (otomatik ve manuel)
+- Safe-area ve responsive tasarım (mobil/tablet/masaüstü)
+- Tüm finansal veriler için gizlilik (göz simgesiyle göster/gizle)
+- Gelişmiş modal ve input okunabilirliği
+- 20'li sayfalama (pagination) ürün listesinde
+- Güvenli httpOnly cookie ve güvenlik önlemleri
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📁 Ana Dosya & Klasörler
+
+- `src/app/api/` : Next.js API route'ları (ürün, satış, analiz)
+- `src/components/` : React bileşenleri (ProductsPage, SalesPage, AnalyticsPage, Header, Navigation, BarcodeScanner, ProductForm, SaleModal, SalesHistory)
+- `src/contexts/ThemeContext.tsx` : Tema yönetimi
+- `public/example-bulk-products.xlsx` : Toplu yükleme için örnek Excel
+
+---
+
+## 📊 Toplu Ürün Yükleme (Excel)
+
+- "Toplu Ürün Ekle" ile Excel dosyası yükleyin
+- Gerekli başlıklar: `barcode`, `name`, `price`, `stock`, `category`, `brand`
+- Örnek dosya: `public/example-bulk-products.xlsx`
+
+---
+
+## 🤝 Katkıda Bulunma
+
+- PR gönderebilir, issue açabilirsin.
+- Kodun okunabilir ve temiz olmasına özen göster.
+
+## 📄 Lisans
+
+MIT
+
+## 📬 İletişim
+
+Her türlü soru ve öneri için: [mail@seninmailin.com](mailto:mail@seninmailin.com)
+
+---
+
+> Modern, güvenli ve hızlı stok yönetimi için tasarlandı.
