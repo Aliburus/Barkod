@@ -12,6 +12,58 @@ interface ProductsPageProps {
   showTotalValue: boolean;
 }
 
+// Yeni modal component
+const ProductDetailModal: React.FC<{
+  product: Product;
+  onClose: () => void;
+}> = ({ product, onClose }) => (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
+      <button
+        onClick={onClose}
+        className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+      >
+        Kapat
+      </button>
+      <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+        Ürün Detayları
+      </h2>
+      <div className="space-y-2">
+        <div>
+          <span className="font-semibold">İsim:</span> {product.name}
+        </div>
+        <div>
+          <span className="font-semibold">Barkod:</span> {product.barcode}
+        </div>
+        <div>
+          <span className="font-semibold">Fiyat:</span> {product.price} ₺
+        </div>
+        <div>
+          <span className="font-semibold">Stok:</span> {product.stock}
+        </div>
+        <div>
+          <span className="font-semibold">Marka:</span> {product.brand}
+        </div>
+        <div>
+          <span className="font-semibold">Kategori:</span> {product.category}
+        </div>
+        <div>
+          <span className="font-semibold">Eklenme Tarihi:</span>{" "}
+          {product.createdAt}
+        </div>
+        <div>
+          <span className="font-semibold">Güncellenme Tarihi:</span>{" "}
+          {product.updatedAt}
+        </div>
+        <div>
+          <span className="font-semibold">Alış Fiyatı:</span>{" "}
+          {product.purchasePrice} ₺
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const ProductsPage: React.FC<ProductsPageProps> = ({
   products,
   onEdit,
@@ -29,6 +81,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const filteredProducts = products
     .filter((product) => {
       const matchesSearch =
@@ -284,17 +337,17 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                       {product.barcode}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mt-3">
+                  <div className="flex flex-col items-end">
                     <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
                       ₺{product.price}
                     </span>
-                    <span className="text-sm px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium">
-                      {product.stock} adet
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Alış: ₺{product.purchasePrice}
                     </span>
                   </div>
                   <div className="flex gap-2 mt-3">
                     <button
-                      onClick={() => onView(product)}
+                      onClick={() => setDetailProduct(product)}
                       className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded py-1 text-xs hover:bg-primary-600 hover:text-white transition-colors"
                     >
                       Görüntüle
@@ -342,6 +395,12 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
           </>
         )}
       </div>
+      {detailProduct && (
+        <ProductDetailModal
+          product={detailProduct}
+          onClose={() => setDetailProduct(null)}
+        />
+      )}
     </div>
   );
 };

@@ -21,6 +21,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
     barcode: prefilledBarcode || "",
     name: "",
     price: "",
+    purchasePrice: "",
     stock: "",
     category: "",
     brand: "",
@@ -32,6 +33,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         barcode: product.barcode,
         name: product.name,
         price: product.price.toString(),
+        purchasePrice: product.purchasePrice?.toString() || "",
         stock: product.stock.toString(),
         category: product.category,
         brand: product.brand,
@@ -49,6 +51,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
       barcode: formData.barcode,
       name: formData.name,
       price: parseFloat(formData.price),
+      purchasePrice: formData.purchasePrice
+        ? parseFloat(formData.purchasePrice)
+        : 0,
       stock: parseInt(formData.stock),
       category: formData.category,
       brand: formData.brand,
@@ -150,6 +155,20 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 placeholder="0"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Alış Fiyatı (₺)
+            </label>
+            <input
+              name="purchasePrice"
+              type="number"
+              value={formData.purchasePrice}
+              onChange={handleChange}
+              placeholder="Alış Fiyatı (₺)"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-lg font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-4"
+            />
           </div>
 
           <div>
