@@ -85,7 +85,11 @@ const PaymentsPage: React.FC = () => {
   React.useEffect(() => {
     paymentService.getAll().then((data: Payment[]) => {
       setPayments(
-        data.map((p, i) => ({ ...p, id: p.id || (p as any)._id || String(i) }))
+        data.map((p, i) => {
+          // @ts-ignore
+          const _id = (p as any)._id;
+          return { ...p, id: p.id || _id || String(i) } as Payment;
+        })
       );
     });
   }, []);
@@ -104,10 +108,11 @@ const PaymentsPage: React.FC = () => {
       }
       paymentService.getAll().then((data: Payment[]) => {
         setPayments(
-          data.map((p, i) => ({
-            ...p,
-            id: p.id || (p as any)._id || String(i),
-          }))
+          data.map((p, i) => {
+            // @ts-ignore
+            const _id = (p as any)._id;
+            return { ...p, id: p.id || _id || String(i) } as Payment;
+          })
         );
       });
     } else {
@@ -119,10 +124,11 @@ const PaymentsPage: React.FC = () => {
       });
       paymentService.getAll().then((data: Payment[]) => {
         setPayments(
-          data.map((p, i) => ({
-            ...p,
-            id: p.id || (p as any)._id || String(i),
-          }))
+          data.map((p, i) => {
+            // @ts-ignore
+            const _id = (p as any)._id;
+            return { ...p, id: p.id || _id || String(i) } as Payment;
+          })
         );
       });
     }

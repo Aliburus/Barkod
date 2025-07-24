@@ -71,6 +71,11 @@ const ProductDetailModal: React.FC<{
           <div>
             <span className="font-semibold">Fiyat:</span> {currentProduct.price}{" "}
             ₺
+            {typeof currentProduct.purchasePrice === "number" && (
+              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                (Alış: {currentProduct.purchasePrice} ₺)
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className="font-semibold">Stok:</span>
