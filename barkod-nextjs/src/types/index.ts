@@ -50,3 +50,15 @@ export interface AccountTransaction {
   type: "borc" | "odeme";
   description?: string;
 }
+
+export interface Payment {
+  id?: string;
+  company?: string;
+  name?: string;
+  amount: number;
+  date: string;
+  isInstallment?: boolean;
+  installmentCount?: number;
+  installmentStart?: string;
+  createdAt?: string;
+}
