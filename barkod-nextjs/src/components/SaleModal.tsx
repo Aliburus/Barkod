@@ -1,9 +1,10 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Product, Sale } from "../types";
 import { ShoppingCart, X, Plus, Minus, Edit2, Check } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { productService } from "../services/productService";
+import { customerService } from "../services/customerService";
 
 interface SaleModalProps {
   product: Product;
@@ -17,6 +18,29 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
   const [stockValue, setStockValue] = useState(product.stock.toString());
   const [loading, setLoading] = useState(false);
   const [currentStock, setCurrentStock] = useState(product.stock);
+  const [paymentType, setPaymentType] = useState<string>("nakit");
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<string>("");
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
+
+  useEffect(() => {
+    customerService.getAll().then(setCustomers);
+  }, []);
+
+  const handleAddCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomer.name.trim()) return;
+    const created = await customerService.create(newCustomer);
+    setCustomers((prev) => [...prev, created]);
+    setSelectedCustomer(created.id);
+    setShowAddCustomer(false);
+    setNewCustomer({ name: "", phone: "", address: "" });
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("tr-TR", {
@@ -88,6 +112,97 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
           </button>
         </div>
         <div className="p-6 overflow-y-auto flex-1">
+          {/* Ürün bilgileri üstüne müşteri ve ödeme tipi seçimi ekle */}
+          <div className="mb-4 flex flex-col gap-2">
+            <div>
+              <span className="font-semibold">Müşteri:</span>
+              <select
+                value={selectedCustomer}
+                onChange={(e) => setSelectedCustomer(e.target.value)}
+                className="ml-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value="">Seçiniz</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => setShowAddCustomer(true)}
+                className="ml-2 px-2 py-1 bg-primary-600 text-white rounded text-xs hover:bg-primary-700"
+              >
+                + Yeni Müşteri
+              </button>
+            </div>
+            <div>
+              <span className="font-semibold">Ödeme Türü:</span>
+              <select
+                value={paymentType}
+                onChange={(e) => setPaymentType(e.target.value)}
+                className="ml-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value="nakit">Nakit</option>
+                <option value="kredi">Kredi Kartı</option>
+                <option value="iban">IBAN</option>
+                <option value="havale">Havale</option>
+              </select>
+            </div>
+          </div>
+          {showAddCustomer && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
+                <button
+                  onClick={() => setShowAddCustomer(false)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  Kapat
+                </button>
+                <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+                  Yeni Müşteri Ekle
+                </h2>
+                <form onSubmit={handleAddCustomer} className="space-y-3">
+                  <input
+                    name="name"
+                    value={newCustomer.name}
+                    onChange={(e) =>
+                      setNewCustomer({ ...newCustomer, name: e.target.value })
+                    }
+                    placeholder="Müşteri Adı"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    required
+                  />
+                  <input
+                    name="phone"
+                    value={newCustomer.phone}
+                    onChange={(e) =>
+                      setNewCustomer({ ...newCustomer, phone: e.target.value })
+                    }
+                    placeholder="Telefon"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <input
+                    name="address"
+                    value={newCustomer.address}
+                    onChange={(e) =>
+                      setNewCustomer({
+                        ...newCustomer,
+                        address: e.target.value,
+                      })
+                    }
+                    placeholder="Adres"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <button
+                    type="submit"
+                    className="w-full bg-primary-600 text-white py-2 rounded hover:bg-primary-700 transition-colors font-semibold"
+                  >
+                    Ekle
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
           {/* Product Info */}
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
             <h3 className="font-semibold text-gray-800 dark:text-white mb-2">
