@@ -8,3 +8,4 @@ login
  kartlamı ödedim
 nakitmi
 ıbanmı
+ödeme sayfası

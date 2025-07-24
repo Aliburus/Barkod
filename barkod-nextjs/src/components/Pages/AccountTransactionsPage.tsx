@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import { Customer, AccountTransaction } from "../../types";
 import {
