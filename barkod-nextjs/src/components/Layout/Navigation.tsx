@@ -7,12 +7,12 @@ import {
   BarChart3,
   User,
   Loader2,
+  CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-
-type Tab = "scanner" | "products" | "sales" | "analytics" | "customers";
+import type { Tab } from "../../app/page";
 
 interface NavigationProps {
   activeTab: Tab;
@@ -51,6 +51,13 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       icon: User,
       color: "text-yellow-600",
       route: "/customers",
+    },
+    {
+      id: "payments" as Tab,
+      label: "Ödemeler",
+      icon: CreditCard,
+      color: "text-pink-600",
+      route: "/payments",
     },
     {
       id: "analytics" as Tab,

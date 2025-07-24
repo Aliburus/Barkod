@@ -12,8 +12,15 @@ import SaleModal from "../components/SaleModal";
 import { productService } from "../services/productService";
 import { Product, Sale, ScanResult } from "../types";
 import ExcelJS from "exceljs";
+import PaymentsPage from "../components/Pages/PaymentsPage";
 
-export type Tab = "scanner" | "products" | "sales" | "analytics";
+export type Tab =
+  | "scanner"
+  | "products"
+  | "sales"
+  | "customers"
+  | "payments"
+  | "analytics";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("scanner");
@@ -222,6 +229,7 @@ export default function Home() {
         {activeTab === "scanner" && (
           <BarcodeScanner onScan={handleScan} isActive={scannerActive} />
         )}
+        {activeTab === "payments" && <PaymentsPage />}
       </main>
       {showProductForm && (
         <ProductForm
