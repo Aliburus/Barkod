@@ -2,14 +2,7 @@
 
 import React, { useState } from "react";
 import { paymentService } from "../../services/paymentService";
-
-interface Payment {
-  id: string;
-  company: string;
-  name: string;
-  amount: number;
-  date: string;
-}
+import { Payment } from "../../types";
 
 interface PaymentForm {
   company: string;
@@ -90,12 +83,9 @@ const PaymentsPage: React.FC = () => {
   ]);
 
   React.useEffect(() => {
-    paymentService.getAll().then((data) => {
+    paymentService.getAll().then((data: Payment[]) => {
       setPayments(
-        data.map((p: any, i: number) => ({
-          ...p,
-          id: p.id || p._id || String(i),
-        }))
+        data.map((p, i) => ({ ...p, id: p.id || (p as any)._id || String(i) }))
       );
     });
   }, []);
@@ -112,11 +102,11 @@ const PaymentsPage: React.FC = () => {
           id: Date.now().toString() + Math.random().toString(36).slice(2),
         });
       }
-      paymentService.getAll().then((data) => {
+      paymentService.getAll().then((data: Payment[]) => {
         setPayments(
-          data.map((p: any, i: number) => ({
+          data.map((p, i) => ({
             ...p,
-            id: p.id || p._id || String(i),
+            id: p.id || (p as any)._id || String(i),
           }))
         );
       });
@@ -127,11 +117,11 @@ const PaymentsPage: React.FC = () => {
         isInstallment: false,
         id: Date.now().toString() + Math.random().toString(36).slice(2),
       });
-      paymentService.getAll().then((data) => {
+      paymentService.getAll().then((data: Payment[]) => {
         setPayments(
-          data.map((p: any, i: number) => ({
+          data.map((p, i) => ({
             ...p,
-            id: p.id || p._id || String(i),
+            id: p.id || (p as any)._id || String(i),
           }))
         );
       });
