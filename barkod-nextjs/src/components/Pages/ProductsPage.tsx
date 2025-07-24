@@ -407,10 +407,11 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
-                      ₺{product.price}
+                      {showTotalValue ? `₺${product.price}` : "***"}
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Alış: ₺{product.purchasePrice}
+                      Alış:{" "}
+                      {showTotalValue ? `₺${product.purchasePrice}` : "***"}
                     </span>
                   </div>
                   <div className="flex gap-2 mt-3">
