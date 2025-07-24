@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Product } from "../types";
+import { Product, Sale } from "../types";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
@@ -16,7 +16,7 @@ export interface SaleCreate {
 export const productService = {
   getAll: async (): Promise<Product[]> => {
     const res = await axios.get(API_URL);
-    return res.data.map((p: any) => ({ ...p, id: p._id }));
+    return res.data.map((p: Product) => ({ ...p, id: p._id || p.id }));
   },
   create: async (
     product: Omit<Product, "id" | "createdAt" | "updatedAt">
@@ -51,11 +51,11 @@ export const productService = {
   createSale: async (sale: SaleCreate): Promise<void> => {
     await axios.post(`${BACKEND_URL}/api/sales`, sale);
   },
-  getAllSales: async (): Promise<any[]> => {
+  getAllSales: async (): Promise<Sale[]> => {
     const res = await axios.get(`${BACKEND_URL}/api/sales`);
-    return res.data.map((s: any) => ({
+    return res.data.map((s: Sale) => ({
       ...s,
-      id: s.id || s._id,
+      id: s._id || s.id,
       total: s.price * s.quantity,
     }));
   },

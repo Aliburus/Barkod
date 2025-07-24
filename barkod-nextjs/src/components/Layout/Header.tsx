@@ -1,7 +1,6 @@
 "use client";
 import React, { useState } from "react";
 import { BarChart3, AlertTriangle, Plus, Eye, EyeOff } from "lucide-react";
-import { useTheme } from "../../contexts/ThemeContext";
 
 interface HeaderProps {
   lowStockCount: number;

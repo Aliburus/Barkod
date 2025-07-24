@@ -103,37 +103,6 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     totalValue: products.reduce((sum, p) => sum + p.price * p.stock, 0),
   };
 
-  // Toplu ürün ekleme fonksiyonu
-  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await file.arrayBuffer());
-    const worksheet = workbook.worksheets[0];
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // başlık satırı
-      const values = Array.isArray(row.values) ? row.values : [];
-      const [barcode, name, price, stock, category, brand] = values.slice(1);
-      if (!barcode || !name) return;
-      onSave({
-        id: "",
-        barcode: typeof barcode === "string" ? barcode : String(barcode),
-        name: typeof name === "string" ? name : String(name),
-        price: parseFloat(
-          price !== undefined && price !== null ? price.toString() : "0"
-        ),
-        stock: parseInt(
-          stock !== undefined && stock !== null ? stock.toString() : "0"
-        ),
-        category: category?.toString() || "",
-        brand: brand?.toString() || "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    });
-    alert("Toplu ürün ekleme tamamlandı!");
-  };
-
   return (
     <div className="space-y-6">
       {/* Stats Cards */}

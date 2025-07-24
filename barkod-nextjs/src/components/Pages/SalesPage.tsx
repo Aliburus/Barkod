@@ -264,7 +264,11 @@ const SalesPage: React.FC<SalesPageProps> = ({
             ].map((period) => (
               <button
                 key={period.value}
-                onClick={() => setSelectedPeriod(period.value as any)}
+                onClick={() =>
+                  setSelectedPeriod(
+                    period.value as "today" | "week" | "month" | "custom"
+                  )
+                }
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   selectedPeriod === period.value
                     ? "bg-primary-600 text-white"
