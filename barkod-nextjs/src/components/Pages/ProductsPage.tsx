@@ -1,7 +1,16 @@
 "use client";
 import React, { useState } from "react";
 import { Product } from "../../types";
-import { Search, Package, AlertTriangle, Grid, List } from "lucide-react";
+import {
+  Search,
+  Package,
+  AlertTriangle,
+  Grid,
+  List,
+  Edit2,
+  Check,
+} from "lucide-react";
+import { productService } from "../../services/productService";
 
 interface ProductsPageProps {
   products: Product[];
@@ -16,53 +25,106 @@ interface ProductsPageProps {
 const ProductDetailModal: React.FC<{
   product: Product;
   onClose: () => void;
-}> = ({ product, onClose }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
-      <button
-        onClick={onClose}
-        className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-      >
-        Kapat
-      </button>
-      <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
-        Ürün Detayları
-      </h2>
-      <div className="space-y-2">
-        <div>
-          <span className="font-semibold">İsim:</span> {product.name}
-        </div>
-        <div>
-          <span className="font-semibold">Barkod:</span> {product.barcode}
-        </div>
-        <div>
-          <span className="font-semibold">Fiyat:</span> {product.price} ₺
-        </div>
-        <div>
-          <span className="font-semibold">Stok:</span> {product.stock}
-        </div>
-        <div>
-          <span className="font-semibold">Marka:</span> {product.brand}
-        </div>
-        <div>
-          <span className="font-semibold">Kategori:</span> {product.category}
-        </div>
-        <div>
-          <span className="font-semibold">Eklenme Tarihi:</span>{" "}
-          {product.createdAt}
-        </div>
-        <div>
-          <span className="font-semibold">Güncellenme Tarihi:</span>{" "}
-          {product.updatedAt}
-        </div>
-        <div>
-          <span className="font-semibold">Alış Fiyatı:</span>{" "}
-          {product.purchasePrice} ₺
+}> = ({ product, onClose }) => {
+  const [editingStock, setEditingStock] = useState(false);
+  const [stockValue, setStockValue] = useState(product.stock.toString());
+  const [loading, setLoading] = useState(false);
+  const [currentProduct, setCurrentProduct] = useState(product);
+
+  const handleStockUpdate = async () => {
+    setLoading(true);
+    const updated = await productService.update(currentProduct.barcode, {
+      stock: parseInt(stockValue),
+    });
+    setCurrentProduct(updated);
+    setEditingStock(false);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative">
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        >
+          Kapat
+        </button>
+        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+          Ürün Detayları
+        </h2>
+        <div className="space-y-2">
+          <div>
+            <span className="font-semibold">İsim:</span> {currentProduct.name}
+          </div>
+          <div>
+            <span className="font-semibold">Barkod:</span>{" "}
+            {currentProduct.barcode}
+          </div>
+          <div>
+            <span className="font-semibold">Fiyat:</span> {currentProduct.price}{" "}
+            ₺
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Stok:</span>
+            {editingStock ? (
+              <>
+                <input
+                  type="number"
+                  value={stockValue}
+                  onChange={(e) => setStockValue(e.target.value)}
+                  className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={loading}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleStockUpdate();
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={handleStockUpdate}
+                  className="ml-1 text-success-600 hover:text-success-800"
+                  disabled={loading}
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                <span>{currentProduct.stock}</span>
+                <button
+                  onClick={() => setEditingStock(true)}
+                  className="ml-1 text-gray-400 hover:text-primary-600"
+                  title="Stok Güncelle"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+          <div>
+            <span className="font-semibold">Marka:</span> {currentProduct.brand}
+          </div>
+          <div>
+            <span className="font-semibold">Kategori:</span>{" "}
+            {currentProduct.category}
+          </div>
+          <div>
+            <span className="font-semibold">Eklenme Tarihi:</span>{" "}
+            {currentProduct.createdAt}
+          </div>
+          <div>
+            <span className="font-semibold">Güncellenme Tarihi:</span>{" "}
+            {currentProduct.updatedAt}
+          </div>
+          <div>
+            <span className="font-semibold">Alış Fiyatı:</span>{" "}
+            {currentProduct.purchasePrice} ₺
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ProductsPage: React.FC<ProductsPageProps> = ({
   products,
