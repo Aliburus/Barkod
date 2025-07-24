@@ -36,7 +36,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       label: "Ürünler",
       icon: Package,
       color: "text-green-600",
-      route: "/",
+      route: "/products",
     },
     {
       id: "sales" as Tab,
@@ -76,9 +76,9 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
   };
 
   return (
-    <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors">
+    <nav className="bg-gray-900 dark:bg-gray-900 shadow-sm border-b border-gray-800 dark:border-gray-800 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="relative flex space-x-8 overflow-x-auto items-center">
+        <div className="relative flex justify-center space-x-8 overflow-x-auto items-center py-2">
           {loading && (
             <div className="absolute left-1/2 -translate-x-1/2 z-10">
               <Loader2 className="animate-spin w-6 h-6 text-primary-600 dark:text-primary-400" />
@@ -86,9 +86,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
           )}
           {tabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive =
-              activeTab === tab.id ||
-              (tab.id === "customers" && pathname === "/customers");
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
@@ -98,15 +96,22 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
                   onTabChange(tab.id);
                   setTimeout(() => setLoading(false), 500);
                 }}
-                className={`flex items-center gap-2 px-3 py-4 text-sm font-medium border-b-[3px] transition-all duration-200 whitespace-nowrap ${
+                className={`flex flex-col items-center gap-1 px-4 py-2 text-xs font-semibold border-b-[3px] transition-all duration-200 whitespace-nowrap rounded-none bg-transparent focus:outline-none focus:ring-0 ${
                   isActive
-                    ? "border-primary-600 dark:border-primary-400 text-primary-600 dark:text-primary-400"
-                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                    ? `border-primary-500 text-white ${tab.color}`
+                    : "border-transparent text-gray-400 hover:text-white hover:border-gray-600"
                 }`}
                 disabled={loading}
+                style={{ minWidth: 80 }}
               >
-                <Icon className={`w-4 h-4 ${isActive ? tab.color : ""}`} />
-                {tab.label}
+                <Icon
+                  className={`w-5 h-5 mb-0.5 ${
+                    isActive ? tab.color + " text-white" : "text-gray-400"
+                  }`}
+                />
+                <span className={isActive ? "text-white" : "text-gray-400"}>
+                  {tab.label}
+                </span>
               </button>
             );
           })}
