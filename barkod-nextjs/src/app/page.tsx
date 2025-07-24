@@ -13,6 +13,7 @@ import { productService } from "../services/productService";
 import { Product, Sale, ScanResult } from "../types";
 import ExcelJS from "exceljs";
 import PaymentsPage from "../components/Pages/PaymentsPage";
+import { Loader2 } from "lucide-react";
 
 export type Tab =
   | "scanner"
@@ -40,10 +41,12 @@ export default function Home() {
   const [scannerActive, setScannerActive] = useState(false);
   const [prefilledBarcode, setPrefilledBarcode] = useState<string>("");
   const [saleQuantity, setSaleQuantity] = useState<number>(1);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const products = await productService.getAll();
         setProducts(Array.isArray(products) ? products : []);
         const sales = await productService.getAllSales();
@@ -51,6 +54,8 @@ export default function Home() {
       } catch (error) {
         setProducts([]);
         setSales([]);
+      } finally {
+        setLoading(false);
       }
     };
     fetchData();
@@ -176,84 +181,92 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <Header
-        lowStockCount={
-          products.filter((p) => p.stock <= 5 && p.stock > 0).length
-        }
-        activeTab={activeTab}
-        onAddProduct={() => {
-          setEditingProduct(null);
-          setShowProductForm(true);
-        }}
-        showTotalValue={activeTab !== "scanner" ? showTotalValue : false}
-        onToggleTotalValue={
-          activeTab !== "scanner" ? handleToggleTotalValue : () => {}
-        }
-        onBulkUpload={handleBulkUpload}
-      />
-      {notification && (
-        <Notification
-          message={notification.message}
-          type={notification.type}
-          onClose={() => setNotification(null)}
-        />
-      )}
-      <Navigation
-        activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab as Tab)}
-      />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === "products" && (
-          <ProductsPage
-            products={products}
-            onEdit={handleEditProduct}
-            onDelete={handleDeleteProduct}
-            onView={setSelectedProduct}
-            showTotalValue={showTotalValue}
+      {loading ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="w-16 h-16 animate-spin text-primary-600 dark:text-primary-400" />
+        </div>
+      ) : (
+        <>
+          <Header
+            lowStockCount={
+              products.filter((p) => p.stock <= 5 && p.stock > 0).length
+            }
+            activeTab={activeTab}
+            onAddProduct={() => {
+              setEditingProduct(null);
+              setShowProductForm(true);
+            }}
+            showTotalValue={activeTab !== "scanner" ? showTotalValue : false}
+            onToggleTotalValue={
+              activeTab !== "scanner" ? handleToggleTotalValue : () => {}
+            }
+            onBulkUpload={handleBulkUpload}
           />
-        )}
-        {activeTab === "sales" && (
-          <SalesPage
-            sales={sales}
-            products={products}
-            showTotalValue={showTotalValue}
+          {notification && (
+            <Notification
+              message={notification.message}
+              type={notification.type}
+              onClose={() => setNotification(null)}
+            />
+          )}
+          <Navigation
+            activeTab={activeTab}
+            onTabChange={(tab) => setActiveTab(tab as Tab)}
           />
-        )}
-        {activeTab === "analytics" && (
-          <AnalyticsPage
-            products={products}
-            sales={sales}
-            showTotalValue={showTotalValue}
-          />
-        )}
-        {activeTab === "scanner" && (
-          <BarcodeScanner onScan={handleScan} isActive={scannerActive} />
-        )}
-        {activeTab === "payments" && <PaymentsPage />}
-      </main>
-      {showProductForm && (
-        <ProductForm
-          product={editingProduct}
-          prefilledBarcode={prefilledBarcode}
-          onSave={handleSaveProduct}
-          onCancel={() => {
-            setShowProductForm(false);
-            setEditingProduct(null);
-            setPrefilledBarcode("");
-            setScannerActive(true);
-          }}
-        />
-      )}
-      {showSaleModal && selectedProduct && (
-        <SaleModal
-          product={selectedProduct}
-          onSale={handleSale}
-          onClose={() => {
-            setShowSaleModal(false);
-            setSelectedProduct(null);
-            setScannerActive(true);
-          }}
-        />
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {activeTab === "products" && (
+              <ProductsPage
+                products={products}
+                onEdit={handleEditProduct}
+                onDelete={handleDeleteProduct}
+                onView={setSelectedProduct}
+                showTotalValue={showTotalValue}
+              />
+            )}
+            {activeTab === "sales" && (
+              <SalesPage
+                sales={sales}
+                products={products}
+                showTotalValue={showTotalValue}
+              />
+            )}
+            {activeTab === "analytics" && (
+              <AnalyticsPage
+                products={products}
+                sales={sales}
+                showTotalValue={showTotalValue}
+              />
+            )}
+            {activeTab === "scanner" && (
+              <BarcodeScanner onScan={handleScan} isActive={scannerActive} />
+            )}
+            {activeTab === "payments" && <PaymentsPage />}
+          </main>
+          {showProductForm && (
+            <ProductForm
+              product={editingProduct}
+              prefilledBarcode={prefilledBarcode}
+              onSave={handleSaveProduct}
+              onCancel={() => {
+                setShowProductForm(false);
+                setEditingProduct(null);
+                setPrefilledBarcode("");
+                setScannerActive(true);
+              }}
+            />
+          )}
+          {showSaleModal && selectedProduct && (
+            <SaleModal
+              product={selectedProduct}
+              onSale={handleSale}
+              onClose={() => {
+                setShowSaleModal(false);
+                setSelectedProduct(null);
+                setScannerActive(true);
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );
