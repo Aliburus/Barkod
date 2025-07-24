@@ -1,3 +1,10 @@
 alış-satış fiyatı
 MALZEME ALDIN, KİMDEN ALDIN, KAÇA ALDIN, ALDIĞIN ÜRÜN FİYATI
 login
+ müşteri için
+ müşteri adı
+ alıştada firmalar için olmalı kime ne borcum var
+ ne ödedim
+ kartlamı ödedim
+nakitmi
+ıbanmı
