@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import { Product } from "../../types";
 import { Search, Package, AlertTriangle, Grid, List } from "lucide-react";
-import ExcelJS from "exceljs";
 
 interface ProductsPageProps {
   products: Product[];
@@ -11,8 +10,6 @@ interface ProductsPageProps {
   onView: (product: Product) => void;
   lowStockThreshold?: number;
   showTotalValue: boolean;
-  onToggleTotalValue: () => void;
-  onSave: (product: Product) => Promise<void>;
 }
 
 const ProductsPage: React.FC<ProductsPageProps> = ({
@@ -22,8 +19,6 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   onView,
   lowStockThreshold = 5,
   showTotalValue,
-  onToggleTotalValue,
-  onSave,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");

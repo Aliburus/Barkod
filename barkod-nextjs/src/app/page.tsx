@@ -208,8 +208,6 @@ export default function Home() {
             onDelete={handleDeleteProduct}
             onView={setSelectedProduct}
             showTotalValue={showTotalValue}
-            onToggleTotalValue={handleToggleTotalValue}
-            onSave={handleSaveProduct}
           />
         )}
         {activeTab === "sales" && (
@@ -224,7 +222,6 @@ export default function Home() {
             products={products}
             sales={sales}
             showTotalValue={showTotalValue}
-            onToggleTotalValue={handleToggleTotalValue}
           />
         )}
         {activeTab === "scanner" && (
