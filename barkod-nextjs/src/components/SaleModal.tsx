@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Product, Sale } from "../types";
+import { Product, Sale, Customer } from "../types";
 import { ShoppingCart, X, Plus, Minus, Edit2, Check } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { productService } from "../services/productService";
@@ -19,7 +19,7 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [currentStock, setCurrentStock] = useState(product.stock);
   const [paymentType, setPaymentType] = useState<string>("nakit");
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
@@ -54,7 +54,10 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
       alert("Yetersiz stok!");
       return;
     }
-
+    if (!selectedCustomer) {
+      alert("Müşteri seçmelisiniz!");
+      return;
+    }
     const sale: Sale = {
       id: uuidv4(),
       barcode: product.barcode,
@@ -63,8 +66,9 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
       price: product.price,
       total: product.price * quantity,
       soldAt: new Date().toISOString(),
+      customer: selectedCustomer,
+      paymentType: paymentType,
     };
-
     onSale(sale);
     onClose();
   };

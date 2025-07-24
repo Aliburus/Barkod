@@ -5,6 +5,7 @@ import { Customer } from "../../types";
 import { customerService } from "../../services/customerService";
 import { AccountTransaction } from "../../types";
 import { accountTransactionService } from "../../services/customerService";
+import { productService } from "../../services/productService";
 
 const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -25,6 +26,7 @@ const CustomersPage: React.FC = () => {
   const [customerColors, setCustomerColors] = useState<{
     [id: string]: string;
   }>({});
+  const [sales, setSales] = useState<any[]>([]);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -61,6 +63,8 @@ const CustomersPage: React.FC = () => {
     setTrxForm({ amount: "", type: "borc", description: "" });
     setTrxModal(true);
     await fetchTransactions(customer.id);
+    const allSales = await productService.getAllSales();
+    setSales(allSales.filter((s) => s.customer === customer.id));
   };
 
   const handleTrxChange = (
@@ -313,6 +317,37 @@ const CustomersPage: React.FC = () => {
                       </span>
                       <span className="text-xs text-gray-400">
                         {new Date(t.date).toLocaleString("tr-TR")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {/* Satış geçmişi */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg shadow p-4 mt-4">
+              <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                Satış Geçmişi
+              </h3>
+              {sales.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-400">Satış yok.</p>
+              ) : (
+                <ul className="divide-y divide-gray-200 dark:divide-gray-700 max-h-48 overflow-y-auto">
+                  {sales.map((s) => (
+                    <li
+                      key={s.id}
+                      className="py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {s.productName}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-300">
+                        {s.quantity} adet
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-300">
+                        {s.paymentType || "-"}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(s.soldAt).toLocaleString("tr-TR")}
                       </span>
                     </li>
                   ))}

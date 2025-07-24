@@ -17,7 +17,15 @@ export async function POST(request) {
   await connectDB();
   try {
     const body = await request.json();
-    const { barcode, quantity, soldAt, price, productName } = body;
+    const {
+      barcode,
+      quantity,
+      soldAt,
+      price,
+      productName,
+      customer,
+      paymentType,
+    } = body;
     const product = await Product.findOne({ barcode });
     if (!product)
       return NextResponse.json({ error: "Ürün bulunamadı" }, { status: 404 });
@@ -25,7 +33,15 @@ export async function POST(request) {
       return NextResponse.json({ error: "Yeterli stok yok" }, { status: 400 });
     product.stock -= quantity;
     await product.save();
-    const sale = new Sale({ barcode, quantity, soldAt, price, productName });
+    const sale = new Sale({
+      barcode,
+      quantity,
+      soldAt,
+      price,
+      productName,
+      customer,
+      paymentType,
+    });
     await sale.save();
     return NextResponse.json(sale, { status: 201 });
   } catch (error) {

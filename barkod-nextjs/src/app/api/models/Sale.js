@@ -6,6 +6,8 @@ const saleSchema = new mongoose.Schema({
   soldAt: { type: Date, required: true },
   price: { type: Number, required: true },
   productName: { type: String, required: true },
+  customer: { type: mongoose.Schema.Types.ObjectId, ref: "Customer" },
+  paymentType: { type: String },
 });
 
 export default mongoose.models.Sale || mongoose.model("Sale", saleSchema);

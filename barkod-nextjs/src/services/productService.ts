@@ -11,6 +11,8 @@ export interface SaleCreate {
   soldAt: string;
   price: number;
   productName: string;
+  customer?: string;
+  paymentType?: string;
 }
 
 export const productService = {

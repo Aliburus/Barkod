@@ -21,6 +21,8 @@ export interface Sale {
   price: number;
   total: number;
   soldAt: string;
+  customer?: string;
+  paymentType?: string;
 }
 
 export interface ScanResult {
