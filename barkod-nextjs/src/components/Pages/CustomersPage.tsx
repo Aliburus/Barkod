@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Customer } from "../../types";
+import { Customer, AccountTransaction, Sale } from "../../types";
 import { customerService } from "../../services/customerService";
-import { AccountTransaction } from "../../types";
 import { accountTransactionService } from "../../services/customerService";
 import { productService } from "../../services/productService";
 
@@ -26,7 +25,7 @@ const CustomersPage: React.FC = () => {
   const [customerColors, setCustomerColors] = useState<{
     [id: string]: string;
   }>({});
-  const [sales, setSales] = useState<any[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
 
   const fetchCustomers = async () => {
     setLoading(true);
