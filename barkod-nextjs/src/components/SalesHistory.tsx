@@ -42,10 +42,6 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
     return format(parseISO(dateStr), "HH:mm", { locale: tr });
   };
 
-  const formatDate = (dateStr: string) => {
-    return format(parseISO(dateStr), "dd MMM yyyy", { locale: tr });
-  };
-
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <div className="flex items-center gap-2 mb-6">

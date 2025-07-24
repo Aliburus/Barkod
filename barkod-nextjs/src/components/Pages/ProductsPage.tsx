@@ -247,7 +247,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
             value={`${sortBy}-${sortOrder}`}
             onChange={(e) => {
               const [field, order] = e.target.value.split("-");
-              setSortBy(field as any);
+              setSortBy(field as "name" | "price" | "stock" | "created");
               setSortOrder(order as "asc" | "desc");
             }}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"

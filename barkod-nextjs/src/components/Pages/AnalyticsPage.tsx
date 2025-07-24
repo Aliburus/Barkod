@@ -21,14 +21,12 @@ interface AnalyticsPageProps {
   products: Product[];
   sales: Sale[];
   showTotalValue: boolean;
-  onToggleTotalValue: () => void;
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   products,
   sales,
   showTotalValue,
-  onToggleTotalValue,
 }) => {
   const years = Array.from(
     new Set(sales.map((sale) => parseISO(sale.soldAt).getFullYear()))

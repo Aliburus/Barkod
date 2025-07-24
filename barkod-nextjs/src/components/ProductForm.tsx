@@ -68,18 +68,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
     });
   };
 
-  const categories = [
-    "Gıda",
-    "İçecek",
-    "Temizlik",
-    "Kişisel Bakım",
-    "Elektronik",
-    "Giyim",
-    "Kitap/Kırtasiye",
-    "Oyuncak",
-    "Diğer",
-  ];
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md">

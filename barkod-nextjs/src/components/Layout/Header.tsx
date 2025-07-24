@@ -20,7 +20,6 @@ const Header: React.FC<HeaderProps> = ({
   onToggleTotalValue,
   onBulkUpload,
 }) => {
-  const { theme, toggleTheme } = useTheme();
   const [showBulkModal, setShowBulkModal] = useState(false);
 
   return (
