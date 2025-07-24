@@ -39,6 +39,7 @@ export interface Customer {
   address?: string;
   createdAt: string;
   updatedAt: string;
+  color?: string;
 }
 
 export interface AccountTransaction {

@@ -44,6 +44,14 @@ const CustomersPage: React.FC = () => {
   useEffect(() => {
     fetchCustomers();
   }, []);
+  // Müşteri renklerini db'den çek
+  useEffect(() => {
+    const colorMap: { [id: string]: string } = {};
+    customers.forEach((c) => {
+      if (c.color) colorMap[c.id] = c.color;
+    });
+    setCustomerColors(colorMap);
+  }, [customers]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -93,6 +101,13 @@ const CustomersPage: React.FC = () => {
     .filter((t) => t.type === "odeme")
     .reduce((sum, t) => sum + t.amount, 0);
   const bakiye = totalBorc - totalOdeme;
+
+  // Renk seçme fonksiyonu
+  const handleColorChange = async (customerId: string, color: string) => {
+    setCustomerColors((prev) => ({ ...prev, [customerId]: color }));
+    await customerService.update(customerId, { color });
+    fetchCustomers();
+  };
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -230,12 +245,7 @@ const CustomersPage: React.FC = () => {
               {["yellow", "red", "blue"].map((color) => (
                 <button
                   key={color}
-                  onClick={() =>
-                    setCustomerColors((prev) => ({
-                      ...prev,
-                      [selectedCustomer.id]: color,
-                    }))
-                  }
+                  onClick={() => handleColorChange(selectedCustomer.id, color)}
                   className={`w-6 h-6 rounded-full border-2 ${
                     color === "yellow"
                       ? "bg-yellow-400 border-yellow-600"

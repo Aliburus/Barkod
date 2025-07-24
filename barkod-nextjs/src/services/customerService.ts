@@ -16,6 +16,10 @@ export const customerService = {
     const c = res.data;
     return { ...c, id: c._id || c.id };
   },
+  update: async (id: string, update: Partial<Customer>) => {
+    const res = await axios.patch("/api/customers", { id, ...update });
+    return res.data;
+  },
 };
 
 export const accountTransactionService = {

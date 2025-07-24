@@ -23,32 +23,30 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="flex flex-col sm:flex-row items-center justify-between h-auto sm:h-16 gap-2 sm:gap-0 py-2 sm:py-0">
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
             <div className="bg-primary-600 p-2 rounded-lg">
               <BarChart3 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
                 StokTak Pro
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                 Barkod & Stok Yönetimi
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">
             {lowStockCount > 0 && (
-              <div className="flex items-center gap-2 bg-warning-50 dark:bg-warning-900/20 px-3 py-2 rounded-md border border-warning-200 dark:border-warning-800">
+              <div className="flex items-center gap-2 bg-warning-50 dark:bg-warning-900/20 px-3 py-2 rounded-md border border-warning-200 dark:border-warning-800 text-xs sm:text-sm">
                 <AlertTriangle className="w-4 h-4 text-warning-600 dark:text-warning-400" />
-                <span className="text-sm text-warning-800 dark:text-warning-300">
+                <span className="text-warning-800 dark:text-warning-300">
                   {lowStockCount} ürün kritik stokta
                 </span>
               </div>
             )}
-            {/* Dark-light mode butonu ve kodları kaldırıldı */}
             <button
               onClick={onToggleTotalValue}
               className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
@@ -64,14 +62,14 @@ const Header: React.FC<HeaderProps> = ({
               <>
                 <button
                   onClick={onAddProduct}
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium"
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-3 sm:px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium text-xs sm:text-base"
                 >
                   <Plus className="w-4 h-4" />
                   Ürün Ekle
                 </button>
                 <button
                   onClick={() => setShowBulkModal(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium cursor-pointer ml-2"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium text-xs sm:text-base ml-0 sm:ml-2"
                 >
                   Toplu Ürün Ekle
                 </button>
