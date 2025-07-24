@@ -86,7 +86,7 @@ const PaymentsPage: React.FC = () => {
     paymentService.getAll().then((data: Payment[]) => {
       setPayments(
         data.map((p, i) => {
-          // @ts-expect-error
+          // @ts-expect-error mongo _id alanı için
           const _id: string = p._id;
           return { ...p, id: p.id || _id || String(i) } as Payment;
         })
@@ -109,7 +109,7 @@ const PaymentsPage: React.FC = () => {
       paymentService.getAll().then((data: Payment[]) => {
         setPayments(
           data.map((p, i) => {
-            // @ts-expect-error
+            // @ts-expect-error mongo _id alanı için
             const _id: string = p._id;
             return { ...p, id: p.id || _id || String(i) } as Payment;
           })
@@ -125,7 +125,7 @@ const PaymentsPage: React.FC = () => {
       paymentService.getAll().then((data: Payment[]) => {
         setPayments(
           data.map((p, i) => {
-            // @ts-expect-error
+            // @ts-expect-error mongo _id alanı için
             const _id: string = p._id;
             return { ...p, id: p.id || _id || String(i) } as Payment;
           })
