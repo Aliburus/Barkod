@@ -116,101 +116,122 @@ const CustomersPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-4"
-      >
-        <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">
-          Müşteri Ekle
-        </h2>
-        <input
-          name="name"
-          value={form.name}
-          onChange={handleChange}
-          placeholder="Müşteri Adı"
-          className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-          required
-        />
-        <input
-          name="phone"
-          value={form.phone}
-          onChange={handleChange}
-          placeholder="Telefon"
-          className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-        />
-        <input
-          name="address"
-          value={form.address}
-          onChange={handleChange}
-          placeholder="Adres"
-          className="w-full px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-        />
-        <button
-          type="submit"
-          className="w-full bg-primary-600 text-white py-2 rounded hover:bg-primary-700 transition-colors font-semibold text-sm"
-          disabled={loading}
+    <div className="max-w-5xl mx-auto px-2 sm:px-4 lg:px-8 mt-4">
+      {/* Üstte yatay ekleme alanı */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-2 mb-4 flex flex-wrap gap-4 items-center">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-wrap gap-2 items-end w-full"
         >
-          {loading ? "Ekleniyor..." : "Müşteri Ekle"}
-        </button>
-      </form>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
-          Müşteri Listesi
-        </h3>
-        {customers.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400">
-            Kayıtlı müşteri yok.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {customers.map((c) => (
-              <li
-                key={c.id}
-                className={`flex items-center justify-between rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3 bg-white/80 dark:bg-gray-800/80 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors group ${
-                  c.color ? "bg-yellow-100 dark:bg-yellow-900/20" : ""
-                }`}
-                style={{ cursor: "pointer" }}
-                onClick={() => openCustomerDetail(c)}
-              >
-                <div className="flex items-center gap-2 w-40">
-                  {c.color && (
-                    <span
-                      className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${
-                        c.color === "yellow"
-                          ? "bg-yellow-400"
-                          : c.color === "red"
-                          ? "bg-red-500"
-                          : c.color === "blue"
-                          ? "bg-blue-500"
-                          : ""
-                      }`}
-                    ></span>
-                  )}
-                  <span className="font-semibold text-gray-900 dark:text-white truncate">
-                    {c.name}
-                  </span>
-                </div>
-                <span className="text-sm text-gray-500 dark:text-gray-300 w-32 truncate">
-                  {c.phone}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-300 w-40 truncate flex items-center justify-end">
-                  {c.address}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteCustomer(c.id);
-                    }}
-                    className="ml-2 flex items-center justify-center text-red-600 hover:text-red-800 transition-colors opacity-80 group-hover:opacity-100"
-                    title="Sil"
+          <div className="flex flex-col">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Müşteri Adı
+            </label>
+            <input
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              placeholder="Müşteri Adı"
+              className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              required
+            />
+          </div>
+          <div className="flex flex-col">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Telefon
+            </label>
+            <input
+              name="phone"
+              value={form.phone}
+              onChange={handleChange}
+              placeholder="Telefon"
+              className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <div className="flex flex-col flex-1 min-w-[120px]">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Adres
+            </label>
+            <input
+              name="address"
+              value={form.address}
+              onChange={handleChange}
+              placeholder="Adres"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors font-semibold text-sm flex items-center gap-2"
+            disabled={loading}
+          >
+            {loading ? "Ekleniyor..." : "Müşteri Ekle"}
+          </button>
+        </form>
+      </div>
+      {/* Altta yatay müşteri listesi */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0 w-full">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm align-middle">
+            <thead>
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                  Adı
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                  Telefon
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                  Adres
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                  İşlemler
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="text-center py-8 text-gray-500 dark:text-gray-400"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+                    Kayıtlı müşteri yok
+                  </td>
+                </tr>
+              ) : (
+                customers.map((c) => (
+                  <tr
+                    key={c.id}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <td
+                      className="px-4 py-2 text-sm text-primary-600 underline cursor-pointer font-semibold"
+                      onClick={() => openCustomerDetail(c)}
+                    >
+                      {c.name}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-300">
+                      {c.phone || "-"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-300">
+                      {c.address || "-"}
+                    </td>
+                    <td className="px-4 py-2 text-sm">
+                      <button
+                        onClick={() => handleDeleteCustomer(c.id)}
+                        className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors flex items-center gap-1"
+                        title="Sil"
+                      >
+                        <Trash2 className="w-4 h-4" /> Sil
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
       {trxModal && selectedCustomer && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">

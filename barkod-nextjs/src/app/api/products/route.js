@@ -24,7 +24,7 @@ export async function GET(request) {
         ],
       };
     }
-    const products = await Product.find(query).skip(skip).limit(limit);
+    const products = await Product.find(query).sort({ createdAt: -1 });
     return NextResponse.json(products);
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -35,8 +35,29 @@ export async function POST(request) {
   await connectDB();
   try {
     const body = await request.json();
-    const { barcode, name, price, stock, category, brand, purchasePrice } =
-      body;
+    console.log("POST gelen body:", body);
+    const {
+      barcode,
+      name,
+      price,
+      stock,
+      category,
+      brand,
+      purchasePrice,
+      supplier,
+      oem,
+      kod1,
+      kod2,
+      usedCars,
+    } = body;
+    console.log("POST gelen supplier:", supplier);
+    let supplierArr = supplier;
+    if (typeof supplier === "string") {
+      supplierArr = [supplier];
+    }
+    if (!Array.isArray(supplierArr)) {
+      supplierArr = [];
+    }
     const product = new Product({
       barcode,
       name,
@@ -45,6 +66,11 @@ export async function POST(request) {
       category,
       brand,
       purchasePrice,
+      supplier: supplierArr,
+      oem,
+      kod1,
+      kod2,
+      usedCars,
     });
     await product.save();
     return NextResponse.json(product, { status: 201 });

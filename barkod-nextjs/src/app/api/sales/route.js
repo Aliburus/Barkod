@@ -61,3 +61,17 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
+
+export async function PATCH(request) {
+  await connectDB();
+  try {
+    const body = await request.json();
+    const { id, ...updates } = body;
+    const sale = await Sale.findByIdAndUpdate(id, updates, { new: true });
+    if (!sale)
+      return NextResponse.json({ error: "Satış bulunamadı" }, { status: 404 });
+    return NextResponse.json(sale);
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+}

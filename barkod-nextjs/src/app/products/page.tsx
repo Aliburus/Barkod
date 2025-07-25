@@ -91,8 +91,17 @@ export default function Page() {
           product={editingProduct}
           prefilledBarcode={prefilledBarcode}
           onSave={async (product) => {
+            console.log("onSave gelen product:", product);
             try {
-              const response = await productService.create(product);
+              let response;
+              if (editingProduct && editingProduct.barcode) {
+                response = await productService.update(
+                  editingProduct.barcode,
+                  product
+                );
+              } else {
+                response = await productService.create(product);
+              }
               if (!response || !response.id) {
                 throw new Error("Ürün eklenemedi, backend response hatası");
               }

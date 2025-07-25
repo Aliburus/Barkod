@@ -10,6 +10,11 @@ export interface Product {
   brand: string;
   createdAt: string;
   updatedAt: string;
+  supplier?: string[];
+  oem?: string;
+  kod1?: string;
+  kod2?: string;
+  usedCars?: string[];
 }
 
 export interface Sale {

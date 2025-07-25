@@ -66,45 +66,44 @@ const GiderlerPage: React.FC<GiderlerPageProps> = ({
     <div className="min-h-screen bg-white dark:bg-gray-900">
       <Header activeTab="giderler" lowStockCount={0} onAddProduct={() => {}} />
       <Navigation activeTab="giderler" onTabChange={() => {}} />
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-          Gider Ekle
-        </h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Sol: Ekleme Formu */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">
-                Tutar <span className="text-red-500">*</span>
+      <main className="max-w-5xl mx-auto px-2 sm:px-4 lg:px-8 mt-4">
+        {/* Üstte yatay ekleme alanı */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-2 mb-4 flex flex-wrap gap-4 items-center">
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-wrap gap-2 items-end w-full"
+          >
+            <div className="flex flex-col">
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Tutar *
               </label>
               <input
                 type="number"
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 text-gray-900 dark:text-white outline-none"
+                className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 required
                 min={0}
-                placeholder="Tutar giriniz"
+                placeholder="Tutar"
               />
             </div>
-            <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">
+            <div className="flex flex-col flex-1 min-w-[120px]">
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Açıklama
               </label>
-              <textarea
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 text-gray-900 dark:text-white outline-none resize-none"
+              <input
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
                 placeholder="Açıklama (opsiyonel)"
-                rows={2}
               />
             </div>
-            <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">
+            <div className="flex flex-col">
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Tekrar Sıklığı
               </label>
               <select
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 text-gray-900 dark:text-white outline-none"
+                className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value)}
               >
@@ -115,13 +114,13 @@ const GiderlerPage: React.FC<GiderlerPageProps> = ({
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">
-                Ödeme Tarihi <span className="text-red-500">*</span>
+            <div className="flex flex-col">
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Ödeme Tarihi *
               </label>
               <input
                 type="date"
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 text-gray-900 dark:text-white outline-none"
+                className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
                 required
@@ -129,67 +128,85 @@ const GiderlerPage: React.FC<GiderlerPageProps> = ({
             </div>
             <button
               type="submit"
-              className="w-full py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors"
+              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors font-semibold text-sm flex items-center gap-2"
               disabled={!amount || !paymentDate}
             >
               Kaydet
             </button>
           </form>
-          {/* Sağ: Liste */}
-          <div className="flex flex-col h-[400px] md:h-auto max-h-[60vh] bg-gray-50 dark:bg-gray-900 rounded-lg shadow-inner overflow-y-auto p-4">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
-              Giderler Listesi
-            </h2>
-            {aktifGiderler.length === 0 ? (
-              <div className="text-gray-500 dark:text-gray-400">
-                Henüz gider eklenmedi.
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {aktifGiderler.map((gider) => (
-                  <li
-                    key={gider.id || gider._id || Math.random()}
-                    className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl px-6 py-3 shadow hover:shadow-lg transition-shadow cursor-pointer border border-gray-200 dark:border-gray-700"
-                    onClick={() => {
-                      setSelectedGider(gider);
-                      setShowDetail(true);
-                    }}
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-bold text-blue-700 dark:text-blue-300 text-base mb-1">
-                        {gider.desc ? gider.desc : "Gider"}
-                      </span>
-                      <span className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                        ₺{gider.amount}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {gider.frequency ? `Sıklık: ${gider.frequency}` : ""}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {gider.paymentDate
-                          ? `Ödeme Tarihi: ${new Date(
-                              gider.paymentDate
-                            ).toLocaleDateString("tr-TR", {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })}`
-                          : ""}
-                      </span>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(gider.id || gider._id || "");
-                      }}
-                      className="ml-4 px-2 py-1 rounded bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors"
+        </div>
+        {/* Altta yatay gider listesi */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0 w-full">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm align-middle">
+              <thead>
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                    Açıklama
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                    Tutar
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                    Sıklık
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                    Ödeme Tarihi
+                  </th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                    İşlemler
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {aktifGiderler.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="text-center py-8 text-gray-500 dark:text-gray-400"
                     >
-                      Sil
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+                      Henüz gider eklenmedi.
+                    </td>
+                  </tr>
+                ) : (
+                  aktifGiderler.map((gider) => (
+                    <tr
+                      key={gider.id || gider._id || Math.random()}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <td className="px-4 py-2 text-sm text-gray-900 dark:text-white font-semibold">
+                        {gider.desc || "Gider"}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-blue-700 dark:text-blue-300 font-bold">
+                        ₺{gider.amount}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-300">
+                        {gider.frequency || "-"}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-300">
+                        {gider.paymentDate
+                          ? new Date(gider.paymentDate).toLocaleDateString(
+                              "tr-TR",
+                              { year: "numeric", month: "long", day: "numeric" }
+                            )
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <button
+                          onClick={() =>
+                            handleDelete(gider.id || gider._id || "")
+                          }
+                          className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors flex items-center gap-1"
+                          title="Sil"
+                        >
+                          Sil
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </main>

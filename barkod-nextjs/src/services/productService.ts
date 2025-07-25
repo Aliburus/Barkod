@@ -17,13 +17,14 @@ export interface SaleCreate {
 
 export const productService = {
   getAll: async (): Promise<Product[]> => {
-    const res = await axios.get(`${API_URL}/api/products`);
+    const res = await axios.get(API_URL);
     return res.data.map((p: Product) => ({ ...p, id: p._id || p.id }));
   },
   create: async (product: Product): Promise<Product> => {
     try {
       const res = await axios.post(API_URL, {
         ...product,
+        supplier: product.supplier ?? [],
         purchasePrice: product.purchasePrice ?? 0,
         createdAt: product.createdAt ?? new Date().toISOString(),
         updatedAt: product.updatedAt ?? new Date().toISOString(),
@@ -38,11 +39,17 @@ export const productService = {
         typeof (error as { response?: { data?: { error?: string } } }).response
           ?.data?.error === "string"
       ) {
-        throw new Error(
-          (
-            error as { response: { data: { error: string } } }
-          ).response.data.error
-        );
+        const errMsg = (error as { response: { data: { error: string } } })
+          .response.data.error;
+        if (
+          errMsg.includes("duplicate key error") &&
+          errMsg.includes("barcode")
+        ) {
+          throw new Error(
+            "Aynı barkod ile ürün eklenemez. Lütfen farklı bir barkod girin."
+          );
+        }
+        throw new Error(errMsg);
       }
       throw error;
     }
@@ -62,7 +69,10 @@ export const productService = {
     barcode: string,
     updates: Partial<Product>
   ): Promise<Product> => {
-    const res = await axios.patch(`${API_URL}/${barcode}`, updates);
+    const res = await axios.patch(`${API_URL}/${barcode}`, {
+      ...updates,
+      supplier: updates.supplier ?? "",
+    });
     const p = res.data;
     return { ...p, id: p._id };
   },
@@ -101,5 +111,15 @@ export const productService = {
     await axios.patch(`${BACKEND_URL}/api/sales/by-barcode/${barcode}`, {
       status: "deleted",
     });
+  },
+};
+
+export const salesService = {
+  update: async (id: string, updates: Partial<Sale>): Promise<Sale> => {
+    const res = await axios.patch(`${BACKEND_URL}/api/sales`, {
+      id,
+      ...updates,
+    });
+    return res.data;
   },
 };

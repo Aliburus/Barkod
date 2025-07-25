@@ -27,7 +27,8 @@ export type Tab =
   | "payments"
   | "analytics"
   | "kasa"
-  | "giderler";
+  | "giderler"
+  | "companies";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("scanner");
