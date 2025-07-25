@@ -17,15 +17,7 @@ interface Company {
 
 const dummyStorageKey = "companies";
 
-const getCompanies = (): Company[] => {
-  if (typeof window === "undefined") return [];
-  const data = localStorage.getItem(dummyStorageKey);
-  return data ? JSON.parse(data) : [];
-};
-const saveCompanies = (companies: Company[]) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(dummyStorageKey, JSON.stringify(companies));
-};
+// Kullanılmayan fonksiyonlar kaldırıldı
 
 const CompaniesPage: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);

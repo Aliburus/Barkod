@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useMemo, memo } from "react";
 import { Product } from "../../types";
-import { Search, Package, AlertTriangle, Grid, List } from "lucide-react";
+import { Search } from "lucide-react";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 import { companyService } from "../../services/companyService";
@@ -251,7 +251,9 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   const router = useRouter();
   const getCompanyName = (id: string | undefined) => {
     if (!id) return "-";
-    const found = companies.find((c: any) => c._id === id);
+    const found = companies.find(
+      (c: { _id: string; name: string }) => c._id === id
+    );
     return found ? found.name : id;
   };
 

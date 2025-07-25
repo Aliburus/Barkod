@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Building2, Phone, MapPin, ArrowLeft, X } from "lucide-react";
+import { Building2, Phone, MapPin, X } from "lucide-react";
 import { companyService } from "../../../services/companyService";
 import { productService } from "../../../services/productService";
 import { paymentService } from "../../../services/paymentService";

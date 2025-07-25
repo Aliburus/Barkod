@@ -1,10 +1,9 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Product } from "../types";
-import { Save, X, Package } from "lucide-react";
+import { Save, Plus } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { companyService } from "../services/companyService";
-import { Plus } from "lucide-react";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -94,13 +93,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
     companyService.getAll().then(setCompanies);
   };
 
-  const handleCompanyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const options = Array.from(
-      e.target.selectedOptions,
-      (option) => option.value
-    );
-    setSelectedCompanies(options);
-  };
+  // Kullanılmayan fonksiyon kaldırıldı
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

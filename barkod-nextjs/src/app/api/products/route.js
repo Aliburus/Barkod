@@ -6,8 +6,7 @@ export async function GET(request) {
   await connectDB();
   const { searchParams } = new URL(request.url);
   const barcode = searchParams.get("barcode");
-  const limit = parseInt(searchParams.get("limit")) || 20;
-  const skip = parseInt(searchParams.get("skip")) || 0;
+  // limit ve skip kullanılmıyor - kaldırıldı
   const search = searchParams.get("search");
   try {
     if (barcode) {

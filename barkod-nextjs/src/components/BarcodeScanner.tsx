@@ -45,7 +45,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
             }
           }
         );
-      } catch (err) {
+      } catch {
         setIsScanning(false);
       }
     },

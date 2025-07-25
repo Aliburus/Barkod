@@ -27,7 +27,7 @@ const GiderlerPage: React.FC<GiderlerPageProps> = ({
   const [desc, setDesc] = useState("");
   const [frequency, setFrequency] = useState("tek");
   const [paymentDate, setPaymentDate] = useState("");
-  const [selectedGider, setSelectedGider] = useState<Expense | null>(null);
+  const [selectedGider] = useState<Expense | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {

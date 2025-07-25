@@ -74,7 +74,7 @@ const PaymentsPage: React.FC = () => {
   ) => {
     const { name, value, type } = e.target;
     setForm((prev) => {
-      let next = {
+      const next = {
         ...prev,
         [name]:
           type === "checkbox" && e.target instanceof HTMLInputElement

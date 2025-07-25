@@ -1,5 +1,5 @@
 import dbConnect from "../utils/db";
-const Company = require("../models/Company");
+import Company from "../models/Company.js";
 
 export async function GET() {
   await dbConnect();

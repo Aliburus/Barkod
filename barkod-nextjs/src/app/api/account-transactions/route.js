@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "../utils/db";
 import AccountTransaction from "../models/AccountTransaction";
-import Customer from "../models/Customer";
+// Customer import kaldırıldı - kullanılmıyor
 
 export async function GET(req) {
   await connectDB();

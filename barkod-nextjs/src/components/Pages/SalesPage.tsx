@@ -1,13 +1,7 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { Sale, Product } from "../../types";
-import {
-  BarChart3,
-  Package,
-  AlertTriangle,
-  Download,
-  Trash2,
-} from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { parseISO, format } from "date-fns";
 import ExcelJS from "exceljs";
 import { productService } from "../../services/productService";
@@ -283,7 +277,11 @@ const SalesPage: React.FC<SalesPageProps> = ({
         />
         <select
           value={selectedPeriod}
-          onChange={(e) => setSelectedPeriod(e.target.value as any)}
+          onChange={(e) =>
+            setSelectedPeriod(
+              e.target.value as "all" | "today" | "week" | "month" | "custom"
+            )
+          }
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
         >
           <option value="all">Tümü</option>
