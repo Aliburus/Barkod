@@ -43,7 +43,16 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       setDevices(videoDevices);
 
       if (videoDevices.length > 0) {
-        const deviceId = selectedDevice || videoDevices[0].deviceId;
+        let deviceId = selectedDevice;
+        // Mobilde arka kamerayı otomatik seç
+        if (!deviceId) {
+          const backCam = videoDevices.find(
+            (d) =>
+              d.label.toLowerCase().includes("back") ||
+              d.label.toLowerCase().includes("environment")
+          );
+          deviceId = backCam ? backCam.deviceId : videoDevices[0].deviceId;
+        }
         setSelectedDevice(deviceId);
         startScanning(deviceId);
       }
@@ -68,7 +77,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
               text: result.getText(),
               format: result.getBarcodeFormat().toString(),
             });
-            setTimeout(() => stopScanning(), 300); // Kısa gecikme ile taramayı durdur
+            // Sadece bir kez çalışacak şekilde, gereksiz tekrarları önle
+            if (scanLocked === false) {
+              setTimeout(() => stopScanning(), 300);
+            }
           }
         }
       );

@@ -1,12 +1,13 @@
 import axios from "axios";
 import { Customer, AccountTransaction } from "../types";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const CUSTOMER_API = "/api/customers";
 const TRANSACTION_API = "/api/account-transactions";
 
 export const customerService = {
   getAll: async (): Promise<Customer[]> => {
-    const res = await axios.get(CUSTOMER_API);
+    const res = await axios.get(`${API_URL}/api/customers`);
     return res.data.map((c: Customer) => ({ ...c, id: c._id || c.id }));
   },
   create: async (
@@ -19,6 +20,9 @@ export const customerService = {
   update: async (id: string, update: Partial<Customer>) => {
     const res = await axios.patch("/api/customers", { id, ...update });
     return res.data;
+  },
+  delete: async (id: string): Promise<void> => {
+    await axios.delete(`/api/customers/${id}`);
   },
 };
 

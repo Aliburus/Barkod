@@ -1,13 +1,11 @@
 "use client";
 import React, { useState } from "react";
-import { BarChart3, AlertTriangle, Plus, Eye, EyeOff } from "lucide-react";
+import { BarChart3, AlertTriangle, Plus } from "lucide-react";
 
 interface HeaderProps {
   lowStockCount: number;
   activeTab: string;
   onAddProduct: () => void;
-  showTotalValue: boolean;
-  onToggleTotalValue: () => void;
   onBulkUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -15,8 +13,6 @@ const Header: React.FC<HeaderProps> = ({
   lowStockCount,
   activeTab,
   onAddProduct,
-  showTotalValue,
-  onToggleTotalValue,
   onBulkUpload,
 }) => {
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -47,17 +43,6 @@ const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
             )}
-            <button
-              onClick={onToggleTotalValue}
-              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              title={showTotalValue ? "Değerleri Gizle" : "Değerleri Göster"}
-            >
-              {showTotalValue ? (
-                <Eye className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-              ) : (
-                <EyeOff className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-              )}
-            </button>
             {activeTab === "products" && (
               <>
                 <button

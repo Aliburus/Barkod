@@ -7,6 +7,7 @@ import { accountTransactionService } from "../../services/customerService";
 import { productService } from "../../services/productService";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
+import { Trash2 } from "lucide-react";
 
 const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -115,15 +116,20 @@ const CustomersPage: React.FC = () => {
     fetchCustomers();
   };
 
+  const handleDeleteCustomer = async (id: string) => {
+    await customerService.delete(id);
+    fetchCustomers();
+  };
+
   return (
-    <div className="max-w-2xl mx-auto p-2 sm:p-4">
-      <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-        Müşteriler
-      </h2>
+    <div className="max-w-6xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
       <form
         onSubmit={handleSubmit}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6 space-y-4"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-4"
       >
+        <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">
+          Müşteri Ekle
+        </h2>
         <input
           name="name"
           value={form.name}
@@ -163,11 +169,11 @@ const CustomersPage: React.FC = () => {
             Kayıtlı müşteri yok.
           </p>
         ) : (
-          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+          <ul className="space-y-3">
             {customers.map((c) => (
-              <div
+              <li
                 key={c.id}
-                className={`grid grid-cols-1 sm:grid-cols-3 gap-2 items-center py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors ${
+                className={`flex items-center justify-between rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3 bg-white/80 dark:bg-gray-800/80 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors group ${
                   customerColors[c.id] === "yellow"
                     ? "bg-yellow-100 dark:bg-yellow-900/20"
                     : customerColors[c.id] === "red"
@@ -176,13 +182,13 @@ const CustomersPage: React.FC = () => {
                     ? "bg-blue-100 dark:bg-blue-900/20"
                     : ""
                 }`}
+                style={{ cursor: "pointer" }}
                 onClick={() => openCustomerDetail(c)}
               >
-                <div className="flex items-center gap-2">
-                  {/* Renkli badge */}
+                <div className="flex items-center gap-2 w-40">
                   {customerColors[c.id] && (
                     <span
-                      className={`inline-block w-3 h-3 rounded-full border border-gray-300 mr-1 ${
+                      className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${
                         customerColors[c.id] === "yellow"
                           ? "bg-yellow-400"
                           : customerColors[c.id] === "red"
@@ -193,30 +199,34 @@ const CustomersPage: React.FC = () => {
                       }`}
                     ></span>
                   )}
-                  <span className="font-medium text-gray-900 dark:text-white">
+                  <span className="font-semibold text-gray-900 dark:text-white truncate">
                     {c.name}
                   </span>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-gray-500 dark:text-gray-300 w-32 truncate">
                   {c.phone}
                 </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-gray-500 dark:text-gray-300 w-40 truncate flex items-center justify-end">
                   {c.address}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteCustomer(c.id);
+                    }}
+                    className="ml-2 flex items-center justify-center text-red-600 hover:text-red-800 transition-colors opacity-80 group-hover:opacity-100"
+                    title="Sil"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </span>
-              </div>
+              </li>
             ))}
           </ul>
         )}
       </div>
       {trxModal && selectedCustomer && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 sm:p-4"
-          onClick={() => setTrxModal(false)}
-        >
-          <div
-            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-xs sm:max-w-md p-1 sm:p-6 relative text-xs sm:text-base"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setTrxModal(false)}
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"

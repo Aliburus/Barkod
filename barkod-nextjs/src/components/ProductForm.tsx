@@ -26,26 +26,38 @@ const ProductForm: React.FC<ProductFormProps> = ({
     category: "",
     brand: "",
   });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (product) {
       setFormData({
         barcode: product.barcode,
         name: product.name,
-        price: product.price.toString(),
-        purchasePrice: product.purchasePrice?.toString() || "",
-        stock: product.stock.toString(),
+        price:
+          product.price !== undefined && product.price !== null
+            ? product.price.toString()
+            : "",
+        purchasePrice:
+          product.purchasePrice !== undefined && product.purchasePrice !== null
+            ? product.purchasePrice.toString()
+            : "",
+        stock:
+          product.stock !== undefined && product.stock !== null
+            ? product.stock.toString()
+            : "",
         category: product.category,
         brand: product.brand,
       });
     } else if (prefilledBarcode) {
       setFormData((prev) => ({ ...prev, barcode: prefilledBarcode }));
+    } else {
+      setFormData((prev) => ({ ...prev, barcode: "" }));
     }
   }, [product, prefilledBarcode]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    setLoading(true);
     const productData: Product = {
       id: product?.id || uuidv4(),
       barcode: formData.barcode,
@@ -60,8 +72,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
       createdAt: product?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-
-    onSave(productData);
+    await onSave(productData);
+    setLoading(false);
   };
 
   const handleChange = (
@@ -75,7 +87,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-blue-600" />
@@ -202,10 +214,13 @@ const ProductForm: React.FC<ProductFormProps> = ({
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+              disabled={loading}
+              className={`flex-1 bg-blue-600 text-white py-2 px-4 rounded-md transition-colors font-medium flex items-center justify-center gap-2 ${
+                loading ? "opacity-60 cursor-not-allowed" : "hover:bg-blue-700"
+              }`}
             >
               <Save className="w-4 h-4" />
-              {product ? "Güncelle" : "Kaydet"}
+              {loading ? "Kaydediliyor..." : product ? "Güncelle" : "Kaydet"}
             </button>
             <button
               type="button"

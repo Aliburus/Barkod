@@ -15,7 +15,11 @@ interface SaleModalProps {
 const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
   const [quantity, setQuantity] = useState(1);
   const [editingStock, setEditingStock] = useState(false);
-  const [stockValue, setStockValue] = useState(product.stock.toString());
+  const [stockValue, setStockValue] = useState(
+    product.stock !== undefined && product.stock !== null
+      ? product.stock.toString()
+      : ""
+  );
   const [loading, setLoading] = useState(false);
   const [currentStock, setCurrentStock] = useState(product.stock);
   const [paymentType, setPaymentType] = useState<string>("nakit");
@@ -98,7 +102,7 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div
-        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md max-h-[calc(100vh-64px)] flex flex-col"
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative max-h-[90vh] overflow-y-auto flex flex-col"
         style={{ marginTop: 32, marginBottom: 32 }}
       >
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -117,42 +121,6 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
         </div>
         <div className="p-6 overflow-y-auto flex-1">
           {/* Ürün bilgileri üstüne müşteri ve ödeme tipi seçimi ekle */}
-          <div className="mb-4 flex flex-col gap-2">
-            <div>
-              <span className="font-semibold">Müşteri:</span>
-              <select
-                value={selectedCustomer}
-                onChange={(e) => setSelectedCustomer(e.target.value)}
-                className="ml-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="">Seçiniz</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => setShowAddCustomer(true)}
-                className="ml-2 px-2 py-1 bg-primary-600 text-white rounded text-xs hover:bg-primary-700"
-              >
-                + Yeni Müşteri
-              </button>
-            </div>
-            <div>
-              <span className="font-semibold">Ödeme Türü:</span>
-              <select
-                value={paymentType}
-                onChange={(e) => setPaymentType(e.target.value)}
-                className="ml-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="nakit">Nakit</option>
-                <option value="kredi">Kredi Kartı</option>
-                <option value="iban">IBAN</option>
-                <option value="havale">Havale</option>
-              </select>
-            </div>
-          </div>
           {showAddCustomer && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
               <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative">
@@ -207,55 +175,118 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
               </div>
             </div>
           )}
-          {/* Product Info */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-gray-800 dark:text-white mb-2">
-              {product.name}
-            </h3>
-            <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-              <p>Barkod: {product.barcode}</p>
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1">
-                {formatPrice(product.price)}
+          {/* Müşteri ve ödeme tipi seçimi */}
+          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Müşteri
+              </label>
+              <div className="flex gap-2">
+                <select
+                  value={selectedCustomer}
+                  onChange={(e) => setSelectedCustomer(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="">Müşteri seçin</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomer(true)}
+                  className="px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 text-xs"
+                >
+                  + Yeni
+                </button>
               </div>
-              <p className="flex items-center gap-1">
-                Mevcut Stok:{" "}
-                {editingStock ? (
-                  <>
-                    <input
-                      type="number"
-                      value={stockValue}
-                      onChange={(e) => setStockValue(e.target.value)}
-                      className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      disabled={loading}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleStockUpdate();
-                      }}
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleStockUpdate}
-                      className="ml-1 text-success-600 hover:text-success-800"
-                      disabled={loading}
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {currentStock} adet
-                    <button
-                      onClick={() => setEditingStock(true)}
-                      className="ml-1 text-gray-400 hover:text-primary-600"
-                      title="Stok Güncelle"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-              </p>
-              {product.brand && <p>Marka: {product.brand}</p>}
-              {product.category && <p>Kategori: {product.category}</p>}
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Ödeme Türü
+              </label>
+              <select
+                value={paymentType}
+                onChange={(e) => setPaymentType(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value="nakit">Nakit</option>
+                <option value="kredi kartı">Kredi Kartı</option>
+                <option value="havale">Havale/EFT</option>
+                <option value="diğer">Diğer</option>
+              </select>
+            </div>
+          </div>
+          {/* Product Info */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 mb-6 border border-gray-200 dark:border-gray-700 relative">
+            <div className="flex flex-col items-center mb-2">
+              <span className="text-xl font-bold text-gray-900 dark:text-white text-center mb-1">
+                {product.name}
+              </span>
+              <span className="text-3xl font-extrabold text-blue-700 dark:text-blue-400 text-center">
+                {formatPrice(product.price)}
+              </span>
+              {selectedCustomer &&
+                customers.length > 0 &&
+                (() => {
+                  const cust = customers.find((c) => c.id === selectedCustomer);
+                  if (!cust) return null;
+                  const color = cust.color || "#facc15"; // default sarı
+                  return (
+                    <span
+                      className="inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold text-white"
+                      style={{ backgroundColor: color }}
+                    >
+                      {cust.name}
+                    </span>
+                  );
+                })()}
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              <div className="flex flex-col items-center">
+                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                  Barkod
+                </span>
+                <span className="text-gray-900 dark:text-white font-mono">
+                  {product.barcode}
+                </span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                  Stok
+                </span>
+                <span className="text-lg font-semibold text-green-700 dark:text-green-400">
+                  {currentStock} adet
+                </span>
+              </div>
+              {product.category && (
+                <div className="flex flex-col items-center">
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">
+                    Kategori
+                  </span>
+                  <span className="inline-block px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 text-xs font-semibold mt-1">
+                    {product.category}
+                  </span>
+                </div>
+              )}
+              {product.brand && (
+                <div className="flex flex-col items-center">
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">
+                    Marka
+                  </span>
+                  <span className="inline-block px-2 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 text-xs font-semibold mt-1">
+                    {product.brand}
+                  </span>
+                </div>
+              )}
+            </div>
+            {typeof product.purchasePrice === "number" && (
+              <span className="absolute right-3 bottom-2 text-xs text-gray-400 dark:text-gray-600 opacity-60 select-none">
+                {formatPrice(product.purchasePrice)}
+              </span>
+            )}
           </div>
 
           {/* Quantity Selection */}

@@ -1,30 +1,47 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import AnalyticsPage from "../../components/Pages/AnalyticsPage";
 import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
 import type { Tab } from "../page";
-import { productService } from "../../services/productService";
-import { Product, Sale } from "../../types";
+
+import { Product, Payment, Customer } from "../../types";
+import useSWR from "swr";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const fetcher = (url: string) =>
+  fetch(`${API_URL}${url}`).then((res) => res.json());
 
 export default function Page() {
+  const [search, setSearch] = useState("");
+  const { data: products = [], mutate: mutateProducts } = useSWR(
+    `${API_URL}/api/products?search=${encodeURIComponent(search)}`,
+    fetcher,
+    { fallbackData: [] }
+  );
+  const {
+    data: sales = [],
+    mutate: mutateSales,
+    isValidating,
+  } = useSWR(
+    `${API_URL}/api/sales?search=${encodeURIComponent(search)}`,
+    fetcher,
+    { fallbackData: [] }
+  );
+  const { data: payments = [] } = useSWR(`${API_URL}/api/payments`, fetcher, {
+    fallbackData: [],
+  });
+  const { data: customers = [] } = useSWR(`${API_URL}/api/customers`, fetcher, {
+    fallbackData: [],
+  });
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
-
-  useEffect(() => {
-    productService.getAll().then(setProducts);
-    productService.getAllSales().then(setSales);
-  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <Header
-        lowStockCount={products.filter((p) => p.stock <= 5).length}
+        lowStockCount={products.filter((p: Product) => p.stock <= 5).length}
         activeTab={activeTab}
         onAddProduct={() => {}}
-        showTotalValue={false}
-        onToggleTotalValue={() => {}}
       />
       <Navigation
         activeTab={activeTab}
@@ -34,7 +51,8 @@ export default function Page() {
         <AnalyticsPage
           products={products}
           sales={sales}
-          showTotalValue={false}
+          payments={payments}
+          customers={customers}
         />
       </main>
     </div>

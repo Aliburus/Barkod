@@ -1,33 +1,23 @@
 "use client";
-import React, { useState } from "react";
-import { Product, Sale } from "../../types";
+import React, { useState, useMemo, useEffect } from "react";
+import { Product, Sale, Payment, Customer } from "../../types";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-} from "recharts";
+
+import { accountTransactionService } from "../../services/customerService";
 
 interface AnalyticsPageProps {
   products: Product[];
   sales: Sale[];
-  showTotalValue: boolean;
+  payments: Payment[];
+  customers: Customer[];
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   products,
   sales,
-  showTotalValue,
+  payments,
+  customers,
 }) => {
   const years = Array.from(
     new Set(sales.map((sale) => parseISO(sale.soldAt).getFullYear()))
@@ -156,157 +146,468 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   });
   const lineData = days.map((name, i) => ({ name, GELİR: weeklySales[i] }));
 
+  // Pagination için örnek (analiz verisine göre uyarlayabilirsin)
+  const itemsPerPage = 20;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.ceil(sales.length / itemsPerPage);
+  const paginatedSales = useMemo(
+    () =>
+      sales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+    [sales, currentPage, itemsPerPage]
+  );
+  // Pagination butonları sadece totalPages > 1 ise göster
+  {
+    totalPages > 1 && (
+      <div className="flex gap-2 mt-4">
+        <button
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className="px-3 py-1 border rounded"
+        >
+          Önceki
+        </button>
+        <span>Sayfa {currentPage}</span>
+        <button
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className="px-3 py-1 border rounded"
+        >
+          Sonraki
+        </button>
+      </div>
+    );
+  }
+
+  // Genel Özet Paneli hesaplamaları
+  const toplamStokAdedi = products.reduce((sum, p) => sum + (p.stock || 0), 0);
+  const toplamUrunCesidi = products.length;
+  const toplamSatisGeliri = salesWithProduct.reduce(
+    (sum, s) => sum + (s.total || 0),
+    0
+  );
+  const toplamGider = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  // Net kar/zarar: satış ve alış fiyatına göre
+  const toplamNetKarZarar = salesWithProduct.reduce((sum, s) => {
+    const product = products.find((p) => p.barcode === s.barcode);
+    const maliyet = product?.purchasePrice || 0;
+    return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
+  }, 0);
+  const odememisBorc = customers.reduce((sum, c) => sum + (c.debt || 0), 0);
+  const satisTurleri = salesWithProduct.reduce((acc, s) => {
+    const tur = s.paymentType || "Bilinmiyor";
+    acc[tur] = (acc[tur] || 0) + (s.total || 0);
+    return acc;
+  }, {} as Record<string, number>);
+
+  const [customerDebts, setCustomerDebts] = useState<Record<string, number>>(
+    {}
+  );
+  useEffect(() => {
+    async function fetchDebts() {
+      const debts: Record<string, number> = {};
+      for (const c of customers) {
+        const transactions = await accountTransactionService.getAll(c.id);
+        const borc = transactions
+          .filter((t) => t.type === "borc")
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+        const odeme = transactions
+          .filter((t) => t.type === "odeme")
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+        debts[c.id] = borc - odeme;
+      }
+      setCustomerDebts(debts);
+    }
+    if (customers.length > 0) fetchDebts();
+  }, [customers]);
+
+  // Müşteri Ödeme Takip Raporu için borçlu müşteriler
+  const borcluMusteriler = customers.filter(
+    (c) => (customerDebts[c.id] || 0) > 0
+  );
+
+  // En çok alışveriş yapan müşteriler (satış adedine göre)
+  const musteriSatisSayilari = customers.map((c) => ({
+    id: c.id,
+    name: c.name,
+    toplamSatis: salesWithProduct
+      .filter((s) => s.customer === c.id && !!s.customer)
+      .reduce((sum, s) => sum + (s.quantity || 0), 0),
+    toplamTutar: salesWithProduct
+      .filter((s) => s.customer === c.id && !!s.customer)
+      .reduce((sum, s) => sum + (s.total || 0), 0),
+  }));
+  const enCokAlisverisYapanlar = musteriSatisSayilari
+    .filter((m) => m.toplamSatis > 0)
+    .sort((a, b) => b.toplamSatis - a.toplamSatis)
+    .slice(0, 5);
+
+  // Aylık gelir, gider ve net kar hesaplama
+  const monthlySummary: {
+    ay: string;
+    gelir: number;
+    gider: number;
+    net: number;
+  }[] = [];
+  for (let m = 0; m < 12; m++) {
+    const ayGelir = salesWithProduct
+      .filter((s) => parseISO(s.soldAt).getMonth() === m)
+      .reduce((sum, s) => sum + (s.total || 0), 0);
+    const ayGider = payments
+      .filter((p) => {
+        const d = p.date
+          ? new Date(p.date)
+          : p.dueDate
+          ? new Date(p.dueDate)
+          : null;
+        return d && d.getMonth() === m;
+      })
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    monthlySummary.push({
+      ay: months[m],
+      gelir: ayGelir,
+      gider: ayGider,
+      net: ayGelir - ayGider,
+    });
+  }
+
+  // Mevcut ayın gideri
+  const now = new Date();
+  const mevcutAy = now.getMonth();
+  const mevcutAyGider = payments
+    .filter((p) => {
+      const d = p.date
+        ? new Date(p.date)
+        : p.dueDate
+        ? new Date(p.dueDate)
+        : null;
+      return (
+        d && d.getMonth() === mevcutAy && d.getFullYear() === now.getFullYear()
+      );
+    })
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  // Mevcut ayın ödenmemiş borçları
+  const mevcutAyOdenmemisBorc = payments
+    .filter((p) => {
+      const d = p.date
+        ? new Date(p.date)
+        : p.dueDate
+        ? new Date(p.dueDate)
+        : null;
+      return (
+        d &&
+        d.getMonth() === mevcutAy &&
+        d.getFullYear() === now.getFullYear() &&
+        !p.isPaid
+      );
+    })
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  // Mevcut ayın satış geliri ve net kar
+  const mevcutAyGelir = salesWithProduct
+    .filter(
+      (s) =>
+        parseISO(s.soldAt).getMonth() === mevcutAy &&
+        parseISO(s.soldAt).getFullYear() === now.getFullYear()
+    )
+    .reduce((sum, s) => sum + (s.total || 0), 0);
+  const mevcutAyNetKar = salesWithProduct
+    .filter(
+      (s) =>
+        parseISO(s.soldAt).getMonth() === mevcutAy &&
+        parseISO(s.soldAt).getFullYear() === now.getFullYear()
+    )
+    .reduce((sum, s) => {
+      const product = products.find((p) => p.barcode === s.barcode);
+      const maliyet = product?.purchasePrice || 0;
+      return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
+    }, 0);
+
+  const [dateStart, setDateStart] = useState("");
+  const [dateEnd, setDateEnd] = useState("");
+  // Filtrelenmiş gelir/gider/net kar hesaplama
+  const filteredSales = salesWithProduct.filter((s) => {
+    const d = parseISO(s.soldAt);
+    if (dateStart && d < new Date(dateStart)) return false;
+    if (dateEnd && d > new Date(dateEnd)) return false;
+    return true;
+  });
+  const filteredPayments = payments.filter((p) => {
+    const d = p.date
+      ? new Date(p.date)
+      : p.dueDate
+      ? new Date(p.dueDate)
+      : null;
+    if (!d) return false;
+    if (dateStart && d < new Date(dateStart)) return false;
+    if (dateEnd && d > new Date(dateEnd)) return false;
+    return true;
+  });
+  const filteredGelir = filteredSales.reduce(
+    (sum, s) => sum + (s.total || 0),
+    0
+  );
+  const filteredGider = filteredPayments.reduce(
+    (sum, p) => sum + (p.amount || 0),
+    0
+  );
+  const filteredNetKar = filteredSales.reduce((sum, s) => {
+    const product = products.find((p) => p.barcode === s.barcode);
+    const maliyet = product?.purchasePrice || 0;
+    return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
+  }, 0);
+  // Yıllık toplamlar (tüm yıl için)
+  const nowYear = now.getFullYear();
+  const yillikGelir = salesWithProduct
+    .filter((s) => parseISO(s.soldAt).getFullYear() === nowYear)
+    .reduce((sum, s) => sum + (s.total || 0), 0);
+  const yillikGider = payments
+    .filter((p) => {
+      const d = p.date
+        ? new Date(p.date)
+        : p.dueDate
+        ? new Date(p.dueDate)
+        : null;
+      return d && d.getFullYear() === nowYear;
+    })
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+  const yillikNetKar = salesWithProduct
+    .filter((s) => parseISO(s.soldAt).getFullYear() === nowYear)
+    .reduce((sum, s) => {
+      const product = products.find((p) => p.barcode === s.barcode);
+      const maliyet = product?.purchasePrice || 0;
+      return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
+    }, 0);
+
+  // Günlük/Haftalık/Aylık satış adedi ve trendi
+  const gunlukSatislar = Array(7).fill(0);
+  const haftaninGunleri = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+  salesWithProduct.forEach((s) => {
+    const date = parseISO(s.soldAt);
+    const now = new Date();
+    const diff = Math.floor(
+      (Number(now) - Number(date)) / (1000 * 60 * 60 * 24)
+    );
+    if (diff >= 0 && diff < 7) {
+      const dayIdx = (now.getDay() - diff + 7) % 7;
+      gunlukSatislar[dayIdx] += s.quantity || 0;
+    }
+  });
+  // Aylık satış adedi
+  const aylikSatislar = Array(12).fill(0);
+  salesWithProduct.forEach((s) => {
+    const date = parseISO(s.soldAt);
+    aylikSatislar[date.getMonth()] += s.quantity || 0;
+  });
+  // Satış kanalı ve ürün bazlı toplamlar
+  const satisKanaliToplam = salesWithProduct.reduce((acc, s) => {
+    const tur = s.paymentType || "Bilinmiyor";
+    acc[tur] = (acc[tur] || 0) + (s.total || 0);
+    return acc;
+  }, {} as Record<string, number>);
+  const urunBazliToplam = products
+    .map((p) => ({
+      name: p.name,
+      toplam: salesWithProduct
+        .filter((s) => s.barcode === p.barcode)
+        .reduce((sum, s) => sum + (s.total || 0), 0),
+      adet: salesWithProduct
+        .filter((s) => s.barcode === p.barcode)
+        .reduce((sum, s) => sum + (s.quantity || 0), 0),
+    }))
+    .filter((u) => u.adet > 0)
+    .sort((a, b) => b.adet - a.adet)
+    .slice(0, 5);
+
+  // Yıllık Gelir, Maliyet, Brüt Kar, Kar Marjı hesaplama (sadece bir kez tanımlı)
+  const yillikSatilanAdet = salesWithProduct
+    .filter((s) => parseISO(s.soldAt).getFullYear() === nowYear)
+    .reduce((sum, s) => sum + (s.quantity || 0), 0);
+  const yillikGelirBrut = salesWithProduct
+    .filter((s) => parseISO(s.soldAt).getFullYear() === nowYear)
+    .reduce((sum, s) => sum + (s.price || 0) * (s.quantity || 0), 0);
+  const yillikMaliyet = salesWithProduct
+    .filter((s) => parseISO(s.soldAt).getFullYear() === nowYear)
+    .reduce((sum, s) => {
+      const product = products.find((p) => p.barcode === s.barcode);
+      const maliyet = product?.purchasePrice || 0;
+      return sum + maliyet * (s.quantity || 0);
+    }, 0);
+  const yillikBrutKar = yillikGelirBrut - yillikMaliyet;
+  const yillikKarMarji =
+    yillikGelirBrut > 0 ? (yillikBrutKar / yillikGelirBrut) * 100 : 0;
+
+  const [salesView, setSalesView] = useState<"gunluk" | "haftalik" | "aylik">(
+    "gunluk"
+  );
+  // Günlük: Son 7 gün, Haftalık: Son 4 hafta, Aylık: Son 12 ay
+  const gunler = haftaninGunleri;
+  const gunlukTutarlar = Array(7).fill(0);
+  salesWithProduct.forEach((s) => {
+    const date = parseISO(s.soldAt);
+    const now = new Date();
+    const diff = Math.floor(
+      (Number(now) - Number(date)) / (1000 * 60 * 60 * 24)
+    );
+    if (diff >= 0 && diff < 7) {
+      const dayIdx = (now.getDay() - diff + 7) % 7;
+      gunlukTutarlar[dayIdx] += s.total || 0;
+    }
+  });
+  // Haftalık: Son 4 hafta
+  const haftalikTutarlar = Array(4).fill(0);
+  salesWithProduct.forEach((s) => {
+    const date = parseISO(s.soldAt);
+    const now = new Date();
+    const diff = Math.floor(
+      (Number(now) - Number(date)) / (1000 * 60 * 60 * 24)
+    );
+    if (diff >= 0 && diff < 28) {
+      const weekIdx = 3 - Math.floor(diff / 7);
+      haftalikTutarlar[weekIdx] += s.total || 0;
+    }
+  });
+  // Aylık: Son 12 ay
+  const aylikTutarlar = Array(12).fill(0);
+  salesWithProduct.forEach((s) => {
+    const date = parseISO(s.soldAt);
+    const now = new Date();
+    const diff =
+      (now.getFullYear() - date.getFullYear()) * 12 +
+      (now.getMonth() - date.getMonth());
+    if (diff >= 0 && diff < 12) {
+      const monthIdx = 11 - diff;
+      aylikTutarlar[monthIdx] += s.total || 0;
+    }
+  });
+  // Bar chart için veri ve label seçimi
+  let barLabels: string[] = [];
+  let barValues: number[] = [];
+  if (salesView === "gunluk") {
+    barLabels = gunler;
+    barValues = gunlukTutarlar;
+  } else if (salesView === "haftalik") {
+    barLabels = ["4. Hafta", "3. Hafta", "2. Hafta", "Bu Hafta"];
+    barValues = haftalikTutarlar;
+  } else {
+    barLabels = months;
+    barValues = aylikTutarlar;
+  }
+
+  const [barHoverIdx, setBarHoverIdx] = useState<number | null>(null);
+
+  // Tooltip için state
+  const [tooltip, setTooltip] = useState<null | {
+    x: number;
+    y: number;
+    ay: string;
+    gelir: number;
+    gider: number;
+    net: number;
+  }>(null);
+
+  // Bugünkü satış tutarı
+  const today = new Date();
+  const bugunSatisTutari = salesWithProduct
+    .filter((s) => {
+      const d = parseISO(s.soldAt);
+      return (
+        d.getDate() === today.getDate() &&
+        d.getMonth() === today.getMonth() &&
+        d.getFullYear() === today.getFullYear()
+      );
+    })
+    .reduce((sum, s) => sum + (s.total || 0), 0);
+
+  // Seçili yıl için aylık gelir/gider/net kar verisi (düzgün hesaplama)
+  const aylikGelirGiderNet = months.map((ay, i) => {
+    // Gelir: satış fiyatı * adet
+    const gelir = salesWithProduct
+      .filter(
+        (s) =>
+          parseISO(s.soldAt).getMonth() === i &&
+          parseISO(s.soldAt).getFullYear() === selectedYear
+      )
+      .reduce((sum, s) => sum + (s.price || 0) * (s.quantity || 0), 0);
+    // Gider: alış fiyatı * adet
+    const gider = salesWithProduct
+      .filter(
+        (s) =>
+          parseISO(s.soldAt).getMonth() === i &&
+          parseISO(s.soldAt).getFullYear() === selectedYear
+      )
+      .reduce((sum, s) => {
+        const product = products.find((p) => p.barcode === s.barcode);
+        const maliyet = product?.purchasePrice || 0;
+        return sum + maliyet * (s.quantity || 0);
+      }, 0);
+    return {
+      ay,
+      gelir,
+      gider,
+      net: gelir - gider,
+    };
+  });
+
   return (
     <div className="space-y-6">
-      {/* Stock Analysis */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      {/* Genel Özet Paneli + Kasa & Banka Takibi */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
+        <div className="bg-gradient-to-br from-blue-100 to-blue-300 dark:from-blue-900 dark:to-blue-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
+          <span className="text-2xl font-bold text-blue-900 dark:text-blue-200">
+            {toplamStokAdedi}
+          </span>
+          <span className="text-sm text-blue-800 dark:text-blue-300 mt-1">
+            Toplam Stok Adedi
+          </span>
+        </div>
+        <div className="bg-gradient-to-br from-green-100 to-green-300 dark:from-green-900 dark:to-green-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
+          <span className="text-2xl font-bold text-green-900 dark:text-green-200">
+            {toplamUrunCesidi}
+          </span>
+          <span className="text-sm text-green-800 dark:text-green-300 mt-1">
+            Ürün Çeşidi
+          </span>
+        </div>
+        <div className="bg-gradient-to-br from-purple-100 to-purple-300 dark:from-purple-900 dark:to-purple-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
+          <span className="text-2xl font-bold text-purple-900 dark:text-purple-200">
+            {formatPrice(mevcutAyGelir)}
+          </span>
+          <span className="text-sm text-purple-800 dark:text-purple-300 mt-1">
+            Bu Ayın Satış Geliri
+          </span>
+        </div>
+        <div className="bg-gradient-to-br from-yellow-100 to-yellow-300 dark:from-yellow-900 dark:to-yellow-700 rounded-xl p-6 shadow flex flex-col items-center justify-center col-span-1 sm:col-span-2 lg:col-span-1">
+          <span className="text-2xl font-bold text-yellow-900 dark:text-yellow-200">
+            {formatPrice(mevcutAyNetKar)}
+          </span>
+          <span className="text-sm text-yellow-800 dark:text-yellow-300 mt-1">
+            Bu Ayın Net Kar / Zarar
+          </span>
+        </div>
+        {/* Bugünkü satış tutarı kartı */}
+        <div className="bg-gradient-to-br from-pink-100 to-pink-300 dark:from-pink-900 dark:to-pink-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
+          <span className="text-2xl font-bold text-pink-900 dark:text-pink-200">
+            {formatPrice(bugunSatisTutari)}
+          </span>
+          <span className="text-sm text-pink-800 dark:text-pink-300 mt-1">
+            Bugünkü Satış Tutarı
+          </span>
+        </div>
+      </div>
+      {/* Aylık Gelir-Gider Tablosu */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Stok Durumu
+          Aylık Gelir / Gider / Net Kar
         </h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600 dark:text-gray-400">
-              Toplam Ürün
-            </span>
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {stockAnalysis.total}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-success-600">Normal Stok</span>
-            <span className="font-semibold text-success-600">
-              {stockAnalysis.inStock}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-warning-600">Az Stok</span>
-            <span className="font-semibold text-warning-600">
-              {stockAnalysis.lowStock}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-danger-600">Tükenen</span>
-            <span className="font-semibold text-danger-600">
-              {stockAnalysis.outOfStock}
-            </span>
-          </div>
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex items-center justify-between">
-            <span className="text-gray-600 dark:text-gray-400">
-              Toplam Stok Değeri
-            </span>
-            {showTotalValue ? (
-              <span className="font-bold text-primary-600">
-                {formatPrice(stockAnalysis.totalValue)}
-              </span>
-            ) : (
-              <span className="font-bold text-primary-600 select-none tracking-widest">
-                ***
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-      {/* Top Products and Categories */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Products */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            En Çok Satan Ürünler
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {topProducts.slice(0, 6).map((product, index) => (
-              <div
-                key={product.name}
-                className="flex flex-col justify-between bg-gradient-to-br from-primary-50/80 to-primary-100 dark:from-primary-900/40 dark:to-primary-900/10 border border-primary-200 dark:border-primary-800 rounded-2xl p-5 shadow-lg hover:scale-105 transition-transform duration-200 min-h-[160px]"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-7 h-7 bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-full flex items-center justify-center text-base font-bold">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-white text-base truncate">
-                      {product.name}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
-                      {product.barcode}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex-1 flex flex-col justify-end items-end gap-1 mt-2">
-                  <p className="font-bold text-gray-900 dark:text-white text-lg">
-                    {product.quantity}{" "}
-                    <span className="font-normal text-base">adet</span>
-                  </p>
-                  {showTotalValue ? (
-                    <p className="text-sm text-success-600 font-semibold">
-                      {formatPrice(product.revenue)}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-success-600 select-none tracking-widest font-semibold">
-                      ***
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* Category Analysis */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            En Çok Satılan Kategoriler
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {categorySales.slice(0, 6).map((category) => (
-              <div
-                key={category.category}
-                className="flex flex-col justify-between bg-gradient-to-br from-gray-50/80 to-gray-100 dark:from-gray-900/40 dark:to-gray-900/10 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-lg hover:scale-105 transition-transform duration-200 min-h-[140px]"
-              >
-                <div className="mb-2">
-                  <h4 className="font-semibold text-gray-900 dark:text-white truncate text-base">
-                    {category.category}
-                  </h4>
-                </div>
-                <div className="flex-1 flex flex-col justify-end gap-1 mt-2 text-sm">
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">
-                      Toplam Satış{" "}
-                    </span>
-                    <span className="font-bold text-gray-900 dark:text-white">
-                      {category.quantity} adet
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">
-                      Toplam Gelir{" "}
-                    </span>
-                    {showTotalValue ? (
-                      <span className="font-bold text-primary-600">
-                        {formatPrice(category.revenue)}
-                      </span>
-                    ) : (
-                      <span className="font-bold text-primary-600 select-none tracking-widest">
-                        ***
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      {/* Charts Row */}
-      {/* Satış Grafiği */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Aylara Göre Satışlar
-          </h3>
+        <div className="flex items-center gap-4 mb-4">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Yıl:
+          </label>
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="ml-4 p-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"
+            className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
             {years.map((y) => (
               <option key={y} value={y}>
@@ -315,170 +616,694 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             ))}
           </select>
         </div>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart
-            data={chartData}
-            margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="name"
-              tick={{
-                fontSize: 16,
-                fill: "#374151",
-                fontFamily: "inherit",
-                fontWeight: 600,
-              }}
-              axisLine={{ stroke: "#d1d5db" }}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{
-                fontSize: 16,
-                fill: "#374151",
-                fontFamily: "inherit",
-                fontWeight: 600,
-              }}
-              axisLine={{ stroke: "#d1d5db" }}
-              tickLine={false}
-              tickFormatter={(value) =>
-                showTotalValue
-                  ? new Intl.NumberFormat("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    }).format(Number(value))
-                  : "***"
-              }
-              width={90}
-            />
-            <Tooltip
-              formatter={(value) =>
-                showTotalValue
-                  ? new Intl.NumberFormat("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    }).format(Number(value))
-                  : "***"
-              }
-              separator=": "
-            />
-            <Bar
-              dataKey="GELİR"
-              fill="#6366f1"
-              radius={[8, 8, 0, 0]}
-              name="GELİR"
-            />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm text-center">
+            <thead>
+              <tr className="bg-gray-100 dark:bg-gray-700">
+                <th className="px-3 py-2">Ay</th>
+                <th className="px-3 py-2">Gelir</th>
+                <th className="px-3 py-2">Gider</th>
+                <th className="px-3 py-2">Net Kar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlySummary
+                .filter((row, i) => {
+                  // Seçili yıl için gelir/gider/net kar hesapla
+                  const ayGelir = salesWithProduct
+                    .filter(
+                      (s) =>
+                        parseISO(s.soldAt).getMonth() === i &&
+                        parseISO(s.soldAt).getFullYear() === selectedYear
+                    )
+                    .reduce((sum, s) => sum + (s.total || 0), 0);
+                  const ayGider = payments
+                    .filter((p) => {
+                      const d = p.date
+                        ? new Date(p.date)
+                        : p.dueDate
+                        ? new Date(p.dueDate)
+                        : null;
+                      return (
+                        d &&
+                        d.getMonth() === i &&
+                        d.getFullYear() === selectedYear
+                      );
+                    })
+                    .reduce((sum, p) => sum + (p.amount || 0), 0);
+                  const ayNet = ayGelir - ayGider;
+                  row.gelir = ayGelir;
+                  row.gider = ayGider;
+                  row.net = ayNet;
+                  return true;
+                })
+                .map((row, i) => (
+                  <tr
+                    key={row.ay}
+                    className="border-b border-gray-200 dark:border-gray-700"
+                  >
+                    <td className="px-3 py-2 font-semibold">{row.ay}</td>
+                    <td className="px-3 py-2 text-green-700 dark:text-green-400">
+                      {formatPrice(row.gelir)}
+                    </td>
+                    <td className="px-3 py-2 text-red-700 dark:text-red-400">
+                      {formatPrice(row.gider)}
+                    </td>
+                    <td
+                      className={`px-3 py-2 font-bold ${
+                        row.net >= 0
+                          ? "text-green-700 dark:text-green-400"
+                          : "text-red-700 dark:text-red-400"
+                      }`}
+                    >
+                      {formatPrice(row.net)}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      {/* Kategoriye göre satış dağılımı PieChart */}
+      {/* Stok Hareket Raporları */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Kategoriye Göre Satış Dağılımı
+          Stok Hareket Raporları
         </h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <PieChart>
-            <Pie
-              data={pieData}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={90}
-              label={({ name, value }) =>
-                `${name}: ${
-                  showTotalValue
-                    ? new Intl.NumberFormat("tr-TR", {
-                        style: "currency",
-                        currency: "TRY",
-                      }).format(Number(value))
-                    : "***"
-                }`
-              }
-            >
-              {pieData.map((entry, idx) => (
-                <Cell
-                  key={`cell-${idx}`}
-                  fill={pieColors[idx % pieColors.length]}
-                />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Günlük/Aylık Stok Giriş-Çıkış */}
+          <div className="bg-gradient-to-br from-blue-800 to-blue-600 dark:from-blue-900 dark:to-blue-800 rounded-xl p-5 shadow flex flex-col items-center justify-center">
+            <span className="text-lg font-bold text-white mb-2">
+              Günlük/Aylık Stok Giriş-Çıkış
+            </span>
+            <span className="text-sm text-blue-100">
+              (Stok hareket verisi eklenirse buraya grafik eklenir)
+            </span>
+          </div>
+          {/* Kritik Stok (Kategoriye göre) */}
+          <div className="bg-gradient-to-br from-red-800 to-red-600 dark:from-red-900 dark:to-red-800 rounded-xl p-5 shadow flex flex-col items-center justify-center">
+            <span className="text-lg font-bold text-white mb-2">
+              Kritik Stok (≤5) - Kategoriye Göre
+            </span>
+            <ul className="text-sm text-red-100 list-disc pl-4">
+              {(() => {
+                const kategoriler = Array.from(
+                  new Set(products.map((p) => p.category || "Diğer"))
+                );
+                return kategoriler.map((cat, idx) => {
+                  const kritiks = products.filter(
+                    (p) => (p.category || "Diğer") === cat && p.stock <= 5
+                  );
+                  if (kritiks.length === 0) return null;
+                  return (
+                    <li key={cat + "-" + idx} className="mb-1">
+                      <span className="font-semibold">{cat}:</span>{" "}
+                      {kritiks
+                        .map((p) => `${p.name} (${p.stock} adet)`)
+                        .join(", ")}
+                    </li>
+                  );
+                });
+              })()}
+              {products.filter((p) => p.stock <= 5).length === 0 && (
+                <li>Tüm ürünlerin stoğu yeterli.</li>
+              )}
+            </ul>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          {/* En Çok Satan Kategoriler */}
+          <div className="bg-gradient-to-br from-green-800 to-green-600 dark:from-green-900 dark:to-green-800 rounded-xl p-5 shadow flex flex-col items-center justify-center">
+            <span className="text-lg font-bold text-white mb-2">
+              En Çok Satan Kategoriler
+            </span>
+            <ul className="text-sm text-green-100 list-decimal pl-4">
+              {categorySales.slice(0, 5).map((cat, i) => (
+                <li key={cat.category + "-" + i}>
+                  {cat.category} ({cat.quantity} adet)
+                </li>
               ))}
-            </Pie>
-            <Tooltip
-              formatter={(value) =>
-                showTotalValue
-                  ? new Intl.NumberFormat("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    }).format(Number(value))
-                  : "***"
-              }
-            />
-          </PieChart>
-        </ResponsiveContainer>
+              {categorySales.length === 0 && <li>Satış verisi yok.</li>}
+            </ul>
+          </div>
+          {/* Ürün Bazlı Stok Durumu */}
+          <div className="bg-gradient-to-br from-yellow-800 to-yellow-600 dark:from-yellow-900 dark:to-yellow-800 rounded-xl p-5 shadow flex flex-col items-center justify-center">
+            <span className="text-lg font-bold text-yellow-100 mb-2">
+              Ürün Bazlı Stok Durumu
+            </span>
+            <ul className="text-sm text-yellow-100 list-disc pl-4">
+              {products.slice(0, 5).map((p, idx) => (
+                <li key={p.id + "-" + idx}>
+                  {p.name}: {p.stock} adet
+                </li>
+              ))}
+              {products.length === 0 && <li>Ürün verisi yok.</li>}
+            </ul>
+          </div>
+        </div>
       </div>
-      {/* Haftalık satış trendi LineChart */}
+      {/* Gelir-Gider Analizi */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Haftalık Satış Trendi
+          Gelir-Gider Analizi
         </h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart
-            data={lineData}
-            margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
+        <div className="flex items-center gap-4 mb-4">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Yıl:
+          </label>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="name"
-              tick={{
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <div className="bg-gradient-to-br from-green-100 to-green-300 dark:from-green-900 dark:to-green-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-green-900 dark:text-green-200">
+              {formatPrice(
+                salesWithProduct
+                  .filter(
+                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
+                  )
+                  .reduce(
+                    (sum, s) => sum + (s.price || 0) * (s.quantity || 0),
+                    0
+                  )
+              )}
+            </span>
+            <span className="text-sm text-green-800 dark:text-green-300 mt-1">
+              Yıllık Gelir (Ciro)
+            </span>
+          </div>
+          <div className="bg-gradient-to-br from-gray-100 to-gray-300 dark:from-gray-900 dark:to-gray-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-gray-900 dark:text-gray-200">
+              {formatPrice(
+                salesWithProduct
+                  .filter(
+                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
+                  )
+                  .reduce((sum, s) => {
+                    const product = products.find(
+                      (p) => p.barcode === s.barcode
+                    );
+                    const maliyet = product?.purchasePrice || 0;
+                    return sum + maliyet * (s.quantity || 0);
+                  }, 0)
+              )}
+            </span>
+            <span className="text-sm text-gray-800 dark:text-gray-300 mt-1">
+              Yıllık Maliyet
+            </span>
+          </div>
+          <div className="bg-gradient-to-br from-yellow-100 to-yellow-300 dark:from-yellow-900 dark:to-yellow-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-yellow-900 dark:text-yellow-200">
+              {(() => {
+                const gelir = salesWithProduct
+                  .filter(
+                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
+                  )
+                  .reduce(
+                    (sum, s) => sum + (s.price || 0) * (s.quantity || 0),
+                    0
+                  );
+                const maliyet = salesWithProduct
+                  .filter(
+                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
+                  )
+                  .reduce((sum, s) => {
+                    const product = products.find(
+                      (p) => p.barcode === s.barcode
+                    );
+                    const m = product?.purchasePrice || 0;
+                    return sum + m * (s.quantity || 0);
+                  }, 0);
+                return formatPrice(gelir - maliyet);
+              })()}
+            </span>
+            <span className="text-sm text-yellow-800 dark:text-yellow-300 mt-1">
+              Brüt Kar
+            </span>
+          </div>
+          <div className="bg-gradient-to-br from-blue-100 to-blue-300 dark:from-blue-900 dark:to-blue-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-blue-900 dark:text-blue-200">
+              {(() => {
+                const gelir = salesWithProduct
+                  .filter(
+                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
+                  )
+                  .reduce(
+                    (sum, s) => sum + (s.price || 0) * (s.quantity || 0),
+                    0
+                  );
+                const maliyet = salesWithProduct
+                  .filter(
+                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
+                  )
+                  .reduce((sum, s) => {
+                    const product = products.find(
+                      (p) => p.barcode === s.barcode
+                    );
+                    const m = product?.purchasePrice || 0;
+                    return sum + m * (s.quantity || 0);
+                  }, 0);
+                const karMarji =
+                  gelir > 0 ? ((gelir - maliyet) / gelir) * 100 : 0;
+                return `%${karMarji.toFixed(1)}`;
+              })()}
+            </span>
+            <span className="text-sm text-blue-800 dark:text-blue-300 mt-1">
+              Kar Marjı
+            </span>
+          </div>
+        </div>
+        {/* Kartlar ile grafik arasında boşluk ekle */}
+        <div className="h-16 md:h-24 lg:h-28" />
+        <div className="w-full h-[420px] flex items-center justify-center relative">
+          {/* Tooltip için state */}
+          {tooltip && (
+            <div
+              style={{
+                position: "absolute",
+                left: tooltip.x,
+                top: tooltip.y - 50,
+                background: "rgba(30,41,59,0.95)",
+                color: "#fff",
+                padding: "8px 14px",
+                borderRadius: "8px",
                 fontSize: 16,
-                fill: "#374151",
-                fontFamily: "inherit",
-                fontWeight: 600,
+                pointerEvents: "none",
+                zIndex: 10,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
               }}
-              axisLine={{ stroke: "#d1d5db" }}
-              tickLine={false}
+            >
+              <div>
+                <b>{tooltip.ay}</b>
+              </div>
+              <div>Gelir: {formatPrice(tooltip.gelir)}</div>
+              <div>Gider: {formatPrice(tooltip.gider)}</div>
+              <div>Net Kar: {formatPrice(tooltip.net)}</div>
+            </div>
+          )}
+          {/* Geniş ve modern çizgi grafik */}
+          <svg width="100%" height="100%" viewBox="0 0 1200 420">
+            {/* Y ekseni değerleri ve çizgileri (y 90'dan başlasın) */}
+            <g>
+              {[0, 1, 2, 3, 4].map((i) => {
+                const max = Math.max(
+                  ...aylikGelirGiderNet.map((a) =>
+                    Math.max(a.gelir, a.gider, a.net)
+                  ),
+                  100
+                );
+                const y = 90 + i * 70;
+                return (
+                  <g key={i}>
+                    <text x={0} y={y} fontSize="18" fill="#b3b3b3">
+                      {formatPrice((max * (4 - i)) / 4)}
+                    </text>
+                    <line
+                      x1={80}
+                      y1={y - 5}
+                      x2={1150}
+                      y2={y - 5}
+                      stroke="#444"
+                      strokeDasharray="4 4"
+                    />
+                  </g>
+                );
+              })}
+            </g>
+            {/* Ay isimleri */}
+            <g>
+              {aylikGelirGiderNet.map((a, i) => (
+                <text
+                  key={a.ay}
+                  x={120 + i * 90}
+                  y={410}
+                  fontSize="18"
+                  fill="#b3b3b3"
+                  textAnchor="middle"
+                >
+                  {a.ay}
+                </text>
+              ))}
+            </g>
+            {/* Gelir çizgisi */}
+            <polyline
+              fill="none"
+              stroke="#22c55e"
+              strokeWidth="5"
+              points={aylikGelirGiderNet
+                .map((a, i) => {
+                  const max = Math.max(
+                    ...aylikGelirGiderNet.map((a) =>
+                      Math.max(a.gelir, a.gider, a.net)
+                    ),
+                    100
+                  );
+                  const x = 120 + i * 90;
+                  const y = 90 + 280 * (1 - a.gelir / (max || 1));
+                  return `${x},${y}`;
+                })
+                .join(" ")}
             />
-            <YAxis
-              tick={{
-                fontSize: 16,
-                fill: "#374151",
-                fontFamily: "inherit",
-                fontWeight: 600,
-              }}
-              axisLine={{ stroke: "#d1d5db" }}
-              tickLine={false}
-              tickFormatter={(value) =>
-                showTotalValue
-                  ? new Intl.NumberFormat("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    }).format(Number(value))
-                  : "***"
-              }
-              width={90}
+            {/* Gider çizgisi */}
+            <polyline
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth="5"
+              points={aylikGelirGiderNet
+                .map((a, i) => {
+                  const max = Math.max(
+                    ...aylikGelirGiderNet.map((a) =>
+                      Math.max(a.gelir, a.gider, a.net)
+                    ),
+                    100
+                  );
+                  const x = 120 + i * 90;
+                  const y = 90 + 280 * (1 - a.gider / (max || 1));
+                  return `${x},${y}`;
+                })
+                .join(" ")}
             />
-            <Tooltip
-              formatter={(value) =>
-                showTotalValue
-                  ? new Intl.NumberFormat("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    }).format(Number(value))
-                  : "***"
-              }
-              separator=": "
+            {/* Net kar çizgisi */}
+            <polyline
+              fill="none"
+              stroke="#fbbf24"
+              strokeWidth="5"
+              points={aylikGelirGiderNet
+                .map((a, i) => {
+                  const max = Math.max(
+                    ...aylikGelirGiderNet.map((a) =>
+                      Math.max(a.gelir, a.gider, a.net)
+                    ),
+                    100
+                  );
+                  const x = 120 + i * 90;
+                  // Net kar çizgisini diğerlerinden biraz daha yukarı/ayrı göster
+                  const y = 90 + 280 * (1 - (a.net + max * 0.15) / (max || 1));
+                  return `${x},${y}`;
+                })
+                .join(" ")}
             />
-            <Line
-              type="monotone"
-              dataKey="GELİR"
-              stroke="#6366f1"
-              strokeWidth={3}
-              dot={{ r: 5 }}
-              activeDot={{ r: 8 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+            {/* Noktalar */}
+            {aylikGelirGiderNet.map((a, i) => {
+              const max = Math.max(
+                ...aylikGelirGiderNet.map((a) =>
+                  Math.max(a.gelir, a.gider, a.net)
+                ),
+                100
+              );
+              const x = 120 + i * 90;
+              const yGelir = 90 + 280 * (1 - a.gelir / (max || 1));
+              const yGider = 90 + 280 * (1 - a.gider / (max || 1));
+              const yNet = 90 + 280 * (1 - (a.net + max * 0.15) / (max || 1));
+              return (
+                <g key={i}>
+                  <circle
+                    cx={x}
+                    cy={yGelir}
+                    r={7}
+                    fill="#22c55e"
+                    stroke="#fff"
+                    strokeWidth="2"
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={(e) => {
+                      const svg = e.currentTarget.ownerSVGElement;
+                      if (!svg) return;
+                      setTooltip({
+                        x:
+                          e.currentTarget.getBoundingClientRect().left -
+                          svg.getBoundingClientRect().left +
+                          20,
+                        y:
+                          e.currentTarget.getBoundingClientRect().top -
+                          svg.getBoundingClientRect().top,
+                        ay: a.ay,
+                        gelir: a.gelir,
+                        gider: a.gider,
+                        net: a.net,
+                      });
+                    }}
+                    onMouseLeave={() => setTooltip(null)}
+                  />
+                  <circle
+                    cx={x}
+                    cy={yGider}
+                    r={7}
+                    fill="#ef4444"
+                    stroke="#fff"
+                    strokeWidth="2"
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={(e) => {
+                      const svg = e.currentTarget.ownerSVGElement;
+                      if (!svg) return;
+                      setTooltip({
+                        x:
+                          e.currentTarget.getBoundingClientRect().left -
+                          svg.getBoundingClientRect().left +
+                          20,
+                        y:
+                          e.currentTarget.getBoundingClientRect().top -
+                          svg.getBoundingClientRect().top,
+                        ay: a.ay,
+                        gelir: a.gelir,
+                        gider: a.gider,
+                        net: a.net,
+                      });
+                    }}
+                    onMouseLeave={() => setTooltip(null)}
+                  />
+                  <circle
+                    cx={x}
+                    cy={yNet}
+                    r={7}
+                    fill="#fbbf24"
+                    stroke="#fff"
+                    strokeWidth="2"
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={(e) => {
+                      const svg = e.currentTarget.ownerSVGElement;
+                      if (!svg) return;
+                      setTooltip({
+                        x:
+                          e.currentTarget.getBoundingClientRect().left -
+                          svg.getBoundingClientRect().left +
+                          20,
+                        y:
+                          e.currentTarget.getBoundingClientRect().top -
+                          svg.getBoundingClientRect().top,
+                        ay: a.ay,
+                        gelir: a.gelir,
+                        gider: a.gider,
+                        net: a.net,
+                      });
+                    }}
+                    onMouseLeave={() => setTooltip(null)}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+        {/* Legend kutusu SVG dışında, grafiğin hemen altında */}
+        <div className="w-full flex justify-center mt-4">
+          <div className="flex gap-8 items-center bg-black/60 rounded-lg px-8 py-3 z-20">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-6 h-6 rounded bg-[#22c55e] border-2 border-white"></span>
+              <span className="text-lg font-bold text-[#22c55e]">Gelir</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-6 h-6 rounded bg-[#ef4444] border-2 border-white"></span>
+              <span className="text-lg font-bold text-[#ef4444]">Gider</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-6 h-6 rounded bg-[#fbbf24] border-2 border-white"></span>
+              <span className="text-lg font-bold text-[#fbbf24]">Net Kar</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Müşteri Ödeme Takip Raporu */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          Müşteri Ödeme Takip Raporu
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div className="bg-gradient-to-br from-pink-100 to-pink-300 dark:from-pink-900 dark:to-pink-700 rounded-xl p-5 shadow flex flex-col items-center justify-center">
+            <span className="text-lg font-bold text-pink-900 dark:text-pink-200 mb-2">
+              Borçlu Müşteriler
+            </span>
+            <ul className="text-sm text-pink-800 dark:text-pink-300 list-disc pl-4">
+              {borcluMusteriler.slice(0, 5).map((c, idx) => (
+                <li key={c.id + "-" + idx}>
+                  {c.name}: {formatPrice(customerDebts[c.id] || 0)}
+                </li>
+              ))}
+              {borcluMusteriler.length === 0 && <li>Borçlu müşteri yok.</li>}
+            </ul>
+          </div>
+          <div className="bg-gradient-to-br from-blue-100 to-blue-300 dark:from-blue-900 dark:to-blue-700 rounded-xl p-5 shadow flex flex-col items-center justify-center">
+            <span className="text-lg font-bold text-blue-900 dark:text-blue-200 mb-2">
+              En Çok Alışveriş Yapanlar
+            </span>
+            <ul className="text-sm text-blue-800 dark:text-blue-300 list-decimal pl-4">
+              {enCokAlisverisYapanlar.map((m, idx) => (
+                <li key={m.id + "-" + idx}>
+                  {m.name}: {m.toplamSatis} satış, {formatPrice(m.toplamTutar)}
+                </li>
+              ))}
+              {enCokAlisverisYapanlar.length === 0 && (
+                <li>Satış verisi yok.</li>
+              )}
+            </ul>
+          </div>
+        </div>
+        <div className="w-full h-32 flex items-center justify-center">
+          <span className="text-xs text-gray-400">
+            (Tahsilat/gecikme, veresiye, ödeme hareketleri grafiği eklenebilir)
+          </span>
+        </div>
+      </div>
+      {/* Satış Raporları */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          Satış Raporları
+        </h3>
+        <div className="mb-4">
+          <div className="bg-gradient-to-br from-purple-400 to-purple-700 dark:from-purple-900 dark:to-purple-700 rounded-xl p-5 shadow flex flex-col items-center justify-center w-full">
+            <span className="text-lg font-bold text-white mb-2">
+              Günlük/Haftalık/Aylık Satış
+            </span>
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setSalesView("gunluk")}
+                className={`px-3 py-1 rounded ${
+                  salesView === "gunluk"
+                    ? "bg-white text-purple-700 font-bold"
+                    : "bg-purple-700 text-white"
+                } transition`}
+              >
+                Günlük
+              </button>
+              <button
+                onClick={() => setSalesView("haftalik")}
+                className={`px-3 py-1 rounded ${
+                  salesView === "haftalik"
+                    ? "bg-white text-purple-700 font-bold"
+                    : "bg-purple-700 text-white"
+                } transition`}
+              >
+                Haftalık
+              </button>
+              <button
+                onClick={() => setSalesView("aylik")}
+                className={`px-3 py-1 rounded ${
+                  salesView === "aylik"
+                    ? "bg-white text-purple-700 font-bold"
+                    : "bg-purple-700 text-white"
+                } transition`}
+              >
+                Aylık
+              </button>
+            </div>
+            <div className="w-full h-48 flex items-end gap-2 justify-between mt-4 relative">
+              {/* Y ekseni (tutar) */}
+              <div
+                className="absolute left-0 top-0 h-full flex flex-col justify-between z-10"
+                style={{ height: "100%" }}
+              >
+                {[4, 3, 2, 1, 0].map((i) => {
+                  const max = Math.max(...barValues, 100);
+                  return (
+                    <span
+                      key={i}
+                      className="text-xs text-white/70"
+                      style={{ height: "20%" }}
+                    >
+                      {formatPrice((max / 4) * i)}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="flex-1 flex items-end gap-4 ml-8 w-full">
+                {barValues.map((v, i) => {
+                  const max = Math.max(...barValues, 100);
+                  return (
+                    <div
+                      key={i}
+                      className="flex flex-col items-center w-full relative"
+                      onMouseEnter={() => setBarHoverIdx(i)}
+                      onMouseLeave={() => setBarHoverIdx(null)}
+                    >
+                      <div
+                        className="bg-white/80 dark:bg-purple-300 rounded-t cursor-pointer"
+                        style={{
+                          height: `${(v / (max || 1)) * 140 + 8}px`,
+                          width: "22px",
+                          transition: "height 0.3s",
+                        }}
+                        title={formatPrice(v)}
+                      ></div>
+                      {barHoverIdx === i && (
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black/80 text-white text-xs rounded z-20 whitespace-nowrap pointer-events-none">
+                          {formatPrice(v)}
+                        </div>
+                      )}
+                      <span className="text-xs text-white mt-1">
+                        {barLabels[i]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="w-full h-32 flex items-center justify-center">
+          <span className="text-xs text-gray-400">
+            (Satış trend grafikleri, filtreleme eklenebilir)
+          </span>
+        </div>
+      </div>
+      {/* Filtreleme ve İndirme */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          Filtreleme ve İndirme
+        </h3>
+        <div className="flex flex-wrap gap-4 mb-4 items-center">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Tarih Aralığı:
+          </label>
+          <input
+            type="date"
+            className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          />
+          <span className="mx-2">-</span>
+          <input
+            type="date"
+            className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          />
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-4">
+            Kategori / Müşteri / Ödeme Türü:
+          </label>
+          <span className="text-xs text-gray-400 ml-2">
+            (Filtreleme ve indirme fonksiyonu eklenebilir)
+          </span>
+        </div>
+        <div className="w-full h-16 flex items-center justify-center">
+          <button className="bg-primary-600 text-white px-4 py-2 rounded shadow hover:bg-primary-700 transition-colors text-sm font-semibold">
+            Excel İndir
+          </button>
+          <button className="bg-gray-600 text-white px-4 py-2 rounded shadow hover:bg-gray-700 transition-colors text-sm font-semibold ml-2">
+            PDF İndir
+          </button>
+        </div>
       </div>
     </div>
   );

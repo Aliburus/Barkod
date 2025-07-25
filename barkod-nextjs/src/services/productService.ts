@@ -3,7 +3,7 @@ import { Product, Sale } from "../types";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
-const API_URL = `${BACKEND_URL}/api/products`;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api/products";
 
 export interface SaleCreate {
   barcode: string;
@@ -17,15 +17,25 @@ export interface SaleCreate {
 
 export const productService = {
   getAll: async (): Promise<Product[]> => {
-    const res = await axios.get(API_URL);
+    const res = await axios.get(`${API_URL}/api/products`);
     return res.data.map((p: Product) => ({ ...p, id: p._id || p.id }));
   },
-  create: async (
-    product: Omit<Product, "id" | "createdAt" | "updatedAt">
-  ): Promise<Product> => {
-    const res = await axios.post(API_URL, product);
-    const p = res.data;
-    return { ...p, id: p._id };
+  create: async (product: Product): Promise<Product> => {
+    try {
+      const res = await axios.post(API_URL, {
+        ...product,
+        purchasePrice: product.purchasePrice ?? 0,
+        createdAt: product.createdAt ?? new Date().toISOString(),
+        updatedAt: product.updatedAt ?? new Date().toISOString(),
+      });
+      const p = res.data;
+      return { ...p, id: p._id };
+    } catch (error: any) {
+      if (error?.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      }
+      throw error;
+    }
   },
   getProductByBarcode: async (barcode: string): Promise<Product | null> => {
     const res = await axios.get(`${API_URL}?barcode=${barcode}`);
@@ -54,11 +64,27 @@ export const productService = {
     await axios.post(`${BACKEND_URL}/api/sales`, sale);
   },
   getAllSales: async (): Promise<Sale[]> => {
-    const res = await axios.get(`${BACKEND_URL}/api/sales`);
-    return res.data.map((s: Sale) => ({
-      ...s,
-      id: s._id || s.id,
-      total: s.price * s.quantity,
-    }));
+    try {
+      const res = await axios.get(`${BACKEND_URL}/api/sales`);
+      return res.data.map((s: Sale) => ({
+        ...s,
+        id: s._id || s.id,
+        total: s.price && s.quantity ? s.price * s.quantity : 0,
+      }));
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        // Satış kaydı yoksa boş dizi dön
+        return [];
+      }
+      // Diğer hatalarda notification için hata fırlat
+      throw new Error(
+        "Satış verisi alınamadı. Lütfen daha sonra tekrar deneyin."
+      );
+    }
+  },
+  deleteSalesByBarcode: async (barcode: string): Promise<void> => {
+    await axios.patch(`${BACKEND_URL}/api/sales/by-barcode/${barcode}`, {
+      status: "deleted",
+    });
   },
 };

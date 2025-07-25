@@ -16,13 +16,14 @@ export interface Sale {
   id: string;
   _id?: string;
   barcode: string;
-  productName: string;
+  productName?: string;
   quantity: number;
-  price: number;
-  total: number;
+  price?: number;
+  total?: number;
   soldAt: string;
   customer?: string;
   paymentType?: string;
+  status?: "active" | "deleted";
 }
 
 export interface ScanResult {
@@ -40,6 +41,7 @@ export interface Customer {
   createdAt: string;
   updatedAt: string;
   color?: string;
+  debt?: number;
 }
 
 export interface AccountTransaction {
@@ -54,12 +56,13 @@ export interface AccountTransaction {
 
 export interface Payment {
   id: string;
+  _id?: string;
   company?: string;
-  name?: string;
+  name: string;
   amount: number;
-  date: string;
-  isInstallment?: boolean;
-  installmentCount?: number;
-  installmentStart?: string;
-  createdAt?: string;
+  date: string; // <-- backend ile uyumlu zorunlu alan
+  dueDate?: string;
+  isPaid?: boolean;
+  paymentType?: string;
+  status?: "active" | "deleted";
 }

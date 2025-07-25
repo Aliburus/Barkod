@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo, memo } from "react";
 import { Product } from "../../types";
 import {
   Search,
@@ -20,7 +20,6 @@ interface ProductsPageProps {
   onDelete: (productId: string) => void;
   onView: (product: Product) => void;
   lowStockThreshold?: number;
-  showTotalValue: boolean;
 }
 
 // Yeni modal component
@@ -28,22 +27,6 @@ const ProductDetailModal: React.FC<{
   product: Product;
   onClose: () => void;
 }> = ({ product, onClose }) => {
-  const [editingStock, setEditingStock] = useState(false);
-  const [stockValue, setStockValue] = useState(product.stock.toString());
-  const [loading, setLoading] = useState(false);
-  const [currentProduct, setCurrentProduct] = useState(product);
-  const [paymentType, setPaymentType] = useState<string>("nakit");
-
-  const handleStockUpdate = async () => {
-    setLoading(true);
-    const updated = await productService.update(currentProduct.barcode, {
-      stock: parseInt(stockValue),
-    });
-    setCurrentProduct(updated);
-    setEditingStock(false);
-    setLoading(false);
-  };
-
   const formatDateTime = (dateStr: string) => {
     return format(parseISO(dateStr), "dd MMMM yyyy HH.mm", { locale: tr });
   };
@@ -63,93 +46,86 @@ const ProductDetailModal: React.FC<{
         >
           Kapat
         </button>
-        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white text-center">
           Ürün Detayları
         </h2>
-        <div className="space-y-2">
-          <div>
-            <span className="font-semibold">İsim:</span> {currentProduct.name}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 mb-2">
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              İsim
+            </span>
+            <span className="text-gray-900 dark:text-white break-words">
+              {product.name}
+            </span>
           </div>
-          <div>
-            <span className="font-semibold">Barkod:</span>{" "}
-            {currentProduct.barcode}
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              Barkod
+            </span>
+            <span className="text-gray-900 dark:text-white break-words">
+              {product.barcode}
+            </span>
           </div>
-          <div>
-            <span className="font-semibold">Fiyat:</span> {currentProduct.price}{" "}
-            ₺
-            {typeof currentProduct.purchasePrice === "number" && (
-              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                (Alış: {currentProduct.purchasePrice} ₺)
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              Fiyat
+            </span>
+            <span className="text-gray-900 dark:text-white">
+              {product.price} ₺
+            </span>
+            {typeof product.purchasePrice === "number" && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                (Alış: {product.purchasePrice} ₺)
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Stok:</span>
-            {editingStock ? (
-              <>
-                <input
-                  type="number"
-                  value={stockValue}
-                  onChange={(e) => setStockValue(e.target.value)}
-                  className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  disabled={loading}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleStockUpdate();
-                  }}
-                  autoFocus
-                />
-                <button
-                  onClick={handleStockUpdate}
-                  className="ml-1 text-success-600 hover:text-success-800"
-                  disabled={loading}
-                >
-                  <Check className="w-4 h-4" />
-                </button>
-              </>
-            ) : (
-              <>
-                <span>{currentProduct.stock}</span>
-                <button
-                  onClick={() => setEditingStock(true)}
-                  className="ml-1 text-gray-400 hover:text-primary-600"
-                  title="Stok Güncelle"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-              </>
-            )}
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              Stok
+            </span>
+            <span className="text-gray-900 dark:text-white">
+              {product.stock}
+            </span>
           </div>
-          <div>
-            <span className="font-semibold">Marka:</span> {currentProduct.brand}
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              Marka
+            </span>
+            <span className="text-gray-900 dark:text-white">
+              {product.brand}
+            </span>
           </div>
-          <div>
-            <span className="font-semibold">Kategori:</span>{" "}
-            {currentProduct.category}
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              Kategori
+            </span>
+            <span className="text-gray-900 dark:text-white">
+              {product.category}
+            </span>
           </div>
-          <div>
-            <span className="font-semibold">Eklenme Tarihi:</span>{" "}
-            {formatDateTime(currentProduct.createdAt)}
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              Eklenme Tarihi
+            </span>
+            <span className="text-gray-900 dark:text-white">
+              {formatDateTime(product.createdAt)}
+            </span>
           </div>
-          <div>
-            <span className="font-semibold">Güncellenme Tarihi:</span>{" "}
-            {formatDateTime(currentProduct.updatedAt)}
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              Güncellenme Tarihi
+            </span>
+            <span className="text-gray-900 dark:text-white">
+              {formatDateTime(product.updatedAt)}
+            </span>
           </div>
-          <div>
-            <span className="font-semibold">Alış Fiyatı:</span>{" "}
-            {currentProduct.purchasePrice} ₺
-          </div>
-          <div>
-            <span className="font-semibold">Ödeme Türü:</span>
-            <select
-              value={paymentType}
-              onChange={(e) => setPaymentType(e.target.value)}
-              className="ml-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="nakit">Nakit</option>
-              <option value="kredi">Kredi Kartı</option>
-              <option value="iban">IBAN</option>
-              <option value="havale">Havale</option>
-            </select>
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              Alış Fiyatı
+            </span>
+            <span className="text-gray-900 dark:text-white">
+              {product.purchasePrice} ₺
+            </span>
           </div>
         </div>
       </div>
@@ -157,13 +133,112 @@ const ProductDetailModal: React.FC<{
   );
 };
 
+const ProductCard = memo(
+  ({
+    product,
+    onEdit,
+    onDelete,
+    onView,
+    lowStockThreshold,
+  }: {
+    product: Product;
+    onEdit: (p: Product) => void;
+    onDelete: (id: string) => void;
+    onView: (p: Product) => void;
+    lowStockThreshold: number;
+  }) => (
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-5 flex flex-col justify-between border border-gray-100 dark:border-gray-800 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 group min-h-[180px]">
+      <div className="flex-1">
+        <div className="font-bold text-base text-gray-900 dark:text-white mb-1 truncate">
+          {product.name}
+        </div>
+        <div className="text-xs text-gray-400 dark:text-gray-500 mb-2 font-mono">
+          {product.barcode}
+        </div>
+        <div className="flex items-end gap-2 mb-2">
+          <span className="text-xl font-bold text-primary-600 dark:text-primary-400">
+            ₺{product.price}
+          </span>
+          {typeof product.purchasePrice === "number" &&
+            product.purchasePrice > 0 && (
+              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                Alış: ₺{product.purchasePrice}
+              </span>
+            )}
+        </div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+              product.stock === 0
+                ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200"
+                : product.stock <= lowStockThreshold
+                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200"
+            }`}
+          >
+            {product.stock === 0
+              ? "Tükendi"
+              : product.stock <= lowStockThreshold
+              ? "Az Stok"
+              : product.stock + " adet"}
+          </span>
+          {product.category && (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 font-medium">
+              {product.category}
+            </span>
+          )}
+          {product.brand && (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 font-medium">
+              {product.brand}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-2 mt-5">
+        <button
+          onClick={() => onView(product)}
+          className="flex-1 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white py-2 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
+        >
+          Görüntüle
+        </button>
+        <button
+          onClick={() => onEdit(product)}
+          className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+        >
+          Düzenle
+        </button>
+        <button
+          onClick={() => onDelete(product.barcode)}
+          className="flex-1 bg-red-600 text-white py-2 rounded-lg font-medium hover:bg-red-700 transition-colors"
+        >
+          Sil
+        </button>
+      </div>
+    </div>
+  )
+);
+
+function ProductSkeleton() {
+  return (
+    <div className="bg-gray-100 dark:bg-gray-800 rounded-xl shadow p-5 flex flex-col justify-between border border-gray-100 dark:border-gray-800 animate-pulse min-h-[180px]">
+      <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-2"></div>
+      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2"></div>
+      <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
+      <div className="flex gap-2 mt-5">
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+      </div>
+    </div>
+  );
+}
+
 const ProductsPage: React.FC<ProductsPageProps> = ({
   products,
   onEdit,
   onDelete,
   onView,
   lowStockThreshold = 5,
-  showTotalValue,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -175,6 +250,8 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+
   const filteredProducts = products
     .filter((product) => {
       const matchesSearch =
@@ -219,9 +296,13 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     });
   const itemsPerPage = 20;
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const paginatedProducts = filteredProducts.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+  const paginatedProducts = useMemo(
+    () =>
+      filteredProducts.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+      ),
+    [filteredProducts, currentPage, itemsPerPage]
   );
 
   const categories = [
@@ -296,15 +377,9 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Toplam Değer
               </p>
-              {showTotalValue ? (
-                <p className="text-2xl font-bold text-success-600">
-                  {formatPrice(stats.totalValue)}
-                </p>
-              ) : (
-                <p className="text-2xl font-bold text-success-600 select-none tracking-widest">
-                  ***
-                </p>
-              )}
+              <p className="text-2xl font-bold text-success-600">
+                {formatPrice(stats.totalValue)}
+              </p>
             </div>
           </div>
         </div>
@@ -416,51 +491,26 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {paginatedProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 flex flex-col justify-between border border-gray-200 dark:border-gray-700 hover:scale-[1.02] transition-transform"
-                >
-                  <div>
-                    <div className="font-bold text-lg text-gray-900 dark:text-white mb-1">
-                      {product.name}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      {product.barcode}
-                    </div>
-                    <div className="flex items-end gap-2 mb-2">
-                      <span className="text-xl font-bold text-primary-600 dark:text-primary-400">
-                        ₺{product.price}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Alış: ₺{product.purchasePrice ?? 0}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 mt-4">
-                    <button
-                      onClick={() => setDetailProduct(product)}
-                      className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white py-2 rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      Görüntüle
-                    </button>
-                    <button
-                      onClick={() => onEdit(product)}
-                      className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      onClick={() => onDelete(product.barcode)}
-                      className="flex-1 bg-red-600 text-white py-2 rounded-lg font-medium hover:bg-red-700 transition-colors"
-                    >
-                      Sil
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {isValidating ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <ProductSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {paginatedProducts.map((product) => (
+                  <ProductCard
+                    key={product.id || product.barcode}
+                    product={product}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onView={(p) => setDetailProduct(p)}
+                    lowStockThreshold={lowStockThreshold}
+                  />
+                ))}
+              </div>
+            )}
             {/* Sayfalama */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-2 mt-6">
