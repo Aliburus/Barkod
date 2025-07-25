@@ -12,18 +12,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function Page() {
-  const [search, setSearch] = useState("");
   const { data: products = [], mutate: mutateProducts } = useSWR(
     `${API_URL}/api/products`,
     fetcher
   );
-  const {
-    data: sales = [],
-    mutate: mutateSales,
-    isValidating,
-  } = useSWR(
-    `${API_URL}/api/sales?search=${encodeURIComponent(search)}`,
-    fetcher
+  const { data: sales = [], mutate: mutateSales } = useSWR(
+    `${API_URL}/api/sales`,
+    fetcher,
+    { fallbackData: [] }
   );
   const [activeTab, setActiveTab] = useState<Tab>("sales");
 

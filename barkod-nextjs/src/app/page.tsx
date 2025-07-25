@@ -195,9 +195,16 @@ export default function Home() {
       }
       setSelectedProduct(null);
       setScannerActive(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       let msg = "Satış kaydedilirken hata oluştu";
-      if (error?.message) msg = error.message;
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as { message?: string }).message === "string"
+      ) {
+        msg = (error as { message?: string }).message || msg;
+      }
       showNotification(msg, "error");
     }
   };

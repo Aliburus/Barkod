@@ -164,7 +164,13 @@ const GiderlerPage: React.FC<GiderlerPageProps> = ({
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         {gider.paymentDate
-                          ? `Ödeme Tarihi: ${gider.paymentDate}`
+                          ? `Ödeme Tarihi: ${new Date(
+                              gider.paymentDate
+                            ).toLocaleDateString("tr-TR", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}`
                           : ""}
                       </span>
                     </div>

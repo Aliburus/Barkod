@@ -16,13 +16,8 @@ const fetcher = (url: string) =>
   fetch(`${API_URL}${url}`).then((res) => res.json());
 
 export default function Page() {
-  const [search, setSearch] = useState("");
-  const {
-    data: products = [],
-    mutate,
-    isValidating,
-  } = useSWR(
-    `${API_URL}/api/products?search=${encodeURIComponent(search)}`,
+  const { data: products = [], mutate } = useSWR(
+    `${API_URL}/api/products`,
     fetcher,
     { fallbackData: [] }
   );
@@ -126,7 +121,7 @@ export default function Page() {
               ) {
                 msg = "Bu barkod zaten kayıtlı!";
               }
-              console.log("Ürün ekleme hatası:", error);
+              if (error) console.log("Ürün ekleme hatası:", error);
               if (typeof window !== "undefined") {
                 window.dispatchEvent(
                   new CustomEvent("notification", {

@@ -19,9 +19,6 @@ interface KasaRow {
   oncekiKasa: number;
   gunSonuKasa: number;
 }
-interface KasaPageProps {
-  sales: Sale[];
-}
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -65,7 +62,7 @@ const KasaPage: React.FC = () => {
           setBankaDescDraft(data.bankaDesc || "");
         }
       });
-  }, []);
+  }, [todayStr]);
 
   if (error) return <div className="text-red-500">Veri hatası oluştu</div>;
   if (isLoading) return <div className="text-gray-500">Yükleniyor...</div>;

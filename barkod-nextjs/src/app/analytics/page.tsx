@@ -5,7 +5,6 @@ import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
 import type { Tab } from "../page";
 
-import { Product, Payment, Customer } from "../../types";
 import useSWR from "swr";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -13,7 +12,6 @@ const fetcher = (url: string) =>
   fetch(`${API_URL}${url}`).then((res) => res.json());
 
 export default function Page() {
-  const [search, setSearch] = useState("");
   const { data: products = [], mutate: mutateProducts } = useSWR(
     `${API_URL}/api/products?search=${encodeURIComponent(search)}`,
     fetcher,
