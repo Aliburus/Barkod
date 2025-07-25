@@ -39,7 +39,6 @@ const SalesPage: React.FC<SalesPageProps> = ({
     null
   );
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const [refresh, setRefresh] = useState(0);
 
   // Satışa ürün adı ve fiyatı ekle
   const getSaleWithProduct = (sale: Sale) => {
@@ -199,7 +198,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
   useEffect(() => {
     // Satışları güncellemek için parenttan props ile geliyorsa parentı tetikle, yoksa burada fetch et
     // Burada sadece refresh için dummy state kullanıldı
-  }, [refresh]);
+  }, []);
 
   // Pagination için
   const itemsPerPage = 20;
@@ -523,22 +522,6 @@ const SalesPage: React.FC<SalesPageProps> = ({
         </div>
       )}
     </div>
-  );
-};
-
-const SaleGroupSkeleton = () => {
-  return (
-    <li className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 px-6 py-4 animate-pulse">
-      <div className="flex-1 flex flex-col gap-1 min-w-0">
-        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-2"></div>
-        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-      </div>
-      <div className="flex flex-col items-end min-w-[180px]">
-        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-2"></div>
-        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-      </div>
-      <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
-    </li>
   );
 };
 

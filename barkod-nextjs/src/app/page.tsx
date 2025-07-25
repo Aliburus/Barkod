@@ -45,7 +45,6 @@ export default function Home() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [scannerActive, setScannerActive] = useState(false);
   const [prefilledBarcode, setPrefilledBarcode] = useState<string>("");
-  const [saleQuantity, setSaleQuantity] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [giderler, setGiderler] = useState<Expense[]>([]); // any kaldırıldı
 
@@ -90,21 +89,7 @@ export default function Home() {
     setShowProductForm(true);
   };
 
-  const handleDeleteProduct = async (productBarcode: string) => {
-    // window.confirm yerine notification ile onay iste
-    setNotification({
-      message: "Bu ürünü silmek istediğinize emin misiniz?",
-      type: "warning",
-    });
-    // Onay için kullanıcıdan ek aksiyon beklenebilir, burada örnek olarak direkt siliyorum
-    // Gerçek projede modal ile onay alınabilir
-    // Eğer notification üzerinden onay alınacaksa, ek state ve butonlar eklenmeli
-    // Şimdilik direkt silme işlemi yapılıyor:
-    // await productService.deleteProduct(productBarcode);
-    // const products = await productService.getAll();
-    // setProducts(products);
-    // showNotification("Ürün silindi", "success");
-  };
+  // handleDeleteProduct fonksiyonu kullanılmıyor, kaldırıldı
 
   const handleSaveProduct = async (product: Product) => {
     try {
@@ -119,7 +104,7 @@ export default function Home() {
       setProducts(products);
       setShowProductForm(false);
       setEditingProduct(null);
-    } catch (error) {
+    } catch {
       showNotification("Ürün eklenirken/güncellenirken hata oluştu", "error");
     }
   };
@@ -196,7 +181,6 @@ export default function Home() {
       await productService.createSale(saleCreate);
       showNotification("Satış kaydedildi ve stok güncellendi", "success");
       setShowSaleModal(false);
-      setSaleQuantity(1);
       try {
         const products = await productService.getAll();
         setProducts(products);
@@ -253,7 +237,7 @@ export default function Home() {
               <ProductsPage
                 products={products}
                 onEdit={handleEditProduct}
-                onDelete={handleDeleteProduct}
+                onDelete={() => {}}
                 onView={setSelectedProduct}
               />
             )}

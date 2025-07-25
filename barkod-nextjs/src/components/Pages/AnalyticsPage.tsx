@@ -63,13 +63,14 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   const expenseYears = allExpenses
     .map((g) => (g.paymentDate ? new Date(g.paymentDate).getFullYear() : null))
     .filter((y) => y !== null);
-  const allYears = [...saleYears, ...paymentYears, ...expenseYears];
   const years = Array.from(
     new Set(sales.map((sale) => parseISO(sale.soldAt).getFullYear()))
   ).sort((a, b) => b - a);
   const [selectedYear, setSelectedYear] = useState(
     years[0] || new Date().getFullYear()
   );
+  const [dateStart, setDateStart] = useState("");
+  const [dateEnd, setDateEnd] = useState("");
 
   const getSaleWithProduct = (sale: Sale) => {
     let price = sale.price;
@@ -91,27 +92,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     }).format(price);
   };
 
-  const formatDateTime = (dateStr: string) => {
-    return format(parseISO(dateStr), "dd MMMM yyyy HH.mm", { locale: tr });
-  };
-
   // En çok satan ürünler
-  const topProducts = Object.entries(
-    salesWithProduct.reduce((acc, sale) => {
-      const key = sale.productName;
-      if (!acc[key]) {
-        acc[key] = { quantity: 0, revenue: 0, barcode: sale.barcode };
-      }
-      acc[key].quantity += sale.quantity;
-      acc[key].revenue += sale.total;
-      return acc;
-    }, {} as Record<string, { quantity: number; revenue: number; barcode: string }>)
-  )
-    .map(([name, data]) => ({ name, ...data }))
-    .sort((a, b) => b.quantity - a.quantity)
-    .slice(0, 10);
-
-  // En çok satılan kategoriler
   const categorySales = Object.entries(
     salesWithProduct.reduce((acc, sale) => {
       const product = products.find((p) => p.barcode === sale.barcode);
@@ -157,23 +138,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       monthlySales[monthIdx] += sale.total;
     }
   });
-  const chartData = months.map((name, i) => ({ name, GELİR: monthlySales[i] }));
-
-  // Pie chart için veri
-  const pieData = categorySales.map((cat) => ({
-    name: cat.category,
-    value: cat.revenue,
-  }));
-  const pieColors = [
-    "#6366f1",
-    "#f59e42",
-    "#10b981",
-    "#ef4444",
-    "#3b82f6",
-    "#a21caf",
-    "#fbbf24",
-    "#14b8a6",
-  ];
 
   // Haftalık satış trendi
   const weeklySales = Array(7).fill(0);
@@ -189,38 +153,11 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       weeklySales[dayIdx] += sale.total;
     }
   });
-  const lineData = days.map((name, i) => ({ name, GELİR: weeklySales[i] }));
 
   // Pagination için örnek (analiz verisine göre uyarlayabilirsin)
   const itemsPerPage = 20;
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(sales.length / itemsPerPage);
-  const paginatedSales = sales.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  // Pagination butonları sadece totalPages > 1 ise göster
-  {
-    totalPages > 1 && (
-      <div className="flex gap-2 mt-4">
-        <button
-          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-          disabled={currentPage === 1}
-          className="px-3 py-1 border rounded"
-        >
-          Önceki
-        </button>
-        <span>Sayfa {currentPage}</span>
-        <button
-          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-          disabled={currentPage === totalPages}
-          className="px-3 py-1 border rounded"
-        >
-          Sonraki
-        </button>
-      </div>
-    );
-  }
 
   // Genel Özet Paneli hesaplamaları
   const toplamStokAdedi = products.reduce((sum, p) => sum + (p.stock || 0), 0);
@@ -461,8 +398,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
       }, 0) - mevcutAyGider;
 
-  const [dateStart, setDateStart] = useState("");
-  const [dateEnd, setDateEnd] = useState("");
   // Filtrelenmiş gelir/gider/net kar hesaplama
   const filteredSales = salesWithProduct.filter((s) => {
     const d = parseISO(s.soldAt);
@@ -497,7 +432,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
   // Günlük/Haftalık/Aylık satış adedi ve trendi
   const gunlukSatislar = Array(7).fill(0);
-  const haftaninGunleri = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
   salesWithProduct.forEach((s) => {
     const date = parseISO(s.soldAt);
     const now = new Date();
@@ -557,7 +491,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     "gunluk"
   );
   // Günlük: Son 7 gün, Haftalık: Son 4 hafta, Aylık: Son 12 ay
-  const gunler = haftaninGunleri;
+  const haftaninGunleri = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
   const gunlukTutarlar = Array(7).fill(0);
   salesWithProduct.forEach((s) => {
     const date = parseISO(s.soldAt);
@@ -600,7 +534,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   let barLabels: string[] = [];
   let barValues: number[] = [];
   if (salesView === "gunluk") {
-    barLabels = gunler;
+    barLabels = haftaninGunleri;
     barValues = gunlukTutarlar;
   } else if (salesView === "haftalik") {
     barLabels = ["4. Hafta", "3. Hafta", "2. Hafta", "Bu Hafta"];

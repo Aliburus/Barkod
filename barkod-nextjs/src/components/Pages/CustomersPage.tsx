@@ -24,10 +24,6 @@ const CustomersPage: React.FC = () => {
   });
   const [trxLoading, setTrxLoading] = useState(false);
   const [trxModal, setTrxModal] = useState(false);
-  // Customer tipine color eklemeden önce state ile localde tutacağım (db yoksa). Eğer db'de varsa oraya da eklenir.
-  const [customerColors, setCustomerColors] = useState<{
-    [id: string]: string;
-  }>({});
   const [sales, setSales] = useState<Sale[]>([]);
 
   const fetchCustomers = async () => {
@@ -53,7 +49,6 @@ const CustomersPage: React.FC = () => {
     customers.forEach((c) => {
       if (c.color) colorMap[c.id] = c.color;
     });
-    setCustomerColors(colorMap);
   }, [customers]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,7 +106,6 @@ const CustomersPage: React.FC = () => {
 
   // Renk seçme fonksiyonu
   const handleColorChange = async (customerId: string, color: string) => {
-    setCustomerColors((prev) => ({ ...prev, [customerId]: color }));
     await customerService.update(customerId, { color });
     fetchCustomers();
   };
@@ -174,26 +168,20 @@ const CustomersPage: React.FC = () => {
               <li
                 key={c.id}
                 className={`flex items-center justify-between rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3 bg-white/80 dark:bg-gray-800/80 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors group ${
-                  customerColors[c.id] === "yellow"
-                    ? "bg-yellow-100 dark:bg-yellow-900/20"
-                    : customerColors[c.id] === "red"
-                    ? "bg-red-100 dark:bg-red-900/20"
-                    : customerColors[c.id] === "blue"
-                    ? "bg-blue-100 dark:bg-blue-900/20"
-                    : ""
+                  c.color ? "bg-yellow-100 dark:bg-yellow-900/20" : ""
                 }`}
                 style={{ cursor: "pointer" }}
                 onClick={() => openCustomerDetail(c)}
               >
                 <div className="flex items-center gap-2 w-40">
-                  {customerColors[c.id] && (
+                  {c.color && (
                     <span
                       className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${
-                        customerColors[c.id] === "yellow"
+                        c.color === "yellow"
                           ? "bg-yellow-400"
-                          : customerColors[c.id] === "red"
+                          : c.color === "red"
                           ? "bg-red-500"
-                          : customerColors[c.id] === "blue"
+                          : c.color === "blue"
                           ? "bg-blue-500"
                           : ""
                       }`}
@@ -235,14 +223,14 @@ const CustomersPage: React.FC = () => {
             </button>
             <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
               {/* Renkli badge */}
-              {customerColors[selectedCustomer.id] && (
+              {selectedCustomer.color && (
                 <span
                   className={`inline-block w-4 h-4 rounded-full border border-gray-300 mr-1 ${
-                    customerColors[selectedCustomer.id] === "yellow"
+                    selectedCustomer.color === "yellow"
                       ? "bg-yellow-400"
-                      : customerColors[selectedCustomer.id] === "red"
+                      : selectedCustomer.color === "red"
                       ? "bg-red-500"
-                      : customerColors[selectedCustomer.id] === "blue"
+                      : selectedCustomer.color === "blue"
                       ? "bg-blue-500"
                       : ""
                   }`}
@@ -269,9 +257,7 @@ const CustomersPage: React.FC = () => {
                       ? "bg-red-400 border-red-600"
                       : "bg-blue-400 border-blue-600"
                   } ${
-                    customerColors[selectedCustomer.id] === color
-                      ? "ring-2 ring-black"
-                      : ""
+                    selectedCustomer.color === color ? "ring-2 ring-black" : ""
                   }`}
                   title={color}
                 />
