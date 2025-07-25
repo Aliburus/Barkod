@@ -3,7 +3,6 @@ import React, { useState } from "react";
 import { Sale } from "../types";
 import { TrendingUp, Calendar, Package, DollarSign } from "lucide-react";
 import { format, isToday, parseISO } from "date-fns";
-import { tr } from "date-fns/locale";
 
 interface SalesHistoryProps {
   sales: Sale[];
@@ -46,7 +45,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
   };
 
   const formatTime = (dateStr: string) => {
-    return format(parseISO(dateStr), "HH:mm", { locale: tr });
+    return format(parseISO(dateStr), "HH:mm");
   };
 
   return (

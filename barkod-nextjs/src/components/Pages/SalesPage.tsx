@@ -9,7 +9,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { parseISO, format } from "date-fns";
-import { tr } from "date-fns/locale";
 import ExcelJS from "exceljs";
 import { productService } from "../../services/productService";
 import { useEffect } from "react";
@@ -140,7 +139,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
   };
 
   const formatDateTime = (dateStr: string) => {
-    return format(parseISO(dateStr), "dd MMMM yyyy HH.mm", { locale: tr });
+    return format(parseISO(dateStr), "dd MMMM yyyy HH.mm");
   };
 
   const exportToExcel = async () => {
@@ -157,8 +156,8 @@ const SalesPage: React.FC<SalesPageProps> = ({
     ]);
     filteredSales.forEach((sale) => {
       worksheet.addRow([
-        format(parseISO(sale.soldAt), "dd MMM yyyy", { locale: tr }),
-        format(parseISO(sale.soldAt), "HH.mm", { locale: tr }),
+        format(parseISO(sale.soldAt), "dd MMM yyyy"),
+        format(parseISO(sale.soldAt), "HH.mm"),
         sale.productName,
         sale.barcode,
         sale.quantity,
@@ -214,7 +213,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
   );
   // Pagination butonları sadece totalPages > 1 ise göster
   {
-    totalPages > 1 && (
+    totalPages > 1 ? (
       <div className="flex gap-2 mt-4">
         <button
           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -232,7 +231,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
           Sonraki
         </button>
       </div>
-    );
+    ) : null;
   }
 
   return (
@@ -387,12 +386,12 @@ const SalesPage: React.FC<SalesPageProps> = ({
                   <div
                     className="w-full bg-primary-600 rounded-t transition-all duration-300 hover:bg-primary-700 min-h-[4px]"
                     style={{ height: `${height}%` }}
-                    title={`${format(parseISO(date), "dd/MM", {
-                      locale: tr,
-                    })}: ${formatPrice(amount)}`}
+                    title={`${format(parseISO(date), "dd/MM")}: ${formatPrice(
+                      amount
+                    )}`}
                   />
                   <span className="text-xs text-gray-500 dark:text-gray-400 mt-2 transform -rotate-45 origin-left">
-                    {format(parseISO(date), "dd/MM", { locale: tr })}
+                    {format(parseISO(date), "dd/MM")}
                   </span>
                 </div>
               );

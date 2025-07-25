@@ -29,6 +29,20 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   expenses,
   kasaRows = [],
 }) => {
+  const months = [
+    "Oca",
+    "Şub",
+    "Mar",
+    "Nis",
+    "May",
+    "Haz",
+    "Tem",
+    "Ağu",
+    "Eyl",
+    "Eki",
+    "Kas",
+    "Ara",
+  ];
   const safeExpenses = Array.isArray(expenses) ? expenses : [];
   // Kasa günlük harcama giderini bugünün tarihiyle ekle
   const todayStr = new Date().toISOString().split("T")[0];
@@ -88,39 +102,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   )
     .map(([category, data]) => ({ category, ...data }))
     .sort((a, b) => b.quantity - a.quantity);
-
-  // Stok durumu
-  const stockAnalysis = {
-    total: products.length,
-    inStock: products.filter((p) => p.stock > 5).length,
-    lowStock: products.filter((p) => p.stock <= 5 && p.stock > 0).length,
-    outOfStock: products.filter((p) => p.stock === 0).length,
-    totalValue: products.reduce((sum, p) => sum + p.price * p.stock, 0),
-  };
-
-  // Grafik için aylık satış verisi
-  const months = [
-    "Oca",
-    "Şub",
-    "Mar",
-    "Nis",
-    "May",
-    "Haz",
-    "Tem",
-    "Ağu",
-    "Eyl",
-    "Eki",
-    "Kas",
-    "Ara",
-  ];
-  const monthlySales = Array(12).fill(0);
-  salesWithProduct.forEach((sale) => {
-    const date = parseISO(sale.soldAt);
-    if (date.getFullYear() === selectedYear) {
-      const monthIdx = date.getMonth();
-      monthlySales[monthIdx] += sale.total;
-    }
-  });
 
   // Haftalık satış trendi
   const weeklySales = Array(7).fill(0);
