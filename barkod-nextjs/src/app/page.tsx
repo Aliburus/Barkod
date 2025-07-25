@@ -46,7 +46,7 @@ export default function Home() {
   const [scannerActive, setScannerActive] = useState(false);
   const [prefilledBarcode, setPrefilledBarcode] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [giderler, setGiderler] = useState<Expense[]>([]); // any kaldırıldı
+  const [giderler] = useState<Expense[]>([]); // any kaldırıldı
 
   useEffect(() => {
     const fetchData = async () => {
@@ -56,7 +56,7 @@ export default function Home() {
         setProducts(Array.isArray(products) ? products : []);
         const sales = await productService.getAllSales();
         setSales(sales);
-      } catch (_) {
+      } catch {
         setProducts([]);
         setSales([]);
       } finally {
@@ -104,7 +104,7 @@ export default function Home() {
       setProducts(products);
       setShowProductForm(false);
       setEditingProduct(null);
-    } catch (_) {
+    } catch {
       showNotification("Ürün eklenirken/güncellenirken hata oluştu", "error");
     }
   };
@@ -161,7 +161,7 @@ export default function Home() {
         setShowProductForm(true);
         showNotification("Ürün bulunamadı", "warning");
       }
-    } catch (_) {
+    } catch {
       showNotification("Barkod sorgulanırken hata oluştu", "error");
     }
   };
@@ -184,13 +184,13 @@ export default function Home() {
       try {
         const products = await productService.getAll();
         setProducts(products);
-      } catch (_) {
+      } catch {
         console.log("Ürün listesi alınamadı");
       }
       try {
         const sales = await productService.getAllSales();
         setSales(sales);
-      } catch (_) {
+      } catch {
         console.log("Satış listesi alınamadı");
       }
       setSelectedProduct(null);
