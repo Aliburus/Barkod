@@ -4,10 +4,10 @@ import React, { useEffect, useState } from "react";
 import { Customer, AccountTransaction, Sale } from "../../types";
 import { customerService } from "../../services/customerService";
 import { accountTransactionService } from "../../services/customerService";
-import { productService } from "../../services/productService";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Trash2 } from "lucide-react";
+import { productService } from "../../services/productService";
 
 const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -74,7 +74,7 @@ const CustomersPage: React.FC = () => {
     setTrxModal(true);
     await fetchTransactions(customer.id);
     const allSales = await productService.getAllSales();
-    setSales(allSales.filter((s) => s.customer === customer.id));
+    setSales(allSales.filter((s: Sale) => s.customer === customer.id));
   };
 
   const handleTrxChange = (

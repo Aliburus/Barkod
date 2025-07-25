@@ -36,16 +36,22 @@ export default function Page() {
   } | null>(null);
   // useEffect ile veri çekme kaldırıldı
   useEffect(() => {
-    const handler = (e: any) => {
+    const handler = (
+      e: CustomEvent<{
+        message: string;
+        type?: "success" | "error" | "warning" | "info";
+      }>
+    ) => {
       if (e.detail && e.detail.message) {
         setNotification({
           message: e.detail.message,
-          type: e.detail.type || "info",
+          type: e.detail.type ?? "info",
         });
       }
     };
-    window.addEventListener("notification", handler);
-    return () => window.removeEventListener("notification", handler);
+    window.addEventListener("notification", handler as EventListener);
+    return () =>
+      window.removeEventListener("notification", handler as EventListener);
   }, []);
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -109,9 +115,15 @@ export default function Page() {
                   })
                 );
               }
-            } catch (error: any) {
+            } catch (error: unknown) {
               let msg = "Ürün eklenirken hata oluştu";
-              if (error?.response?.data?.error?.includes("duplicate key")) {
+              if (
+                typeof error === "object" &&
+                error !== null &&
+                "response" in error &&
+                typeof (error as any).response?.data?.error === "string" &&
+                (error as any).response.data.error.includes("duplicate key")
+              ) {
                 msg = "Bu barkod zaten kayıtlı!";
               }
               console.log("Ürün ekleme hatası:", error);

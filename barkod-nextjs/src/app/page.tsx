@@ -11,10 +11,13 @@ import ProductForm from "../components/ProductForm";
 import SaleModal from "../components/SaleModal";
 import { productService } from "../services/productService";
 import { Product, Sale, ScanResult } from "../types";
-import ExcelJS from "exceljs";
+import type { Expense } from "../services/expenseService";
 import PaymentsPage from "../components/Pages/PaymentsPage";
 import { Loader2 } from "lucide-react";
 import KasaPage from "./kasa/page";
+import GiderlerPage from "./giderler/page";
+import ExcelJS from "exceljs";
+import type { Row } from "exceljs";
 
 export type Tab =
   | "scanner"
@@ -23,7 +26,8 @@ export type Tab =
   | "customers"
   | "payments"
   | "analytics"
-  | "kasa";
+  | "kasa"
+  | "giderler";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("scanner");
@@ -43,6 +47,7 @@ export default function Home() {
   const [prefilledBarcode, setPrefilledBarcode] = useState<string>("");
   const [saleQuantity, setSaleQuantity] = useState<number>(1);
   const [loading, setLoading] = useState(true);
+  const [giderler, setGiderler] = useState<Expense[]>([]); // any kaldırıldı
 
   useEffect(() => {
     const fetchData = async () => {
@@ -126,7 +131,7 @@ export default function Home() {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await file.arrayBuffer());
     const worksheet = workbook.worksheets[0];
-    worksheet.eachRow((row, rowNumber) => {
+    worksheet.eachRow((row: Row, rowNumber: number) => {
       if (rowNumber === 1) return; // başlık satırı
       const values = Array.isArray(row.values) ? row.values : [];
       const [barcode, name, price, stock, category, brand] = values.slice(1);
@@ -261,13 +266,17 @@ export default function Home() {
                 sales={sales}
                 payments={[]}
                 customers={[]}
+                expenses={giderler}
               />
             )}
             {activeTab === "scanner" && (
               <BarcodeScanner onScan={handleScan} isActive={scannerActive} />
             )}
             {activeTab === "payments" && <PaymentsPage />}
-            {activeTab === "kasa" && <KasaPage sales={sales} />}
+            {activeTab === "kasa" && <KasaPage />}
+            {activeTab === "giderler" && (
+              <GiderlerPage giderler={giderler} setGiderler={setGiderler} />
+            )}
           </main>
           {showProductForm && (
             <ProductForm
@@ -283,9 +292,18 @@ export default function Home() {
                   setPrefilledBarcode("");
                   setScannerActive(true);
                   showNotification("Ürün başarıyla eklendi", "success");
-                } catch (error: any) {
+                } catch (error) {
                   let msg = "Ürün eklenirken hata oluştu";
-                  if (error?.message?.includes("duplicate key")) {
+                  if (
+                    typeof error === "object" &&
+                    error !== null &&
+                    "message" in error &&
+                    typeof (error as { message?: string }).message ===
+                      "string" &&
+                    (error as { message?: string }).message?.includes(
+                      "duplicate key"
+                    )
+                  ) {
                     msg = "Bu barkod zaten kayıtlı!";
                   }
                   setShowProductForm(false);

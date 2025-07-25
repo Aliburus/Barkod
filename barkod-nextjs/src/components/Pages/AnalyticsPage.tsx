@@ -1,6 +1,13 @@
 "use client";
-import React, { useState, useMemo, useEffect } from "react";
-import { Product, Sale, Payment, Customer } from "../../types";
+import React, { useState, useEffect } from "react";
+import type {
+  Product,
+  Sale,
+  Payment,
+  Customer,
+  Expense,
+  KasaRow,
+} from "../../types";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 
@@ -11,6 +18,8 @@ interface AnalyticsPageProps {
   sales: Sale[];
   payments: Payment[];
   customers: Customer[];
+  expenses: Expense[];
+  kasaRows?: KasaRow[];
 }
 
 const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
@@ -18,7 +27,43 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   sales,
   payments,
   customers,
+  expenses,
+  kasaRows = [],
 }) => {
+  const safeExpenses = Array.isArray(expenses) ? expenses : [];
+  // Kasa günlük harcama giderini bugünün tarihiyle ekle
+  const todayStr = new Date().toISOString().split("T")[0];
+  const kasaBugun = kasaRows.find((k) => k.date === todayStr);
+  const kasaHarcamaGider: Expense | null =
+    kasaBugun && kasaBugun.harcama > 0
+      ? {
+          id: "kasa-" + todayStr,
+          amount: kasaBugun.harcama,
+          desc: "Kasa Harcama",
+          frequency: "tek",
+          paymentDate: todayStr,
+          status: "active",
+        }
+      : null;
+  const allExpenses = kasaHarcamaGider
+    ? [...safeExpenses, kasaHarcamaGider]
+    : safeExpenses;
+  // Yıllar: satış, ödeme ve giderlerin tüm yıllarını kapsa
+  const saleYears = sales.map((sale) => parseISO(sale.soldAt).getFullYear());
+  const paymentYears = payments
+    .map((p) => {
+      const d = p.date
+        ? new Date(p.date)
+        : p.dueDate
+        ? new Date(p.dueDate)
+        : null;
+      return d ? d.getFullYear() : null;
+    })
+    .filter((y) => y !== null);
+  const expenseYears = allExpenses
+    .map((g) => (g.paymentDate ? new Date(g.paymentDate).getFullYear() : null))
+    .filter((y) => y !== null);
+  const allYears = [...saleYears, ...paymentYears, ...expenseYears];
   const years = Array.from(
     new Set(sales.map((sale) => parseISO(sale.soldAt).getFullYear()))
   ).sort((a, b) => b - a);
@@ -150,10 +195,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   const itemsPerPage = 20;
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(sales.length / itemsPerPage);
-  const paginatedSales = useMemo(
-    () =>
-      sales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
-    [sales, currentPage, itemsPerPage]
+  const paginatedSales = sales.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
   // Pagination butonları sadece totalPages > 1 ise göster
   {
@@ -185,13 +229,20 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     (sum, s) => sum + (s.total || 0),
     0
   );
-  const toplamGider = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-  // Net kar/zarar: satış ve alış fiyatına göre
-  const toplamNetKarZarar = salesWithProduct.reduce((sum, s) => {
-    const product = products.find((p) => p.barcode === s.barcode);
-    const maliyet = product?.purchasePrice || 0;
-    return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
-  }, 0);
+  // Giderleri payments ve expenses ile birlikte hesapla
+  const toplamGider = [
+    ...payments.map((p) => p.amount || 0),
+    ...allExpenses
+      .filter((g: Expense) => g.status === "active" || g.status === undefined)
+      .map((g: Expense) => g.amount),
+  ].reduce((a, b) => a + b, 0);
+  // Net kar/zarar: satış ve alış fiyatına göre, giderleri de düş
+  const toplamNetKarZarar =
+    salesWithProduct.reduce((sum, s) => {
+      const product = products.find((p) => p.barcode === s.barcode);
+      const maliyet = product?.purchasePrice || 0;
+      return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
+    }, 0) - toplamGider;
   const odememisBorc = customers.reduce((sum, c) => sum + (c.debt || 0), 0);
   const satisTurleri = salesWithProduct.reduce((acc, s) => {
     const tur = s.paymentType || "Bilinmiyor";
@@ -247,81 +298,168 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     gelir: number;
     gider: number;
     net: number;
+    giderDetay?: Expense[];
   }[] = [];
   for (let m = 0; m < 12; m++) {
     const ayGelir = salesWithProduct
-      .filter((s) => parseISO(s.soldAt).getMonth() === m)
+      .filter(
+        (s) =>
+          parseISO(s.soldAt).getMonth() === m &&
+          parseISO(s.soldAt).getFullYear() === selectedYear
+      )
       .reduce((sum, s) => sum + (s.total || 0), 0);
-    const ayGider = payments
+    // Payments ve giderler birlikte
+    const ayGiderler = [
+      ...payments
+        .filter((p) => {
+          const d = p.date
+            ? new Date(p.date)
+            : p.dueDate
+            ? new Date(p.dueDate)
+            : null;
+          return d && d.getMonth() === m && d.getFullYear() === selectedYear;
+        })
+        .map((p) => p.amount || 0),
+      ...allExpenses
+        .filter((g: Expense) => {
+          // status ve frequency kontrollerini daha güvenli yap
+          const status = (g.status || "").toLowerCase();
+          const freq = (g.frequency || "").toLowerCase();
+          if (status !== "active" && g.status !== undefined) return false;
+          if (!g.paymentDate) return false;
+          const d = new Date(g.paymentDate);
+          if (freq === "tek") {
+            return d.getFullYear() === selectedYear && d.getMonth() === m;
+          }
+          if (freq === "aylık") {
+            return (
+              d.getFullYear() < selectedYear ||
+              (d.getFullYear() === selectedYear && d.getMonth() <= m)
+            );
+          }
+          if (freq === "yıllık") {
+            return d.getMonth() === m && d.getFullYear() <= selectedYear;
+          }
+          return false;
+        })
+        .map((g: Expense) => g.amount),
+    ];
+    const ayGider = ayGiderler.reduce((a, b) => a + b, 0);
+    // Gider detaylarını da ekle
+    const giderDetay = allExpenses.filter((g: Expense) => {
+      const status = (g.status || "").toLowerCase();
+      const freq = (g.frequency || "").toLowerCase();
+      if (status !== "active" && g.status !== undefined) return false;
+      if (!g.paymentDate) return false;
+      const d = new Date(g.paymentDate);
+      if (freq === "tek") {
+        return d.getFullYear() === selectedYear && d.getMonth() === m;
+      }
+      if (freq === "aylık") {
+        return (
+          d.getFullYear() < selectedYear ||
+          (d.getFullYear() === selectedYear && d.getMonth() <= m)
+        );
+      }
+      if (freq === "yıllık") {
+        return d.getMonth() === m && d.getFullYear() <= selectedYear;
+      }
+      return false;
+    });
+    monthlySummary.push({
+      ay: months[m],
+      gelir: ayGelir,
+      gider: ayGider,
+      net: ayGelir - ayGider,
+      giderDetay,
+    });
+  }
+  // Yıllık toplamlar (tüm yıl için)
+  const nowYear = new Date().getFullYear();
+  const yillikGelir = salesWithProduct
+    .filter((s) => parseISO(s.soldAt).getFullYear() === nowYear)
+    .reduce((sum, s) => sum + (s.total || 0), 0);
+  const yillikGider = [
+    ...payments
       .filter((p) => {
         const d = p.date
           ? new Date(p.date)
           : p.dueDate
           ? new Date(p.dueDate)
           : null;
-        return d && d.getMonth() === m;
+        return d && d.getFullYear() === nowYear;
       })
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
-    monthlySummary.push({
-      ay: months[m],
-      gelir: ayGelir,
-      gider: ayGider,
-      net: ayGelir - ayGider,
-    });
-  }
+      .map((p) => p.amount || 0),
+    ...allExpenses
+      .filter(
+        (g: Expense) =>
+          (g.status === "active" || g.status === undefined) &&
+          g.paymentDate &&
+          new Date(g.paymentDate).getFullYear() === nowYear
+      )
+      .map((g: Expense) => g.amount),
+  ].reduce((a, b) => a + b, 0);
+  const yillikNetKar = yillikGelir - yillikGider;
 
-  // Mevcut ayın gideri
+  // Mevcut ayın gideri (payments + expenses)
   const now = new Date();
   const mevcutAy = now.getMonth();
-  const mevcutAyGider = payments
-    .filter((p) => {
-      const d = p.date
-        ? new Date(p.date)
-        : p.dueDate
-        ? new Date(p.dueDate)
-        : null;
-      return (
-        d && d.getMonth() === mevcutAy && d.getFullYear() === now.getFullYear()
-      );
-    })
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
+  const mevcutAyGider = [
+    ...payments
+      .filter((p) => {
+        const d = p.date
+          ? new Date(p.date)
+          : p.dueDate
+          ? new Date(p.dueDate)
+          : null;
+        return (
+          d &&
+          d.getMonth() === mevcutAy &&
+          d.getFullYear() === now.getFullYear()
+        );
+      })
+      .map((p) => p.amount || 0),
+    ...allExpenses
+      .filter((g: Expense) => {
+        const status = (g.status || "").toLowerCase();
+        const freq = (g.frequency || "").toLowerCase();
+        if (status !== "active" && g.status !== undefined) return false;
+        if (!g.paymentDate) return false;
+        const d = new Date(g.paymentDate);
+        if (freq === "tek") {
+          return (
+            d.getFullYear() === now.getFullYear() && d.getMonth() === mevcutAy
+          );
+        }
+        if (freq === "aylık") {
+          return (
+            d.getFullYear() < now.getFullYear() ||
+            (d.getFullYear() === now.getFullYear() && d.getMonth() <= mevcutAy)
+          );
+        }
+        if (freq === "yıllık") {
+          return (
+            d.getMonth() === mevcutAy && d.getFullYear() <= now.getFullYear()
+          );
+        }
+        return false;
+      })
+      .map((g: Expense) => g.amount),
+  ].reduce((a, b) => a + b, 0);
 
-  // Mevcut ayın ödenmemiş borçları
-  const mevcutAyOdenmemisBorc = payments
-    .filter((p) => {
-      const d = p.date
-        ? new Date(p.date)
-        : p.dueDate
-        ? new Date(p.dueDate)
-        : null;
-      return (
-        d &&
-        d.getMonth() === mevcutAy &&
-        d.getFullYear() === now.getFullYear() &&
-        !p.isPaid
-      );
-    })
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-
-  // Mevcut ayın satış geliri ve net kar
-  const mevcutAyGelir = salesWithProduct
-    .filter(
-      (s) =>
-        parseISO(s.soldAt).getMonth() === mevcutAy &&
-        parseISO(s.soldAt).getFullYear() === now.getFullYear()
-    )
-    .reduce((sum, s) => sum + (s.total || 0), 0);
-  const mevcutAyNetKar = salesWithProduct
-    .filter(
-      (s) =>
-        parseISO(s.soldAt).getMonth() === mevcutAy &&
-        parseISO(s.soldAt).getFullYear() === now.getFullYear()
-    )
-    .reduce((sum, s) => {
-      const product = products.find((p) => p.barcode === s.barcode);
-      const maliyet = product?.purchasePrice || 0;
-      return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
-    }, 0);
+  // Mevcut ayın net kar (satış karı - giderler)
+  const mevcutAyNetKar =
+    salesWithProduct
+      .filter(
+        (s) =>
+          parseISO(s.soldAt).getMonth() === mevcutAy &&
+          parseISO(s.soldAt).getFullYear() === now.getFullYear()
+      )
+      .reduce((sum, s) => {
+        const product = products.find((p) => p.barcode === s.barcode);
+        const maliyet = product?.purchasePrice || 0;
+        return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
+      }, 0) - mevcutAyGider;
 
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
@@ -356,28 +494,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     const maliyet = product?.purchasePrice || 0;
     return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
   }, 0);
-  // Yıllık toplamlar (tüm yıl için)
-  const nowYear = now.getFullYear();
-  const yillikGelir = salesWithProduct
-    .filter((s) => parseISO(s.soldAt).getFullYear() === nowYear)
-    .reduce((sum, s) => sum + (s.total || 0), 0);
-  const yillikGider = payments
-    .filter((p) => {
-      const d = p.date
-        ? new Date(p.date)
-        : p.dueDate
-        ? new Date(p.dueDate)
-        : null;
-      return d && d.getFullYear() === nowYear;
-    })
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-  const yillikNetKar = salesWithProduct
-    .filter((s) => parseISO(s.soldAt).getFullYear() === nowYear)
-    .reduce((sum, s) => {
-      const product = products.find((p) => p.barcode === s.barcode);
-      const maliyet = product?.purchasePrice || 0;
-      return sum + ((s.price || 0) - maliyet) * (s.quantity || 0);
-    }, 0);
 
   // Günlük/Haftalık/Aylık satış adedi ve trendi
   const gunlukSatislar = Array(7).fill(0);
@@ -433,7 +549,7 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       const maliyet = product?.purchasePrice || 0;
       return sum + maliyet * (s.quantity || 0);
     }, 0);
-  const yillikBrutKar = yillikGelirBrut - yillikMaliyet;
+  const yillikBrutKar = yillikGelirBrut - yillikMaliyet - yillikGider;
   const yillikKarMarji =
     yillikGelirBrut > 0 ? (yillikBrutKar / yillikGelirBrut) * 100 : 0;
 
@@ -529,8 +645,43 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           parseISO(s.soldAt).getFullYear() === selectedYear
       )
       .reduce((sum, s) => sum + (s.price || 0) * (s.quantity || 0), 0);
-    // Gider: alış fiyatı * adet
-    const gider = salesWithProduct
+    // Gider: alış fiyatı * adet + payments + allExpenses
+    const gider = [
+      ...payments
+        .filter((p) => {
+          const d = p.date
+            ? new Date(p.date)
+            : p.dueDate
+            ? new Date(p.dueDate)
+            : null;
+          return d && d.getMonth() === i && d.getFullYear() === selectedYear;
+        })
+        .map((p) => p.amount || 0),
+      ...allExpenses
+        .filter((g: Expense) => {
+          const status = (g.status || "").toLowerCase();
+          const freq = (g.frequency || "").toLowerCase();
+          if (status !== "active" && g.status !== undefined) return false;
+          if (!g.paymentDate) return false;
+          const d = new Date(g.paymentDate);
+          if (freq === "tek") {
+            return d.getFullYear() === selectedYear && d.getMonth() === i;
+          }
+          if (freq === "aylık") {
+            return (
+              d.getFullYear() < selectedYear ||
+              (d.getFullYear() === selectedYear && d.getMonth() <= i)
+            );
+          }
+          if (freq === "yıllık") {
+            return d.getMonth() === i && d.getFullYear() <= selectedYear;
+          }
+          return false;
+        })
+        .map((g: Expense) => g.amount),
+    ].reduce((a, b) => a + b, 0);
+    // Satış maliyeti
+    const maliyet = salesWithProduct
       .filter(
         (s) =>
           parseISO(s.soldAt).getMonth() === i &&
@@ -538,16 +689,23 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       )
       .reduce((sum, s) => {
         const product = products.find((p) => p.barcode === s.barcode);
-        const maliyet = product?.purchasePrice || 0;
-        return sum + maliyet * (s.quantity || 0);
+        const m = product?.purchasePrice || 0;
+        return sum + m * (s.quantity || 0);
       }, 0);
     return {
       ay,
       gelir,
-      gider,
-      net: gelir - gider,
+      gider: gider + maliyet,
+      net: gelir - (gider + maliyet),
     };
   });
+
+  // Modal için state
+  const [giderModal, setGiderModal] = useState<null | {
+    payments: Payment[];
+    expenses: Expense[];
+    ay: string;
+  }>(null);
 
   return (
     <div className="space-y-6">
@@ -571,7 +729,15 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         </div>
         <div className="bg-gradient-to-br from-purple-100 to-purple-300 dark:from-purple-900 dark:to-purple-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
           <span className="text-2xl font-bold text-purple-900 dark:text-purple-200">
-            {formatPrice(mevcutAyGelir)}
+            {formatPrice(
+              salesWithProduct
+                .filter(
+                  (s) =>
+                    parseISO(s.soldAt).getMonth() === mevcutAy &&
+                    parseISO(s.soldAt).getFullYear() === now.getFullYear()
+                )
+                .reduce((sum, s) => sum + (s.price || 0) * (s.quantity || 0), 0)
+            )}
           </span>
           <span className="text-sm text-purple-800 dark:text-purple-300 mt-1">
             Bu Ayın Satış Geliri
@@ -637,20 +803,52 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         parseISO(s.soldAt).getFullYear() === selectedYear
                     )
                     .reduce((sum, s) => sum + (s.total || 0), 0);
-                  const ayGider = payments
-                    .filter((p) => {
-                      const d = p.date
-                        ? new Date(p.date)
-                        : p.dueDate
-                        ? new Date(p.dueDate)
-                        : null;
-                      return (
-                        d &&
-                        d.getMonth() === i &&
-                        d.getFullYear() === selectedYear
-                      );
-                    })
-                    .reduce((sum, p) => sum + (p.amount || 0), 0);
+                  const ayGider = [
+                    ...payments
+                      .filter((p) => {
+                        const d = p.date
+                          ? new Date(p.date)
+                          : p.dueDate
+                          ? new Date(p.dueDate)
+                          : null;
+                        return (
+                          d &&
+                          d.getMonth() === i &&
+                          d.getFullYear() === selectedYear
+                        );
+                      })
+                      .map((p) => p.amount || 0),
+                    ...allExpenses
+                      .filter((g: Expense) => {
+                        const status = (g.status || "").toLowerCase();
+                        const freq = (g.frequency || "").toLowerCase();
+                        if (status !== "active" && g.status !== undefined)
+                          return false;
+                        if (!g.paymentDate) return false;
+                        const d = new Date(g.paymentDate);
+                        if (freq === "tek") {
+                          return (
+                            d.getFullYear() === selectedYear &&
+                            d.getMonth() === i
+                          );
+                        }
+                        if (freq === "aylık") {
+                          return (
+                            d.getFullYear() < selectedYear ||
+                            (d.getFullYear() === selectedYear &&
+                              d.getMonth() <= i)
+                          );
+                        }
+                        if (freq === "yıllık") {
+                          return (
+                            d.getMonth() === i &&
+                            d.getFullYear() <= selectedYear
+                          );
+                        }
+                        return false;
+                      })
+                      .map((g: Expense) => g.amount),
+                  ].reduce((a, b) => a + b, 0);
                   const ayNet = ayGelir - ayGider;
                   row.gelir = ayGelir;
                   row.gider = ayGider;
@@ -666,7 +864,57 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                     <td className="px-3 py-2 text-green-700 dark:text-green-400">
                       {formatPrice(row.gelir)}
                     </td>
-                    <td className="px-3 py-2 text-red-700 dark:text-red-400">
+                    <td
+                      className="px-3 py-2 text-red-700 dark:text-red-400 cursor-pointer underline"
+                      onClick={() => {
+                        // O ayın payments ve giderlerini bul
+                        const ayPayments = payments.filter((p) => {
+                          const d = p.date
+                            ? new Date(p.date)
+                            : p.dueDate
+                            ? new Date(p.dueDate)
+                            : null;
+                          return (
+                            d &&
+                            d.getMonth() === i &&
+                            d.getFullYear() === selectedYear
+                          );
+                        });
+                        const ayExpenses = allExpenses.filter((g: Expense) => {
+                          const status = (g.status || "").toLowerCase();
+                          const freq = (g.frequency || "").toLowerCase();
+                          if (status !== "active" && g.status !== undefined)
+                            return false;
+                          if (!g.paymentDate) return false;
+                          const d = new Date(g.paymentDate);
+                          if (freq === "tek") {
+                            return (
+                              d.getFullYear() === selectedYear &&
+                              d.getMonth() === i
+                            );
+                          }
+                          if (freq === "aylık") {
+                            return (
+                              d.getFullYear() < selectedYear ||
+                              (d.getFullYear() === selectedYear &&
+                                d.getMonth() <= i)
+                            );
+                          }
+                          if (freq === "yıllık") {
+                            return (
+                              d.getMonth() === i &&
+                              d.getFullYear() <= selectedYear
+                            );
+                          }
+                          return false;
+                        });
+                        setGiderModal({
+                          payments: ayPayments,
+                          expenses: ayExpenses,
+                          ay: row.ay,
+                        });
+                      }}
+                    >
                       {formatPrice(row.gider)}
                     </td>
                     <td
@@ -683,6 +931,64 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             </tbody>
           </table>
         </div>
+        {/* Gider Detay Modalı */}
+        {giderModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-white dark:bg-gray-900 rounded-lg p-6 min-w-[320px] max-w-[90vw] shadow-xl">
+              <h3 className="text-lg font-bold mb-4">
+                {giderModal.ay} Gider Detayı
+              </h3>
+              <div className="space-y-4">
+                {giderModal.payments.length > 0 && (
+                  <div>
+                    <div className="font-semibold mb-1">
+                      Ödemeler (Taksitler):
+                    </div>
+                    <ul className="list-disc pl-4">
+                      {giderModal.payments.map((p, idx) => (
+                        <li key={p.id || idx}>
+                          {`${idx + 1}. Taksit - Ödeme`} -{" "}
+                          {formatPrice(p.amount)}
+                          {p.date
+                            ? ` (${format(new Date(p.date), "dd.MM.yyyy")})`
+                            : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {giderModal.expenses.length > 0 && (
+                  <div>
+                    <div className="font-semibold mb-1">Giderler:</div>
+                    <ul className="list-disc pl-4">
+                      {giderModal.expenses.map((g, idx) => (
+                        <li key={g.id + "-" + idx}>
+                          {g.desc || "Gider"} - {formatPrice(g.amount)}
+                          {g.paymentDate
+                            ? ` (${format(
+                                new Date(g.paymentDate),
+                                "dd.MM.yyyy"
+                              )})`
+                            : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {giderModal.payments.length === 0 &&
+                  giderModal.expenses.length === 0 && (
+                    <div>Gider veya ödeme bulunamadı.</div>
+                  )}
+              </div>
+              <button
+                className="mt-6 w-full bg-blue-600 text-white py-2 rounded"
+                onClick={() => setGiderModal(null)}
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       {/* Stok Hareket Raporları */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -758,374 +1064,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               ))}
               {products.length === 0 && <li>Ürün verisi yok.</li>}
             </ul>
-          </div>
-        </div>
-      </div>
-      {/* Gelir-Gider Analizi */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Gelir-Gider Analizi
-        </h3>
-        <div className="flex items-center gap-4 mb-4">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Yıl:
-          </label>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-gradient-to-br from-green-100 to-green-300 dark:from-green-900 dark:to-green-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold text-green-900 dark:text-green-200">
-              {formatPrice(
-                salesWithProduct
-                  .filter(
-                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
-                  )
-                  .reduce(
-                    (sum, s) => sum + (s.price || 0) * (s.quantity || 0),
-                    0
-                  )
-              )}
-            </span>
-            <span className="text-sm text-green-800 dark:text-green-300 mt-1">
-              Yıllık Gelir (Ciro)
-            </span>
-          </div>
-          <div className="bg-gradient-to-br from-gray-100 to-gray-300 dark:from-gray-900 dark:to-gray-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold text-gray-900 dark:text-gray-200">
-              {formatPrice(
-                salesWithProduct
-                  .filter(
-                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
-                  )
-                  .reduce((sum, s) => {
-                    const product = products.find(
-                      (p) => p.barcode === s.barcode
-                    );
-                    const maliyet = product?.purchasePrice || 0;
-                    return sum + maliyet * (s.quantity || 0);
-                  }, 0)
-              )}
-            </span>
-            <span className="text-sm text-gray-800 dark:text-gray-300 mt-1">
-              Yıllık Maliyet
-            </span>
-          </div>
-          <div className="bg-gradient-to-br from-yellow-100 to-yellow-300 dark:from-yellow-900 dark:to-yellow-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold text-yellow-900 dark:text-yellow-200">
-              {(() => {
-                const gelir = salesWithProduct
-                  .filter(
-                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
-                  )
-                  .reduce(
-                    (sum, s) => sum + (s.price || 0) * (s.quantity || 0),
-                    0
-                  );
-                const maliyet = salesWithProduct
-                  .filter(
-                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
-                  )
-                  .reduce((sum, s) => {
-                    const product = products.find(
-                      (p) => p.barcode === s.barcode
-                    );
-                    const m = product?.purchasePrice || 0;
-                    return sum + m * (s.quantity || 0);
-                  }, 0);
-                return formatPrice(gelir - maliyet);
-              })()}
-            </span>
-            <span className="text-sm text-yellow-800 dark:text-yellow-300 mt-1">
-              Brüt Kar
-            </span>
-          </div>
-          <div className="bg-gradient-to-br from-blue-100 to-blue-300 dark:from-blue-900 dark:to-blue-700 rounded-xl p-6 shadow flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold text-blue-900 dark:text-blue-200">
-              {(() => {
-                const gelir = salesWithProduct
-                  .filter(
-                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
-                  )
-                  .reduce(
-                    (sum, s) => sum + (s.price || 0) * (s.quantity || 0),
-                    0
-                  );
-                const maliyet = salesWithProduct
-                  .filter(
-                    (s) => parseISO(s.soldAt).getFullYear() === selectedYear
-                  )
-                  .reduce((sum, s) => {
-                    const product = products.find(
-                      (p) => p.barcode === s.barcode
-                    );
-                    const m = product?.purchasePrice || 0;
-                    return sum + m * (s.quantity || 0);
-                  }, 0);
-                const karMarji =
-                  gelir > 0 ? ((gelir - maliyet) / gelir) * 100 : 0;
-                return `%${karMarji.toFixed(1)}`;
-              })()}
-            </span>
-            <span className="text-sm text-blue-800 dark:text-blue-300 mt-1">
-              Kar Marjı
-            </span>
-          </div>
-        </div>
-        {/* Kartlar ile grafik arasında boşluk ekle */}
-        <div className="h-16 md:h-24 lg:h-28" />
-        <div className="w-full h-[420px] flex items-center justify-center relative">
-          {/* Tooltip için state */}
-          {tooltip && (
-            <div
-              style={{
-                position: "absolute",
-                left: tooltip.x,
-                top: tooltip.y - 50,
-                background: "rgba(30,41,59,0.95)",
-                color: "#fff",
-                padding: "8px 14px",
-                borderRadius: "8px",
-                fontSize: 16,
-                pointerEvents: "none",
-                zIndex: 10,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-              }}
-            >
-              <div>
-                <b>{tooltip.ay}</b>
-              </div>
-              <div>Gelir: {formatPrice(tooltip.gelir)}</div>
-              <div>Gider: {formatPrice(tooltip.gider)}</div>
-              <div>Net Kar: {formatPrice(tooltip.net)}</div>
-            </div>
-          )}
-          {/* Geniş ve modern çizgi grafik */}
-          <svg width="100%" height="100%" viewBox="0 0 1200 420">
-            {/* Y ekseni değerleri ve çizgileri (y 90'dan başlasın) */}
-            <g>
-              {[0, 1, 2, 3, 4].map((i) => {
-                const max = Math.max(
-                  ...aylikGelirGiderNet.map((a) =>
-                    Math.max(a.gelir, a.gider, a.net)
-                  ),
-                  100
-                );
-                const y = 90 + i * 70;
-                return (
-                  <g key={i}>
-                    <text x={0} y={y} fontSize="18" fill="#b3b3b3">
-                      {formatPrice((max * (4 - i)) / 4)}
-                    </text>
-                    <line
-                      x1={80}
-                      y1={y - 5}
-                      x2={1150}
-                      y2={y - 5}
-                      stroke="#444"
-                      strokeDasharray="4 4"
-                    />
-                  </g>
-                );
-              })}
-            </g>
-            {/* Ay isimleri */}
-            <g>
-              {aylikGelirGiderNet.map((a, i) => (
-                <text
-                  key={a.ay}
-                  x={120 + i * 90}
-                  y={410}
-                  fontSize="18"
-                  fill="#b3b3b3"
-                  textAnchor="middle"
-                >
-                  {a.ay}
-                </text>
-              ))}
-            </g>
-            {/* Gelir çizgisi */}
-            <polyline
-              fill="none"
-              stroke="#22c55e"
-              strokeWidth="5"
-              points={aylikGelirGiderNet
-                .map((a, i) => {
-                  const max = Math.max(
-                    ...aylikGelirGiderNet.map((a) =>
-                      Math.max(a.gelir, a.gider, a.net)
-                    ),
-                    100
-                  );
-                  const x = 120 + i * 90;
-                  const y = 90 + 280 * (1 - a.gelir / (max || 1));
-                  return `${x},${y}`;
-                })
-                .join(" ")}
-            />
-            {/* Gider çizgisi */}
-            <polyline
-              fill="none"
-              stroke="#ef4444"
-              strokeWidth="5"
-              points={aylikGelirGiderNet
-                .map((a, i) => {
-                  const max = Math.max(
-                    ...aylikGelirGiderNet.map((a) =>
-                      Math.max(a.gelir, a.gider, a.net)
-                    ),
-                    100
-                  );
-                  const x = 120 + i * 90;
-                  const y = 90 + 280 * (1 - a.gider / (max || 1));
-                  return `${x},${y}`;
-                })
-                .join(" ")}
-            />
-            {/* Net kar çizgisi */}
-            <polyline
-              fill="none"
-              stroke="#fbbf24"
-              strokeWidth="5"
-              points={aylikGelirGiderNet
-                .map((a, i) => {
-                  const max = Math.max(
-                    ...aylikGelirGiderNet.map((a) =>
-                      Math.max(a.gelir, a.gider, a.net)
-                    ),
-                    100
-                  );
-                  const x = 120 + i * 90;
-                  // Net kar çizgisini diğerlerinden biraz daha yukarı/ayrı göster
-                  const y = 90 + 280 * (1 - (a.net + max * 0.15) / (max || 1));
-                  return `${x},${y}`;
-                })
-                .join(" ")}
-            />
-            {/* Noktalar */}
-            {aylikGelirGiderNet.map((a, i) => {
-              const max = Math.max(
-                ...aylikGelirGiderNet.map((a) =>
-                  Math.max(a.gelir, a.gider, a.net)
-                ),
-                100
-              );
-              const x = 120 + i * 90;
-              const yGelir = 90 + 280 * (1 - a.gelir / (max || 1));
-              const yGider = 90 + 280 * (1 - a.gider / (max || 1));
-              const yNet = 90 + 280 * (1 - (a.net + max * 0.15) / (max || 1));
-              return (
-                <g key={i}>
-                  <circle
-                    cx={x}
-                    cy={yGelir}
-                    r={7}
-                    fill="#22c55e"
-                    stroke="#fff"
-                    strokeWidth="2"
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => {
-                      const svg = e.currentTarget.ownerSVGElement;
-                      if (!svg) return;
-                      setTooltip({
-                        x:
-                          e.currentTarget.getBoundingClientRect().left -
-                          svg.getBoundingClientRect().left +
-                          20,
-                        y:
-                          e.currentTarget.getBoundingClientRect().top -
-                          svg.getBoundingClientRect().top,
-                        ay: a.ay,
-                        gelir: a.gelir,
-                        gider: a.gider,
-                        net: a.net,
-                      });
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
-                  />
-                  <circle
-                    cx={x}
-                    cy={yGider}
-                    r={7}
-                    fill="#ef4444"
-                    stroke="#fff"
-                    strokeWidth="2"
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => {
-                      const svg = e.currentTarget.ownerSVGElement;
-                      if (!svg) return;
-                      setTooltip({
-                        x:
-                          e.currentTarget.getBoundingClientRect().left -
-                          svg.getBoundingClientRect().left +
-                          20,
-                        y:
-                          e.currentTarget.getBoundingClientRect().top -
-                          svg.getBoundingClientRect().top,
-                        ay: a.ay,
-                        gelir: a.gelir,
-                        gider: a.gider,
-                        net: a.net,
-                      });
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
-                  />
-                  <circle
-                    cx={x}
-                    cy={yNet}
-                    r={7}
-                    fill="#fbbf24"
-                    stroke="#fff"
-                    strokeWidth="2"
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => {
-                      const svg = e.currentTarget.ownerSVGElement;
-                      if (!svg) return;
-                      setTooltip({
-                        x:
-                          e.currentTarget.getBoundingClientRect().left -
-                          svg.getBoundingClientRect().left +
-                          20,
-                        y:
-                          e.currentTarget.getBoundingClientRect().top -
-                          svg.getBoundingClientRect().top,
-                        ay: a.ay,
-                        gelir: a.gelir,
-                        gider: a.gider,
-                        net: a.net,
-                      });
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
-                  />
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-        {/* Legend kutusu SVG dışında, grafiğin hemen altında */}
-        <div className="w-full flex justify-center mt-4">
-          <div className="flex gap-8 items-center bg-black/60 rounded-lg px-8 py-3 z-20">
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-6 h-6 rounded bg-[#22c55e] border-2 border-white"></span>
-              <span className="text-lg font-bold text-[#22c55e]">Gelir</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-6 h-6 rounded bg-[#ef4444] border-2 border-white"></span>
-              <span className="text-lg font-bold text-[#ef4444]">Gider</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-6 h-6 rounded bg-[#fbbf24] border-2 border-white"></span>
-              <span className="text-lg font-bold text-[#fbbf24]">Net Kar</span>
-            </div>
           </div>
         </div>
       </div>

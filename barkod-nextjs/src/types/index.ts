@@ -66,3 +66,28 @@ export interface Payment {
   paymentType?: string;
   status?: "active" | "deleted";
 }
+
+export interface Expense {
+  id?: string;
+  _id?: string;
+  amount: number;
+  desc?: string;
+  frequency?: string;
+  paymentDate: string;
+  status?: string;
+  createdAt?: string;
+}
+
+export interface KasaRow {
+  date: string;
+  nakit: number;
+  krediKarti: number;
+  havale: number;
+  diger: number;
+  pos: number;
+  tahsilat: number;
+  harcama: number;
+  banka: number;
+  oncekiKasa: number;
+  gunSonuKasa: number;
+}

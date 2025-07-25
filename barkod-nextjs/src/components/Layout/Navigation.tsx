@@ -61,18 +61,25 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       route: "/payments",
     },
     {
-      id: "analytics" as Tab,
-      label: "Analitik",
-      icon: BarChart3,
-      color: "text-orange-600",
-      route: "/analytics",
-    },
-    {
       id: "kasa" as Tab,
       label: "Kasa",
       icon: Wallet,
       color: "text-yellow-600",
       route: "/kasa",
+    },
+    {
+      id: "giderler" as Tab,
+      label: "Giderler",
+      icon: Loader2,
+      color: "text-red-600",
+      route: "/giderler",
+    },
+    {
+      id: "analytics" as Tab,
+      label: "Analitik",
+      icon: BarChart3,
+      color: "text-orange-600",
+      route: "/analytics",
     },
   ];
 

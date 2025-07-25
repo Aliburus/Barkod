@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { paymentService } from "../../services/paymentService";
-import { Payment } from "../../types";
+import type { Payment } from "../../types";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Trash2, CheckCircle } from "lucide-react";
@@ -96,9 +96,11 @@ const PaymentsPage: React.FC = () => {
     paymentService.getAll().then((data: Payment[]) => {
       setPayments(
         data.map((p, i) => {
-          // @ts-expect-error mongo _id alanı için
-          const _id: string = p._id;
-          return { ...p, id: p.id || _id || String(i) } as Payment;
+          const id =
+            p.id ||
+            (typeof p._id === "string" ? p._id : undefined) ||
+            String(i);
+          return { ...p, id };
         })
       );
     });
@@ -150,9 +152,11 @@ const PaymentsPage: React.FC = () => {
       paymentService.getAll().then((data: Payment[]) => {
         setPayments(
           data.map((p, i) => {
-            // @ts-expect-error mongo _id alanı için
-            const _id: string = p._id;
-            return { ...p, id: p.id || _id || String(i) } as Payment;
+            const id =
+              p.id ||
+              (typeof p._id === "string" ? p._id : undefined) ||
+              String(i);
+            return { ...p, id };
           })
         );
       });
@@ -168,19 +172,31 @@ const PaymentsPage: React.FC = () => {
         paymentType: "",
       });
       setInstallments([]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       let msg = "Ödeme eklenirken hata oluştu";
-      if (error?.response?.data?.error) {
-        const errMsg = error.response.data.error.toLowerCase();
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as any).response?.data?.error === "string"
+      ) {
+        const errMsg = (error as any).response.data.error.toLowerCase();
         if (errMsg.includes("date required")) {
           msg = "Ödeme tarihi zorunlu!";
         } else if (errMsg.includes("validation failed")) {
           msg =
             "Ödeme bilgileri eksik veya hatalı, lütfen tüm alanları kontrol edin!";
         } else {
-          msg = error.response.data.error;
+          msg = (error as any).response.data.error;
         }
-      } else if (error?.message) msg = error.message;
+      } else if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as any).message === "string"
+      ) {
+        msg = (error as any).message;
+      }
       setNotification({ message: msg, type: "error" });
     }
   };
@@ -188,9 +204,16 @@ const PaymentsPage: React.FC = () => {
   const handleDeletePayment = async (id: string, payment?: Payment) => {
     try {
       await paymentService.delete(id);
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      const responseStatus = (err as any)?.response?.status;
+    } catch (err: unknown) {
+      let responseStatus: number | undefined = undefined;
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as any).response?.status === "number"
+      ) {
+        responseStatus = (err as any).response.status;
+      }
       if (responseStatus !== 404) {
         console.error(err);
       }
@@ -198,9 +221,9 @@ const PaymentsPage: React.FC = () => {
     const data = await paymentService.getAll();
     setPayments(
       data.map((p, i) => {
-        // @ts-expect-error mongo _id alanı için
-        const _id: string = p._id;
-        return { ...p, id: p.id || _id || String(i) } as Payment;
+        const id =
+          p.id || (typeof p._id === "string" ? p._id : undefined) || String(i);
+        return { ...p, id };
       })
     );
   };
@@ -213,9 +236,9 @@ const PaymentsPage: React.FC = () => {
     const data = await paymentService.getAll();
     setPayments(
       data.map((p, i) => {
-        // @ts-expect-error mongo _id alanı için
-        const _id: string = p._id;
-        return { ...p, id: p.id || _id || String(i) } as Payment;
+        const id =
+          p.id || (typeof p._id === "string" ? p._id : undefined) || String(i);
+        return { ...p, id };
       })
     );
   };

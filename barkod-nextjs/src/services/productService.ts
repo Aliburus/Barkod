@@ -30,9 +30,14 @@ export const productService = {
       });
       const p = res.data;
       return { ...p, id: p._id };
-    } catch (error: any) {
-      if (error?.response?.data?.error) {
-        throw new Error(error.response.data.error);
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as any).response?.data?.error === "string"
+      ) {
+        throw new Error((error as any).response.data.error);
       }
       throw error;
     }
@@ -71,8 +76,13 @@ export const productService = {
         id: s._id || s.id,
         total: s.price && s.quantity ? s.price * s.quantity : 0,
       }));
-    } catch (error: any) {
-      if (error?.response?.status === 404) {
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        (error as any).response?.status === 404
+      ) {
         // Satış kaydı yoksa boş dizi dön
         return [];
       }

@@ -34,6 +34,12 @@ export default function Page() {
   const { data: customers = [] } = useSWR(`${API_URL}/api/customers`, fetcher, {
     fallbackData: [],
   });
+  const { data: expenses = [] } = useSWR(`${API_URL}/api/giderler`, fetcher, {
+    fallbackData: [],
+  });
+  const { data: kasaRows = [] } = useSWR(`${API_URL}/api/kasa`, fetcher, {
+    fallbackData: [],
+  });
   const [activeTab, setActiveTab] = useState<Tab>("analytics");
 
   return (
@@ -53,6 +59,8 @@ export default function Page() {
           sales={sales}
           payments={payments}
           customers={customers}
+          expenses={expenses}
+          kasaRows={kasaRows}
         />
       </main>
     </div>

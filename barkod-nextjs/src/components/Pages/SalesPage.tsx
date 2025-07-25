@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, memo } from "react";
+import React, { useState, useMemo } from "react";
 import { Sale, Product } from "../../types";
 import {
   BarChart3,
@@ -25,8 +25,6 @@ const SalesPage: React.FC<SalesPageProps> = ({
   products,
   onRefreshSales,
 }) => {
-  console.log("SALES:", sales);
-  console.log("PRODUCTS:", products);
   const [selectedPeriod, setSelectedPeriod] = useState<
     "all" | "today" | "week" | "month" | "custom"
   >("all");
@@ -544,7 +542,7 @@ const SaleGroupSkeleton = () => {
   );
 };
 
-const SaleGroupCard = memo(
+const SaleGroupCard = React.memo(
   ({
     first,
     totalQty,
