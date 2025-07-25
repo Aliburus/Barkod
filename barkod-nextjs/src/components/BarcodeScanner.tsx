@@ -23,16 +23,43 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   const [manualInput, setManualInput] = useState("");
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
-  const initializeScanner = async () => {
+  const startScanning = React.useCallback(
+    async (deviceId: string) => {
+      if (!codeReaderRef.current || !videoRef.current) return;
+      try {
+        setIsScanning(true);
+        setScanLocked(false);
+        await codeReaderRef.current.decodeFromVideoDevice(
+          deviceId,
+          videoRef.current,
+          (result) => {
+            if (result && !scanLocked) {
+              setScanLocked(true);
+              onScan({
+                text: result.getText(),
+                format: result.getBarcodeFormat().toString(),
+              });
+              if (scanLocked === false) {
+                setTimeout(() => stopScanning(), 300);
+              }
+            }
+          }
+        );
+      } catch (err) {
+        setIsScanning(false);
+      }
+    },
+    [onScan, scanLocked]
+  );
+
+  const initializeScanner = React.useCallback(async () => {
     try {
       codeReaderRef.current = new BrowserMultiFormatReader();
       const videoDevices =
         await BrowserMultiFormatReader.listVideoInputDevices();
       setDevices(videoDevices);
-
       if (videoDevices.length > 0) {
         let deviceId = selectedDevice;
-        // Mobilde arka kamerayı otomatik seç
         if (!deviceId) {
           const backCam = videoDevices.find(
             (d) =>
@@ -44,10 +71,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         setSelectedDevice(deviceId);
         startScanning(deviceId);
       }
-    } catch (error) {
-      console.error("Error initializing scanner:", error);
+    } catch (e) {
+      console.error("Error initializing scanner:", e);
     }
-  };
+  }, [selectedDevice, startScanning]);
 
   useEffect(() => {
     if (isActive && scannerType === "camera") {
@@ -61,40 +88,11 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     };
   }, [isActive, scannerType, selectedDevice, initializeScanner]);
 
-  const startScanning = async (deviceId: string) => {
-    if (!codeReaderRef.current || !videoRef.current) return;
-
-    try {
-      setIsScanning(true);
-      setScanLocked(false);
-      await codeReaderRef.current.decodeFromVideoDevice(
-        deviceId,
-        videoRef.current,
-        (result, error) => {
-          if (result && !scanLocked) {
-            setScanLocked(true);
-            onScan({
-              text: result.getText(),
-              format: result.getBarcodeFormat().toString(),
-            });
-            // Sadece bir kez çalışacak şekilde, gereksiz tekrarları önle
-            if (scanLocked === false) {
-              setTimeout(() => stopScanning(), 300);
-            }
-          }
-        }
-      );
-    } catch (error) {
-      setIsScanning(false);
-    }
-  };
-
   const stopScanning = () => {
     setIsScanning(false);
   };
 
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleManualSubmit = () => {
     if (manualInput.trim()) {
       onScan({
         text: manualInput.trim(),

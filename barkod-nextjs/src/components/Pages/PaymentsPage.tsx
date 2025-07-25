@@ -53,7 +53,7 @@ const PaymentsPage: React.FC = () => {
     }));
   };
 
-  const calculateInstallments = () => {
+  const calculateInstallments = React.useCallback(() => {
     if (
       !form.isInstallment ||
       !form.installmentStart ||
@@ -80,7 +80,12 @@ const PaymentsPage: React.FC = () => {
       };
     });
     setInstallments(list);
-  };
+  }, [
+    form.isInstallment,
+    form.installmentCount,
+    form.installmentStart,
+    form.amount,
+  ]);
 
   // Taksitli alanları değişince otomatik hesapla
   React.useEffect(() => {

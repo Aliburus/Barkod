@@ -18,11 +18,11 @@ const AccountTransactionsPage: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = React.useCallback(async () => {
     const data = await customerService.getAll();
     setCustomers(data);
     if (data.length > 0 && !selectedCustomer) setSelectedCustomer(data[0].id);
-  };
+  }, [selectedCustomer]);
 
   const fetchTransactions = async (customerId: string) => {
     setLoading(true);

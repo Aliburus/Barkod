@@ -208,6 +208,7 @@ const ProductCard = memo(
     </div>
   )
 );
+ProductCard.displayName = "ProductCard";
 
 function ProductSkeleton() {
   return (

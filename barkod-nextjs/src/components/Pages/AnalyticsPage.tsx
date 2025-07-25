@@ -9,7 +9,6 @@ import type {
   KasaRow,
 } from "../../types";
 import { parseISO, format } from "date-fns";
-import { tr } from "date-fns/locale";
 
 import { accountTransactionService } from "../../services/customerService";
 
@@ -49,28 +48,12 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     ? [...safeExpenses, kasaHarcamaGider]
     : safeExpenses;
   // Yıllar: satış, ödeme ve giderlerin tüm yıllarını kapsa
-  const saleYears = sales.map((sale) => parseISO(sale.soldAt).getFullYear());
-  const paymentYears = payments
-    .map((p) => {
-      const d = p.date
-        ? new Date(p.date)
-        : p.dueDate
-        ? new Date(p.dueDate)
-        : null;
-      return d ? d.getFullYear() : null;
-    })
-    .filter((y) => y !== null);
-  const expenseYears = allExpenses
-    .map((g) => (g.paymentDate ? new Date(g.paymentDate).getFullYear() : null))
-    .filter((y) => y !== null);
   const years = Array.from(
     new Set(sales.map((sale) => parseISO(sale.soldAt).getFullYear()))
   ).sort((a, b) => b - a);
   const [selectedYear, setSelectedYear] = useState(
     years[0] || new Date().getFullYear()
   );
-  const [dateStart, setDateStart] = useState("");
-  const [dateEnd, setDateEnd] = useState("");
 
   const getSaleWithProduct = (sale: Sale) => {
     let price = sale.price;
@@ -640,6 +623,9 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     expenses: Expense[];
     ay: string;
   }>(null);
+
+  const [dateStart] = useState("");
+  const [dateEnd] = useState("");
 
   return (
     <div className="space-y-6">

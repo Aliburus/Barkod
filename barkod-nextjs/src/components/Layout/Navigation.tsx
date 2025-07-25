@@ -10,9 +10,7 @@ import {
   CreditCard,
   Wallet,
 } from "lucide-react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Tab } from "../../app/page";
 
 interface NavigationProps {

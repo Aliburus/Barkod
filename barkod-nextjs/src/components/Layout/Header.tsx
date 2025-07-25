@@ -100,7 +100,7 @@ const Header: React.FC<HeaderProps> = ({
                 type="file"
                 accept=".xlsx"
                 onChange={(e) => {
-                  onBulkUpload && onBulkUpload(e);
+                  if (onBulkUpload) onBulkUpload(e);
                   setShowBulkModal(false);
                 }}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"

@@ -576,5 +576,6 @@ const SaleGroupCard = React.memo(
     </li>
   )
 );
+SaleGroupCard.displayName = "SaleGroupCard";
 
 export default SalesPage;
