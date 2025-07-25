@@ -156,7 +156,10 @@ const GiderlerPage: React.FC<GiderlerPageProps> = ({
                     }}
                   >
                     <div className="flex flex-col">
-                      <span className="font-bold text-blue-700 dark:text-blue-300 text-lg">
+                      <span className="font-bold text-blue-700 dark:text-blue-300 text-base mb-1">
+                        {gider.desc ? gider.desc : "Gider"}
+                      </span>
+                      <span className="text-lg font-bold text-gray-900 dark:text-white mb-1">
                         ₺{gider.amount}
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400">

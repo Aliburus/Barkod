@@ -29,6 +29,8 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   expenses,
   kasaRows = [],
 }) => {
+  const [dateStart, setDateStart] = useState("");
+  const [dateEnd, setDateEnd] = useState("");
   const months = [
     "Oca",
     "Şub",
@@ -604,9 +606,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     expenses: Expense[];
     ay: string;
   }>(null);
-
-  const [dateStart] = useState("");
-  const [dateEnd] = useState("");
 
   return (
     <div className="space-y-6">
