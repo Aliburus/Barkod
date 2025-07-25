@@ -178,24 +178,28 @@ const PaymentsPage: React.FC = () => {
         typeof error === "object" &&
         error !== null &&
         "response" in error &&
-        typeof (error as any).response?.data?.error === "string"
+        typeof (error as { response?: { data?: { error?: string } } }).response
+          ?.data?.error === "string"
       ) {
-        const errMsg = (error as any).response.data.error.toLowerCase();
+        const errMsg = (
+          error as { response: { data: { error: string } } }
+        ).response.data.error.toLowerCase();
         if (errMsg.includes("date required")) {
           msg = "Ödeme tarihi zorunlu!";
         } else if (errMsg.includes("validation failed")) {
           msg =
             "Ödeme bilgileri eksik veya hatalı, lütfen tüm alanları kontrol edin!";
         } else {
-          msg = (error as any).response.data.error;
+          msg = (error as { response: { data: { error: string } } }).response
+            .data.error;
         }
       } else if (
         typeof error === "object" &&
         error !== null &&
         "message" in error &&
-        typeof (error as any).message === "string"
+        typeof (error as { message?: string }).message === "string"
       ) {
-        msg = (error as any).message;
+        msg = (error as { message: string }).message;
       }
       setNotification({ message: msg, type: "error" });
     }
@@ -210,9 +214,11 @@ const PaymentsPage: React.FC = () => {
         typeof err === "object" &&
         err !== null &&
         "response" in err &&
-        typeof (err as any).response?.status === "number"
+        typeof (err as { response?: { status?: number } }).response?.status ===
+          "number"
       ) {
-        responseStatus = (err as any).response.status;
+        responseStatus = (err as { response: { status: number } }).response
+          .status;
       }
       if (responseStatus !== 404) {
         console.error(err);

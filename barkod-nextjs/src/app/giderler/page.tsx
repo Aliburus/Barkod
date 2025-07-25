@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
 import { expenseService } from "../../services/expenseService";
-import type { Expense } from "../../services/expenseService";
+import type { Expense } from "../../types/index";
 import { Dialog } from "@headlessui/react";
 
 const frequencyOptions = [

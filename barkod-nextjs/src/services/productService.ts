@@ -35,9 +35,14 @@ export const productService = {
         typeof error === "object" &&
         error !== null &&
         "response" in error &&
-        typeof (error as any).response?.data?.error === "string"
+        typeof (error as { response?: { data?: { error?: string } } }).response
+          ?.data?.error === "string"
       ) {
-        throw new Error((error as any).response.data.error);
+        throw new Error(
+          (
+            error as { response: { data: { error: string } } }
+          ).response.data.error
+        );
       }
       throw error;
     }
@@ -81,7 +86,7 @@ export const productService = {
         typeof error === "object" &&
         error !== null &&
         "response" in error &&
-        (error as any).response?.status === 404
+        (error as { response?: { status?: number } }).response?.status === 404
       ) {
         // Satış kaydı yoksa boş dizi dön
         return [];

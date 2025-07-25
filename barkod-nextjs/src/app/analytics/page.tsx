@@ -4,6 +4,7 @@ import AnalyticsPage from "../../components/Pages/AnalyticsPage";
 import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
 import type { Tab } from "../page";
+import type { Product } from "../../types/index";
 
 import useSWR from "swr";
 
@@ -13,16 +14,12 @@ const fetcher = (url: string) =>
 
 export default function Page() {
   const { data: products = [], mutate: mutateProducts } = useSWR(
-    `${API_URL}/api/products?search=${encodeURIComponent(search)}`,
+    `${API_URL}/api/products`,
     fetcher,
     { fallbackData: [] }
   );
-  const {
-    data: sales = [],
-    mutate: mutateSales,
-    isValidating,
-  } = useSWR(
-    `${API_URL}/api/sales?search=${encodeURIComponent(search)}`,
+  const { data: sales = [], mutate: mutateSales } = useSWR(
+    `${API_URL}/api/sales`,
     fetcher,
     { fallbackData: [] }
   );

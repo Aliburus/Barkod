@@ -116,8 +116,11 @@ export default function Page() {
                 typeof error === "object" &&
                 error !== null &&
                 "response" in error &&
-                typeof (error as any).response?.data?.error === "string" &&
-                (error as any).response.data.error.includes("duplicate key")
+                typeof (error as { response?: { data?: { error?: string } } })
+                  .response?.data?.error === "string" &&
+                (
+                  error as { response?: { data?: { error?: string } } }
+                ).response?.data?.error?.includes("duplicate key")
               ) {
                 msg = "Bu barkod zaten kayıtlı!";
               }
