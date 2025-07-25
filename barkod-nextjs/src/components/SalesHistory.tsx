@@ -20,18 +20,25 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
   );
 
   const todayStats = {
-    totalSales: todaySales.reduce((sum, sale) => sum + sale.total, 0),
-    totalItems: todaySales.reduce((sum, sale) => sum + sale.quantity, 0),
+    totalSales: todaySales.reduce((sum, sale) => sum + (sale.total ?? 0), 0),
+    totalItems: todaySales.reduce((sum, sale) => sum + (sale.quantity ?? 0), 0),
     transactions: todaySales.length,
   };
 
   const selectedDateStats = {
-    totalSales: selectedDateSales.reduce((sum, sale) => sum + sale.total, 0),
-    totalItems: selectedDateSales.reduce((sum, sale) => sum + sale.quantity, 0),
+    totalSales: selectedDateSales.reduce(
+      (sum, sale) => sum + (sale.total ?? 0),
+      0
+    ),
+    totalItems: selectedDateSales.reduce(
+      (sum, sale) => sum + (sale.quantity ?? 0),
+      0
+    ),
     transactions: selectedDateSales.length,
   };
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number | undefined) => {
+    price = price ?? 0;
     return new Intl.NumberFormat("tr-TR", {
       style: "currency",
       currency: "TRY",

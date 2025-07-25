@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import { Product, Sale, Customer } from "../types";
 import { ShoppingCart, X, Plus, Minus } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import { productService } from "../services/productService";
 import { customerService } from "../services/customerService";
 
 interface SaleModalProps {
@@ -14,7 +13,7 @@ interface SaleModalProps {
 
 const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
   const [quantity, setQuantity] = useState(1);
-  const [currentStock, setCurrentStock] = useState(product.stock);
+  const [currentStock] = useState(product.stock);
   const [paymentType, setPaymentType] = useState<string>("nakit");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
