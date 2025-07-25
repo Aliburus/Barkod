@@ -228,7 +228,6 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   products,
   onEdit,
   onDelete,
-  onView,
   lowStockThreshold = 5,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -538,6 +537,5 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     </div>
   );
 };
-
 ProductsPage.displayName = "ProductsPage";
 export default ProductsPage;

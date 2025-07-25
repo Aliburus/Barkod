@@ -23,18 +23,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   const [manualInput, setManualInput] = useState("");
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
-  useEffect(() => {
-    if (isActive && scannerType === "camera") {
-      initializeScanner();
-    } else {
-      stopScanning();
-    }
-
-    return () => {
-      stopScanning();
-    };
-  }, [isActive, scannerType, selectedDevice]);
-
   const initializeScanner = async () => {
     try {
       codeReaderRef.current = new BrowserMultiFormatReader();
@@ -60,6 +48,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       console.error("Error initializing scanner:", error);
     }
   };
+
+  useEffect(() => {
+    if (isActive && scannerType === "camera") {
+      initializeScanner();
+    } else {
+      stopScanning();
+    }
+
+    return () => {
+      stopScanning();
+    };
+  }, [isActive, scannerType, selectedDevice, initializeScanner]);
 
   const startScanning = async (deviceId: string) => {
     if (!codeReaderRef.current || !videoRef.current) return;

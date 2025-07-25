@@ -90,6 +90,7 @@ const PaymentsPage: React.FC = () => {
     form.installmentCount,
     form.installmentStart,
     form.amount,
+    calculateInstallments,
   ]);
 
   React.useEffect(() => {

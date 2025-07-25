@@ -33,7 +33,7 @@ const AccountTransactionsPage: React.FC = () => {
 
   useEffect(() => {
     fetchCustomers();
-  }, []);
+  }, [fetchCustomers]);
 
   useEffect(() => {
     if (selectedCustomer) fetchTransactions(selectedCustomer);

@@ -21,9 +21,7 @@ interface NavigationProps {
 }
 
 const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
-  const pathname = usePathname();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
   const tabs = [
     {
       id: "scanner" as Tab,
@@ -82,13 +80,6 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       route: "/analytics",
     },
   ];
-
-  const tabRoutes: Record<string, string> = {
-    scanner: "/",
-    products: "/", // ana sayfa ürünler
-    sales: "/sales",
-    analytics: "/analytics",
-  };
 
   return (
     <nav className="bg-gray-900 dark:bg-gray-900 shadow-sm border-b border-gray-800 dark:border-gray-800 transition-colors">
