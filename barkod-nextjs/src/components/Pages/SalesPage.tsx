@@ -524,6 +524,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
     </div>
   );
 };
+SalesPage.displayName = "SalesPage";
 
 const SaleGroupCard = React.memo(
   ({

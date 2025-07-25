@@ -259,15 +259,7 @@ const GiderlerPage: React.FC<GiderlerPageProps> = ({
   );
 };
 
-// Eğer props gelmezse fallback wrapper
-const GiderlerPageWrapper = (props: Partial<GiderlerPageProps>) => {
+export default function Page() {
   const [giderler, setGiderler] = useState<Expense[]>([]);
-  return (
-    <GiderlerPage
-      giderler={props.giderler ?? giderler}
-      setGiderler={props.setGiderler ?? setGiderler}
-    />
-  );
-};
-
-export default GiderlerPageWrapper;
+  return <GiderlerPage giderler={giderler} setGiderler={setGiderler} />;
+}

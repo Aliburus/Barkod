@@ -1,16 +1,7 @@
 "use client";
 import React, { useState, useMemo, memo } from "react";
 import { Product } from "../../types";
-import {
-  Search,
-  Package,
-  AlertTriangle,
-  Grid,
-  List,
-  Edit2,
-  Check,
-} from "lucide-react";
-import { productService } from "../../services/productService";
+import { Search, Package, AlertTriangle, Grid, List } from "lucide-react";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 
@@ -250,7 +241,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
-  const [isValidating, setIsValidating] = useState(false);
+  const [isValidating] = useState(false);
 
   const filteredProducts = products
     .filter((product) => {
@@ -548,4 +539,5 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   );
 };
 
+ProductsPage.displayName = "ProductsPage";
 export default ProductsPage;

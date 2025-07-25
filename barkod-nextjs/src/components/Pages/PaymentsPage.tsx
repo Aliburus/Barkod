@@ -205,7 +205,7 @@ const PaymentsPage: React.FC = () => {
     }
   };
 
-  const handleDeletePayment = async (id: string, payment?: Payment) => {
+  const handleDeletePayment = async (id: string) => {
     try {
       await paymentService.delete(id);
     } catch (err: unknown) {
@@ -505,7 +505,7 @@ const PaymentsPage: React.FC = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeletePayment(p.id, p);
+                      handleDeletePayment(p.id);
                     }}
                     className="ml-2 flex items-center justify-center text-red-600 hover:text-red-800 transition-colors opacity-80 group-hover:opacity-100"
                     title="Sil"

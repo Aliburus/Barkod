@@ -12,10 +12,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function Page() {
-  const { data: products = [], mutate: mutateProducts } = useSWR(
-    `${API_URL}/api/products`,
-    fetcher
-  );
+  const { data: products = [] } = useSWR(`${API_URL}/api/products`, fetcher);
   const { data: sales = [], mutate: mutateSales } = useSWR(
     `${API_URL}/api/sales`,
     fetcher,

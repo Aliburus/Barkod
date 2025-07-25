@@ -56,7 +56,7 @@ export default function Home() {
         setProducts(Array.isArray(products) ? products : []);
         const sales = await productService.getAllSales();
         setSales(sales);
-      } catch (error) {
+      } catch (_) {
         setProducts([]);
         setSales([]);
       } finally {
@@ -104,7 +104,7 @@ export default function Home() {
       setProducts(products);
       setShowProductForm(false);
       setEditingProduct(null);
-    } catch {
+    } catch (_) {
       showNotification("Ürün eklenirken/güncellenirken hata oluştu", "error");
     }
   };
@@ -161,7 +161,7 @@ export default function Home() {
         setShowProductForm(true);
         showNotification("Ürün bulunamadı", "warning");
       }
-    } catch (error) {
+    } catch (_) {
       showNotification("Barkod sorgulanırken hata oluştu", "error");
     }
   };
@@ -184,18 +184,18 @@ export default function Home() {
       try {
         const products = await productService.getAll();
         setProducts(products);
-      } catch (e) {
-        console.log("Ürün listesi alınamadı", e);
+      } catch (_) {
+        console.log("Ürün listesi alınamadı");
       }
       try {
         const sales = await productService.getAllSales();
         setSales(sales);
-      } catch (e) {
-        console.log("Satış listesi alınamadı", e);
+      } catch (_) {
+        console.log("Satış listesi alınamadı");
       }
       setSelectedProduct(null);
       setScannerActive(true);
-    } catch (error: unknown) {
+    } catch (error) {
       let msg = "Satış kaydedilirken hata oluştu";
       if (
         typeof error === "object" &&
@@ -265,9 +265,7 @@ export default function Home() {
             )}
             {activeTab === "payments" && <PaymentsPage />}
             {activeTab === "kasa" && <KasaPage />}
-            {activeTab === "giderler" && (
-              <GiderlerPage giderler={giderler} setGiderler={setGiderler} />
-            )}
+            {activeTab === "giderler" && <GiderlerPage />}
           </main>
           {showProductForm && (
             <ProductForm

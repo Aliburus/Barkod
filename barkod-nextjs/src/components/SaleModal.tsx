@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Product, Sale, Customer } from "../types";
-import { ShoppingCart, X, Plus, Minus, Edit2, Check } from "lucide-react";
+import { ShoppingCart, X, Plus, Minus } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { productService } from "../services/productService";
 import { customerService } from "../services/customerService";
@@ -14,13 +14,6 @@ interface SaleModalProps {
 
 const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
   const [quantity, setQuantity] = useState(1);
-  const [editingStock, setEditingStock] = useState(false);
-  const [stockValue, setStockValue] = useState(
-    product.stock !== undefined && product.stock !== null
-      ? product.stock.toString()
-      : ""
-  );
-  const [loading, setLoading] = useState(false);
   const [currentStock, setCurrentStock] = useState(product.stock);
   const [paymentType, setPaymentType] = useState<string>("nakit");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -87,16 +80,6 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
     if (quantity > 1) {
       setQuantity(quantity - 1);
     }
-  };
-
-  const handleStockUpdate = async () => {
-    setLoading(true);
-    const updated = await productService.update(product.barcode, {
-      stock: parseInt(stockValue),
-    });
-    setCurrentStock(updated.stock);
-    setEditingStock(false);
-    setLoading(false);
   };
 
   return (

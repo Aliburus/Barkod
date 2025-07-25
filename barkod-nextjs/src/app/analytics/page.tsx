@@ -13,16 +13,12 @@ const fetcher = (url: string) =>
   fetch(`${API_URL}${url}`).then((res) => res.json());
 
 export default function Page() {
-  const { data: products = [], mutate: mutateProducts } = useSWR(
-    `${API_URL}/api/products`,
-    fetcher,
-    { fallbackData: [] }
-  );
-  const { data: sales = [], mutate: mutateSales } = useSWR(
-    `${API_URL}/api/sales`,
-    fetcher,
-    { fallbackData: [] }
-  );
+  const { data: products = [] } = useSWR(`${API_URL}/api/products`, fetcher, {
+    fallbackData: [],
+  });
+  const { data: sales = [] } = useSWR(`${API_URL}/api/sales`, fetcher, {
+    fallbackData: [],
+  });
   const { data: payments = [] } = useSWR(`${API_URL}/api/payments`, fetcher, {
     fallbackData: [],
   });
