@@ -88,8 +88,7 @@ export const productService = {
       const res = await axios.get(`${BACKEND_URL}/api/sales`);
       return res.data.map((s: Sale) => ({
         ...s,
-        id: s._id || s.id,
-        total: s.price && s.quantity ? s.price * s.quantity : 0,
+        id: s._id,
       }));
     } catch (error: unknown) {
       if (

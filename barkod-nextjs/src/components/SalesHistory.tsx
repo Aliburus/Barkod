@@ -19,18 +19,30 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
   );
 
   const todayStats = {
-    totalSales: todaySales.reduce((sum, sale) => sum + (sale.total ?? 0), 0),
-    totalItems: todaySales.reduce((sum, sale) => sum + (sale.quantity ?? 0), 0),
+    totalSales: todaySales.reduce(
+      (sum, sale) => sum + (sale.totalAmount ?? 0),
+      0
+    ),
+    totalItems: todaySales.reduce(
+      (sum, sale) =>
+        sum +
+        (sale.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) ??
+          0),
+      0
+    ),
     transactions: todaySales.length,
   };
 
   const selectedDateStats = {
     totalSales: selectedDateSales.reduce(
-      (sum, sale) => sum + (sale.total ?? 0),
+      (sum, sale) => sum + (sale.totalAmount ?? 0),
       0
     ),
     totalItems: selectedDateSales.reduce(
-      (sum, sale) => sum + (sale.quantity ?? 0),
+      (sum, sale) =>
+        sum +
+        (sale.items?.reduce((itemSum, item) => itemSum + item.quantity, 0) ??
+          0),
       0
     ),
     transactions: selectedDateSales.length,
@@ -130,22 +142,21 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
         ) : (
           selectedDateSales.map((sale) => (
             <div
-              key={sale.id}
+              key={sale._id}
               className="flex items-center justify-between p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
             >
               <div className="flex-1">
                 <div className="font-medium text-gray-800">
-                  {sale.productName}
+                  {sale.items?.length ? `${sale.items.length} ürün` : "Satış"}
                 </div>
-                <div className="text-sm text-gray-500 font-mono">
-                  {sale.barcode}
+                <div className="text-sm text-gray-500">
+                  Müşteri: {sale.customer}
                 </div>
               </div>
 
               <div className="text-right">
                 <div className="font-medium text-gray-800">
-                  {sale.quantity} x {formatPrice(sale.price)} ={" "}
-                  {formatPrice(sale.total)}
+                  {formatPrice(sale.totalAmount)}
                 </div>
                 <div className="text-sm text-gray-500">
                   {formatTime(sale.soldAt)}

@@ -26,7 +26,7 @@ const ProductList: React.FC<ProductListProps> = ({
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.barcode.includes(searchTerm) ||
+      product.barcode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.brand.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory =
       !selectedCategory || product.category === selectedCategory;
@@ -44,7 +44,7 @@ const ProductList: React.FC<ProductListProps> = ({
     if (stock === 0)
       return { color: "text-red-600", bg: "bg-red-100", text: "Tükendi" };
     if (stock <= lowStockThreshold)
-      return { color: "text-yellow-600", bg: "bg-yellow-100", text: "Az Stok" };
+      return { color: "text-yellow-600", bg: "bg-yellow-100", text: "Normal" };
     return { color: "text-green-600", bg: "bg-green-100", text: "Normal" };
   };
 

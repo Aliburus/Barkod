@@ -18,17 +18,17 @@ export interface Product {
 }
 
 export interface Sale {
-  id: string;
-  _id?: string;
-  barcode: string;
-  productName?: string;
-  quantity: number;
-  price?: number;
-  total?: number;
+  _id: string;
+  customer: string;
+  customerId?: string;
+  items?: SaleItem[];
+  totalAmount: number;
+  paidAmount: number;
+  paymentType: string;
   soldAt: string;
-  customer?: string;
-  paymentType?: string;
-  status?: "active" | "deleted";
+  createdAt: string;
+  updatedAt: string;
+  status?: string;
 }
 
 export interface ScanResult {
@@ -49,16 +49,6 @@ export interface Customer {
   debt?: number;
 }
 
-export interface AccountTransaction {
-  id: string;
-  _id?: string;
-  customer: string | Customer;
-  date: string;
-  amount: number;
-  type: "borc" | "odeme";
-  description?: string;
-}
-
 export interface Payment {
   id: string;
   _id?: string;
@@ -69,6 +59,7 @@ export interface Payment {
   dueDate?: string;
   isPaid?: boolean;
   paymentType?: string;
+  description?: string;
   status?: "active" | "deleted";
 }
 
@@ -95,4 +86,33 @@ export interface KasaRow {
   banka: number;
   oncekiKasa: number;
   gunSonuKasa: number;
+}
+
+export interface SaleItem {
+  productName: string;
+  barcode: string;
+  quantity: number;
+  price: number;
+}
+
+export interface Debt {
+  _id?: string;
+  customerId: string | { _id: string; name: string; phone?: string };
+  amount: number;
+  paidAmount?: number;
+  description?: string;
+  isPaid?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  dueDate?: string;
+  type?: string;
+  saleId?: {
+    _id?: string;
+    items?: SaleItem[];
+    productName?: string;
+    quantity?: number;
+    price?: number;
+    totalAmount?: number;
+    createdAt?: string;
+  };
 }

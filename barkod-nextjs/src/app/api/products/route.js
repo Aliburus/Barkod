@@ -6,24 +6,64 @@ export async function GET(request) {
   await connectDB();
   const { searchParams } = new URL(request.url);
   const barcode = searchParams.get("barcode");
-  // limit ve skip kullanılmıyor - kaldırıldı
   const search = searchParams.get("search");
+  const category = searchParams.get("category");
+  const company = searchParams.get("company");
+  const brand = searchParams.get("brand");
+  const tool = searchParams.get("tool");
+  const stockFilter = searchParams.get("stockFilter");
+  const sortBy = searchParams.get("sortBy") || "name";
+  const sortOrder = searchParams.get("sortOrder") || "asc";
+
   try {
     if (barcode) {
       const products = await Product.find({ barcode });
       return NextResponse.json(products);
     }
+
     let query = {};
+
+    // Arama filtresi
     if (search) {
-      query = {
-        $or: [
-          { name: { $regex: search, $options: "i" } },
-          { barcode: { $regex: search, $options: "i" } },
-          { brand: { $regex: search, $options: "i" } },
-        ],
-      };
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { barcode: { $regex: search, $options: "i" } },
+        { brand: { $regex: search, $options: "i" } },
+      ];
     }
-    const products = await Product.find(query).sort({ createdAt: -1 });
+
+    // Kategori filtresi
+    if (category) {
+      query.category = category;
+    }
+
+    // Firma filtresi
+    if (company) {
+      query.supplier = { $in: [company] };
+    }
+
+    // Marka filtresi
+    if (brand) {
+      query.brand = brand;
+    }
+
+    // Kullanılan araç filtresi
+    if (tool) {
+      query.usedCars = { $regex: tool, $options: "i" };
+    }
+
+    // Stok filtresi
+    if (stockFilter === "low") {
+      query.stock = { $lte: 5, $gt: 0 };
+    } else if (stockFilter === "out") {
+      query.stock = 0;
+    }
+
+    // Sıralama
+    let sortQuery = {};
+    sortQuery[sortBy] = sortOrder === "asc" ? 1 : -1;
+
+    const products = await Product.find(query).sort(sortQuery);
     return NextResponse.json(products);
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

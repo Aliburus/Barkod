@@ -76,49 +76,63 @@ const KasaPage: React.FC = () => {
   });
   // Tarih sıralı dizi
   const dates = Object.keys(grouped).sort();
-  let oncekiKasa = 0;
-  const rows: KasaRow[] = dates.map((date) => {
+
+  // Önceki günlerin kasa değerlerini hesapla
+  const previousDaysKasa: Record<string, number> = {};
+  let runningKasa = 0;
+
+  dates.forEach((date) => {
     const daySales = grouped[date];
     const nakit = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "nakit")
-      .reduce(
-        (sum, s) =>
-          sum +
-          (s.total || (Number(s.price) || 0) * (Number(s.quantity) || 0) || 0),
-        0
-      );
+      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
     const krediKarti = daySales
       .filter(
         (s) => (s.paymentType || "").trim().toLowerCase() === "kredi kartı"
       )
-      .reduce(
-        (sum, s) =>
-          sum +
-          (s.total || (Number(s.price) || 0) * (Number(s.quantity) || 0) || 0),
-        0
-      );
+      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
     const havale = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "havale")
-      .reduce(
-        (sum, s) =>
-          sum +
-          (s.total || (Number(s.price) || 0) * (Number(s.quantity) || 0) || 0),
-        0
-      );
+      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
     const diger = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "diğer")
-      .reduce(
-        (sum, s) =>
-          sum +
-          (s.total || (Number(s.price) || 0) * (Number(s.quantity) || 0) || 0),
-        0
-      );
+      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+
+    // Günlük toplam satış
+    const dailySales = nakit + krediKarti + havale + diger;
+    runningKasa += dailySales;
+    previousDaysKasa[date] = runningKasa;
+  });
+
+  const rows: KasaRow[] = dates.map((date, index) => {
+    const daySales = grouped[date];
+    const nakit = daySales
+      .filter((s) => (s.paymentType || "").trim().toLowerCase() === "nakit")
+      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    const krediKarti = daySales
+      .filter(
+        (s) => (s.paymentType || "").trim().toLowerCase() === "kredi kartı"
+      )
+      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    const havale = daySales
+      .filter((s) => (s.paymentType || "").trim().toLowerCase() === "havale")
+      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+    const diger = daySales
+      .filter((s) => (s.paymentType || "").trim().toLowerCase() === "diğer")
+      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
     // Tahsilat, harcama, banka değerleri elle giriliyor, sadece son gün için uygulanacak
     const tahsilat = date === dates[dates.length - 1] ? manualTahsilat || 0 : 0;
     const harcama = date === dates[dates.length - 1] ? manualHarcama || 0 : 0;
     const banka = date === dates[dates.length - 1] ? manualBanka || 0 : 0;
-    // Kasa hesabı: önceki kasa + nakit + tahsilat - (harcama + banka)
-    const gunSonuKasa = oncekiKasa + nakit + tahsilat - (harcama + banka);
+
+    // Önceki günün kasa değeri
+    const oncekiKasa = index > 0 ? previousDaysKasa[dates[index - 1]] : 0;
+
+    // Günlük toplam satış (tüm ödeme türleri)
+    const gunlukToplamSatis = nakit + krediKarti + havale + diger;
+
+    // Gün sonu kasa: sadece o günün satışları + tahsilat - (harcama + banka)
+    const gunSonuKasa = gunlukToplamSatis + tahsilat - (harcama + banka);
     const row: KasaRow = {
       date,
       nakit,
@@ -132,7 +146,6 @@ const KasaPage: React.FC = () => {
       oncekiKasa,
       gunSonuKasa,
     };
-    oncekiKasa = gunSonuKasa;
     return row;
   });
   const last: KasaRow =
@@ -586,33 +599,27 @@ const KasaPage: React.FC = () => {
                     .sort((a, b) => a.soldAt.localeCompare(b.soldAt))
                     .map((s, idx) => (
                       <tr
-                        key={`${s.id || "sale"}-${idx}`}
+                        key={`${s._id || "sale"}-${idx}`}
                         className="border-b border-gray-100 dark:border-gray-800"
                       >
                         <td className="py-1 px-2 whitespace-nowrap">
                           {format(new Date(s.soldAt), "HH:mm")}
                         </td>
                         <td className="py-1 px-2 whitespace-nowrap">
-                          {s.productName}
+                          {s.items?.[0]?.productName || "-"}
                         </td>
                         <td className="py-1 px-2 whitespace-nowrap">
-                          {s.quantity}
+                          {s.items?.reduce(
+                            (sum, item) => sum + (item.quantity || 0),
+                            0
+                          ) || 0}
                         </td>
                         <td className="py-1 px-2 whitespace-nowrap capitalize">
                           {s.paymentType}
                         </td>
                         <td className="py-1 px-2 whitespace-nowrap">
-                          {(
-                            s.total !== undefined
-                              ? s.total
-                              : (Number(s.price) || 0) *
-                                (Number(s.quantity) || 0)
-                          ) ? (
-                            `₺${(s.total !== undefined
-                              ? s.total
-                              : (Number(s.price) || 0) *
-                                (Number(s.quantity) || 0)
-                            ).toLocaleString("tr-TR")}`
+                          {s.totalAmount ? (
+                            `₺${s.totalAmount.toLocaleString("tr-TR")}`
                           ) : (
                             <span className="text-gray-400">₺0</span>
                           )}

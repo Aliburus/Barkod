@@ -11,7 +11,7 @@ import ProductForm from "../components/ProductForm";
 import SaleModal from "../components/SaleModal";
 import { productService } from "../services/productService";
 import { Product, Sale, ScanResult } from "../types";
-import type { Expense } from "../services/expenseService";
+
 import PaymentsPage from "../components/Pages/PaymentsPage";
 import { Loader2 } from "lucide-react";
 import KasaPage from "./kasa/page";
@@ -28,7 +28,8 @@ export type Tab =
   | "analytics"
   | "kasa"
   | "giderler"
-  | "companies";
+  | "companies"
+  | "sepet";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("scanner");
@@ -47,7 +48,6 @@ export default function Home() {
   const [scannerActive, setScannerActive] = useState(false);
   const [prefilledBarcode, setPrefilledBarcode] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [giderler] = useState<Expense[]>([]); // any kaldırıldı
 
   useEffect(() => {
     const fetchData = async () => {
@@ -167,49 +167,6 @@ export default function Home() {
     }
   };
 
-  const handleSale = async (sale: Sale) => {
-    if (sale.price === undefined) return;
-    try {
-      const saleCreate = {
-        barcode: sale.barcode,
-        quantity: sale.quantity,
-        soldAt: new Date().toISOString(), // Satış tarihi otomatik olarak şimdi
-        price: sale.price as number,
-        productName: sale.productName || "",
-        customer: sale.customer,
-        paymentType: sale.paymentType,
-      };
-      await productService.createSale(saleCreate);
-      showNotification("Satış kaydedildi ve stok güncellendi", "success");
-      setShowSaleModal(false);
-      try {
-        const products = await productService.getAll();
-        setProducts(products);
-      } catch {
-        console.log("Ürün listesi alınamadı");
-      }
-      try {
-        const sales = await productService.getAllSales();
-        setSales(sales);
-      } catch {
-        console.log("Satış listesi alınamadı");
-      }
-      setSelectedProduct(null);
-      setScannerActive(true);
-    } catch (error) {
-      let msg = "Satış kaydedilirken hata oluştu";
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "message" in error &&
-        typeof (error as { message?: string }).message === "string"
-      ) {
-        msg = (error as { message?: string }).message || msg;
-      }
-      showNotification(msg, "error");
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       {loading ? (
@@ -252,15 +209,7 @@ export default function Home() {
             {activeTab === "sales" && (
               <SalesPage sales={sales} products={products} />
             )}
-            {activeTab === "analytics" && (
-              <AnalyticsPage
-                products={products}
-                sales={sales}
-                payments={[]}
-                customers={[]}
-                expenses={giderler}
-              />
-            )}
+            {activeTab === "analytics" && <AnalyticsPage />}
             {activeTab === "scanner" && (
               <BarcodeScanner onScan={handleScan} isActive={scannerActive} />
             )}
@@ -317,7 +266,13 @@ export default function Home() {
             selectedProduct.stock !== undefined && (
               <SaleModal
                 product={selectedProduct}
-                onSale={handleSale}
+                onAddToCart={(product, quantity) => {
+                  // Sepete ekleme işlemi burada yapılacak
+                  console.log("Ürün sepete eklendi:", product, quantity);
+                  setShowSaleModal(false);
+                  setSelectedProduct(null);
+                  setScannerActive(true);
+                }}
                 onClose={() => {
                   setShowSaleModal(false);
                   setSelectedProduct(null);

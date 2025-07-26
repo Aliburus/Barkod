@@ -1,9 +1,8 @@
 import axios from "axios";
-import { Customer, AccountTransaction } from "../types";
+import { Customer } from "../types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const CUSTOMER_API = "/api/customers";
-const TRANSACTION_API = "/api/account-transactions";
 
 export const customerService = {
   getAll: async (): Promise<Customer[]> => {
@@ -23,25 +22,5 @@ export const customerService = {
   },
   delete: async (id: string): Promise<void> => {
     await axios.delete(`/api/customers/${id}`);
-  },
-};
-
-export const accountTransactionService = {
-  getAll: async (customerId?: string): Promise<AccountTransaction[]> => {
-    const url = customerId
-      ? `${TRANSACTION_API}?customer=${customerId}`
-      : TRANSACTION_API;
-    const res = await axios.get(url);
-    return res.data.map((t: AccountTransaction) => ({
-      ...t,
-      id: t._id || t.id,
-    }));
-  },
-  create: async (
-    transaction: Omit<AccountTransaction, "id" | "_id">
-  ): Promise<AccountTransaction> => {
-    const res = await axios.post(TRANSACTION_API, transaction);
-    const t = res.data;
-    return { ...t, id: t._id || t.id };
   },
 };

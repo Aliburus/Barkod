@@ -36,7 +36,7 @@ export default function Page() {
           sales={sales}
           products={products}
           onRefreshSales={async () => {
-            await mutateSales();
+            await mutateSales(undefined, { revalidate: true });
           }}
         />
       </main>

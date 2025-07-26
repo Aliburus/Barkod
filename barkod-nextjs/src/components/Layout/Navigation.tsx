@@ -9,6 +9,7 @@ import {
   Loader2,
   CreditCard,
   Wallet,
+  ShoppingCart,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Tab } from "../../app/page";
@@ -71,6 +72,13 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       route: "/giderler",
     },
     {
+      id: "companies" as Tab,
+      label: "Firmalar",
+      icon: User,
+      color: "text-cyan-600",
+      route: "/companies",
+    },
+    {
       id: "analytics" as Tab,
       label: "Analitik",
       icon: BarChart3,
@@ -78,11 +86,11 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       route: "/analytics",
     },
     {
-      id: "companies" as Tab,
-      label: "Firmalar",
-      icon: User,
-      color: "text-cyan-600",
-      route: "/companies",
+      id: "sepet" as Tab,
+      label: "Sepet",
+      icon: ShoppingCart,
+      color: "text-purple-600",
+      route: "/sepet",
     },
   ];
 

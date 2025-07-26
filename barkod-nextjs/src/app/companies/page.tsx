@@ -15,9 +15,7 @@ interface Company {
   _id?: string;
 }
 
-const dummyStorageKey = "companies";
-
-// Kullanılmayan fonksiyonlar kaldırıldı
+// Kullanılmayan değişkeni kaldır
 
 const CompaniesPage: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);

@@ -1,42 +1,21 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { Product, Sale, Customer } from "../types";
+import React, { useState } from "react";
+import { Product } from "../types";
 import { ShoppingCart, X, Plus, Minus } from "lucide-react";
-import { v4 as uuidv4 } from "uuid";
-import { customerService } from "../services/customerService";
 
 interface SaleModalProps {
   product: Product;
-  onSale: (sale: Sale) => void;
+  onAddToCart: (product: Product, quantity: number) => void;
   onClose: () => void;
 }
 
-const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
+const SaleModal: React.FC<SaleModalProps> = ({
+  product,
+  onAddToCart,
+  onClose,
+}) => {
   const [quantity, setQuantity] = useState(1);
   const [currentStock] = useState(product.stock);
-  const [paymentType, setPaymentType] = useState<string>("nakit");
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<string>("");
-  const [showAddCustomer, setShowAddCustomer] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
-    name: "",
-    phone: "",
-    address: "",
-  });
-
-  useEffect(() => {
-    customerService.getAll().then(setCustomers);
-  }, []);
-
-  const handleAddCustomer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCustomer.name.trim()) return;
-    const created = await customerService.create(newCustomer);
-    setCustomers((prev) => [...prev, created]);
-    setSelectedCustomer(created.id);
-    setShowAddCustomer(false);
-    setNewCustomer({ name: "", phone: "", address: "" });
-  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("tr-TR", {
@@ -45,27 +24,12 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
     }).format(price);
   };
 
-  const handleSale = () => {
+  const handleAddToCart = () => {
     if (quantity > product.stock) {
       alert("Yetersiz stok!");
       return;
     }
-    if (!selectedCustomer) {
-      alert("Müşteri seçmelisiniz!");
-      return;
-    }
-    const sale: Sale = {
-      id: uuidv4(),
-      barcode: product.barcode,
-      productName: product.name,
-      quantity,
-      price: product.price,
-      total: product.price * quantity,
-      soldAt: new Date().toISOString(),
-      customer: selectedCustomer,
-      paymentType: paymentType,
-    };
-    onSale(sale);
+    onAddToCart(product, quantity);
     onClose();
   };
 
@@ -102,105 +66,6 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
           </button>
         </div>
         <div className="p-6 overflow-y-auto flex-1">
-          {/* Ürün bilgileri üstüne müşteri ve ödeme tipi seçimi ekle */}
-          {showAddCustomer && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-              <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg p-3 sm:p-6 relative">
-                <button
-                  onClick={() => setShowAddCustomer(false)}
-                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  Kapat
-                </button>
-                <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
-                  Yeni Müşteri Ekle
-                </h2>
-                <form onSubmit={handleAddCustomer} className="space-y-3">
-                  <input
-                    name="name"
-                    value={newCustomer.name}
-                    onChange={(e) =>
-                      setNewCustomer({ ...newCustomer, name: e.target.value })
-                    }
-                    placeholder="Müşteri Adı"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    required
-                  />
-                  <input
-                    name="phone"
-                    value={newCustomer.phone}
-                    onChange={(e) =>
-                      setNewCustomer({ ...newCustomer, phone: e.target.value })
-                    }
-                    placeholder="Telefon"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                  <input
-                    name="address"
-                    value={newCustomer.address}
-                    onChange={(e) =>
-                      setNewCustomer({
-                        ...newCustomer,
-                        address: e.target.value,
-                      })
-                    }
-                    placeholder="Adres"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                  <button
-                    type="submit"
-                    className="w-full bg-primary-600 text-white py-2 rounded hover:bg-primary-700 transition-colors font-semibold"
-                  >
-                    Ekle
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-          {/* Müşteri ve ödeme tipi seçimi */}
-          <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Müşteri
-              </label>
-              <div className="flex gap-2">
-                <select
-                  value={selectedCustomer}
-                  onChange={(e) => setSelectedCustomer(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="">Müşteri seçin</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setShowAddCustomer(true)}
-                  className="px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 text-xs"
-                >
-                  + Yeni
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Ödeme Türü
-              </label>
-              <select
-                value={paymentType}
-                onChange={(e) => setPaymentType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="nakit">Nakit</option>
-                <option value="kredi kartı">Kredi Kartı</option>
-                <option value="havale">Havale/EFT</option>
-                <option value="diğer">Diğer</option>
-              </select>
-            </div>
-          </div>
           {/* Product Info */}
           <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 mb-6 border border-gray-200 dark:border-gray-700 relative">
             <div className="flex flex-col items-center mb-2">
@@ -210,21 +75,6 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
               <span className="text-3xl font-extrabold text-blue-700 dark:text-blue-400 text-center">
                 {formatPrice(product.price)}
               </span>
-              {selectedCustomer &&
-                customers.length > 0 &&
-                (() => {
-                  const cust = customers.find((c) => c.id === selectedCustomer);
-                  if (!cust) return null;
-                  const color = cust.color || "#facc15"; // default sarı
-                  return (
-                    <span
-                      className="inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold text-white"
-                      style={{ backgroundColor: color }}
-                    >
-                      {cust.name}
-                    </span>
-                  );
-                })()}
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div className="flex flex-col items-center">
@@ -310,12 +160,12 @@ const SaleModal: React.FC<SaleModalProps> = ({ product, onSale, onClose }) => {
           {/* Actions */}
           <div className="flex gap-3">
             <button
-              onClick={handleSale}
+              onClick={handleAddToCart}
               disabled={quantity > product.stock}
-              className="flex-1 bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+              className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
             >
               <ShoppingCart className="w-4 h-4" />
-              Satışı Tamamla
+              Sepete Ekle
             </button>
             <button
               onClick={onClose}

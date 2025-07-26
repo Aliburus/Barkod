@@ -1,12 +1,64 @@
 "use client";
 import React, { useState, useMemo, memo } from "react";
 import { Product } from "../../types";
-import { Search } from "lucide-react";
-import { parseISO, format } from "date-fns";
-import { tr } from "date-fns/locale";
+import { Search, Plus, Check } from "lucide-react";
+
 import { companyService } from "../../services/companyService";
+import { cartService } from "../../services/cartService";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
+
+// Tooltip Component
+const Tooltip: React.FC<{ content: string; children: React.ReactNode }> = ({
+  content,
+  children,
+}) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (timeoutId) clearTimeout(timeoutId);
+    const id = setTimeout(() => {
+      setShowTooltip(true);
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    }, 1000);
+    setTimeoutId(id);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (showTooltip) {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutId) clearTimeout(timeoutId);
+    setShowTooltip(false);
+  };
+
+  return (
+    <div
+      className="relative inline-block w-full"
+      onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+      {showTooltip && (
+        <div
+          className="fixed z-[9999] px-3 py-2 text-sm text-white bg-black rounded-lg shadow-xl whitespace-nowrap border border-gray-600"
+          style={{
+            left: mousePosition.x + 10,
+            top: mousePosition.y - 40,
+          }}
+        >
+          {content}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface ProductsPageProps {
   products: Product[];
@@ -15,117 +67,6 @@ interface ProductsPageProps {
   onView: (product: Product) => void;
   lowStockThreshold?: number;
 }
-
-// Yeni modal component
-const ProductDetailModal: React.FC<{
-  product: Product;
-  onClose: () => void;
-}> = ({ product, onClose }) => {
-  const formatDateTime = (dateStr: string) => {
-    return format(parseISO(dateStr), "dd MMMM yyyy HH.mm", { locale: tr });
-  };
-
-  return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6 relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-        >
-          Kapat
-        </button>
-        <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white text-center">
-          Ürün Detayları
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 mb-2">
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              İsim
-            </span>
-            <span className="text-gray-900 dark:text-white break-words">
-              {product.name}
-            </span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              Barkod
-            </span>
-            <span className="text-gray-900 dark:text-white break-words">
-              {product.barcode}
-            </span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              Fiyat
-            </span>
-            <span className="text-gray-900 dark:text-white">
-              {product.price} ₺
-            </span>
-            {typeof product.purchasePrice === "number" && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                (Alış: {product.purchasePrice} ₺)
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              Stok
-            </span>
-            <span className="text-gray-900 dark:text-white">
-              {product.stock}
-            </span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              Marka
-            </span>
-            <span className="text-gray-900 dark:text-white">
-              {product.brand}
-            </span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              Kategori
-            </span>
-            <span className="text-gray-900 dark:text-white">
-              {product.category}
-            </span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              Eklenme Tarihi
-            </span>
-            <span className="text-gray-900 dark:text-white">
-              {formatDateTime(product.createdAt)}
-            </span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              Güncellenme Tarihi
-            </span>
-            <span className="text-gray-900 dark:text-white">
-              {formatDateTime(product.updatedAt)}
-            </span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              Alış Fiyatı
-            </span>
-            <span className="text-gray-900 dark:text-white">
-              {product.purchasePrice} ₺
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const ProductCard = memo(
   ({
@@ -213,21 +154,6 @@ const ProductCard = memo(
 );
 ProductCard.displayName = "ProductCard";
 
-function ProductSkeleton() {
-  return (
-    <div className="bg-gray-100 dark:bg-gray-800 rounded-xl shadow p-5 flex flex-col justify-between border border-gray-100 dark:border-gray-800 animate-pulse min-h-[180px]">
-      <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-2"></div>
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2"></div>
-      <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-full mb-2"></div>
-      <div className="flex gap-2 mt-5">
-        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-      </div>
-    </div>
-  );
-}
-
 const ProductsPage: React.FC<ProductsPageProps> = ({
   products,
   onEdit,
@@ -236,14 +162,75 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState("");
+  const [selectedTool, setSelectedTool] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
   const [sortBy, setSortBy] = useState<"name" | "price" | "stock" | "created">(
     "name"
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
-  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
-  const [isValidating] = useState(false);
+
+  const [cartItems, setCartItems] = useState<{ [key: string]: number }>({});
+
+  // Sepetten localStorage'dan yükle
+  React.useEffect(() => {
+    const savedCart = localStorage.getItem("cart");
+    if (savedCart) {
+      try {
+        const cart = JSON.parse(savedCart);
+        const cartItemsMap: { [key: string]: number } = {};
+        cart.forEach(
+          (item: {
+            product: { id?: string; barcode: string };
+            productId?: string;
+            quantity: number;
+          }) => {
+            const productId =
+              item.product?.id || item.product?.barcode || item.productId;
+            if (productId) {
+              cartItemsMap[productId] = item.quantity;
+            }
+          }
+        );
+        setCartItems(cartItemsMap);
+      } catch (error) {
+        console.error("Sepet yüklenirken hata:", error);
+      }
+    }
+  }, []);
+
+  // Sepete ekleme fonksiyonu
+  const addToCart = async (product: Product) => {
+    try {
+      const productId = product.id || product.barcode;
+      const newCartItems = { ...cartItems };
+
+      if (newCartItems[productId]) {
+        newCartItems[productId] += 1;
+      } else {
+        newCartItems[productId] = 1;
+      }
+
+      setCartItems(newCartItems);
+
+      // Veritabanına kaydet
+      await cartService.addToCart(product, newCartItems[productId]);
+
+      // LocalStorage'a da kaydet (fallback için)
+      const cartArray = Object.entries(newCartItems)
+        .map(([id, quantity]) => ({
+          product: products.find((p) => (p.id || p.barcode) === id),
+          quantity,
+        }))
+        .filter((item) => item.product);
+
+      localStorage.setItem("cart", JSON.stringify(cartArray));
+    } catch (error) {
+      console.error("Sepete eklenirken hata:", error);
+    }
+  };
 
   const { data: companies = [] } = useSWR("/api/companies", () =>
     companyService.getAll()
@@ -261,17 +248,41 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     .filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.barcode.includes(searchTerm) ||
+        product.barcode.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.brand.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory =
         !selectedCategory || product.category === selectedCategory;
+      const matchesCompany =
+        !selectedCompany ||
+        (() => {
+          const supplier = Array.isArray(product.supplier)
+            ? product.supplier[0]
+            : product.supplier;
+          return getCompanyName(supplier) === selectedCompany;
+        })();
+      const matchesBrand = !selectedBrand || product.brand === selectedBrand;
+      const matchesTool =
+        !selectedTool ||
+        (() => {
+          const usedCars = Array.isArray(product.usedCars)
+            ? product.usedCars.join(", ")
+            : product.usedCars;
+          return usedCars === selectedTool;
+        })();
       const matchesStock =
         stockFilter === "all" ||
         (stockFilter === "low" &&
           product.stock <= lowStockThreshold &&
           product.stock > 0) ||
         (stockFilter === "out" && product.stock === 0);
-      return matchesSearch && matchesCategory && matchesStock;
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesCompany &&
+        matchesBrand &&
+        matchesTool &&
+        matchesStock
+      );
     })
     .sort((a, b) => {
       let aValue, bValue;
@@ -314,21 +325,31 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     ...new Set(products.map((p) => p.category).filter(Boolean)),
   ];
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-    }).format(price);
-  };
+  const brands = [...new Set(products.map((p) => p.brand).filter(Boolean))];
 
-  const stats = {
-    total: products.length,
-    lowStock: products.filter(
-      (p) => p.stock <= lowStockThreshold && p.stock > 0
-    ).length,
-    outOfStock: products.filter((p) => p.stock === 0).length,
-    totalValue: products.reduce((sum, p) => sum + p.price * p.stock, 0),
-  };
+  const tools = [
+    ...new Set(
+      products.flatMap((p) => {
+        if (Array.isArray(p.usedCars)) {
+          return p.usedCars.filter(Boolean);
+        }
+        return p.usedCars ? [p.usedCars] : [];
+      })
+    ),
+  ];
+
+  const companiesList = [
+    ...new Set(
+      products
+        .map((p) => {
+          const supplier = Array.isArray(p.supplier)
+            ? p.supplier[0]
+            : p.supplier;
+          return getCompanyName(supplier);
+        })
+        .filter((name) => name !== "-")
+    ),
+  ];
 
   return (
     <div className="w-full px-[10px] mt-[10px]">
@@ -353,6 +374,42 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
           {categories.map((category) => (
             <option key={category} value={category}>
               {category}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedCompany}
+          onChange={(e) => setSelectedCompany(e.target.value)}
+          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[120px]"
+        >
+          <option value="">Tüm Firmalar</option>
+          {companiesList.map((company) => (
+            <option key={company} value={company}>
+              {company}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedBrand}
+          onChange={(e) => setSelectedBrand(e.target.value)}
+          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[100px]"
+        >
+          <option value="">Tüm Markalar</option>
+          {brands.map((brand) => (
+            <option key={brand} value={brand}>
+              {brand}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedTool}
+          onChange={(e) => setSelectedTool(e.target.value)}
+          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[120px]"
+        >
+          <option value="">Tüm Araçlar</option>
+          {tools.map((tool) => (
+            <option key={tool} value={tool}>
+              {tool}
             </option>
           ))}
         </select>
@@ -385,6 +442,22 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
           <option value="created-desc">Yeni Eklenen</option>
           <option value="created-asc">Eski Eklenen</option>
         </select>
+        <button
+          onClick={() => {
+            setSearchTerm("");
+            setSelectedCategory("");
+            setSelectedCompany("");
+            setSelectedBrand("");
+            setSelectedTool("");
+            setStockFilter("all");
+            setSortBy("name");
+            setSortOrder("asc");
+            setCurrentPage(1);
+          }}
+          className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+        >
+          Filtreleri Temizle
+        </button>
       </div>
       {/* YATAY ÜRÜN LİSTESİ */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-[5px] w-full">
@@ -447,10 +520,16 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                     className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     <td className="px-3 py-2 text-xs font-medium text-gray-900 dark:text-white min-w-[100px] max-w-[100px] truncate">
-                      {product.name}
+                      <Tooltip content={product.name}>
+                        <span className="block truncate">{product.name}</span>
+                      </Tooltip>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 font-mono min-w-[70px] max-w-[70px] truncate">
-                      {product.barcode}
+                      <Tooltip content={product.barcode}>
+                        <span className="block truncate">
+                          {product.barcode}
+                        </span>
+                      </Tooltip>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 min-w-[80px] max-w-[80px] truncate">
                       {Array.isArray(product.supplier) &&
@@ -468,10 +547,18 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                         : "-"}
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 min-w-[80px] max-w-[80px] truncate">
-                      {product.category || "-"}
+                      <Tooltip content={product.category || "-"}>
+                        <span className="block truncate">
+                          {product.category || "-"}
+                        </span>
+                      </Tooltip>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 min-w-[80px] max-w-[80px] truncate">
-                      {product.brand || "-"}
+                      <Tooltip content={product.brand || "-"}>
+                        <span className="block truncate">
+                          {product.brand || "-"}
+                        </span>
+                      </Tooltip>
                     </td>
                     <td className="px-3 py-2 text-xs font-semibold text-gray-900 dark:text-white text-right min-w-[70px] max-w-[70px]">
                       ₺{product.price?.toLocaleString()}
@@ -494,26 +581,68 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                       </span>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 text-center min-w-[60px] max-w-[60px] truncate">
-                      {product.oem || "-"}
+                      <Tooltip content={product.oem || "-"}>
+                        <span className="block truncate">
+                          {product.oem || "-"}
+                        </span>
+                      </Tooltip>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 text-center min-w-[60px] max-w-[60px] truncate">
-                      {product.kod1 || "-"}
+                      <Tooltip content={product.kod1 || "-"}>
+                        <span className="block truncate">
+                          {product.kod1 || "-"}
+                        </span>
+                      </Tooltip>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 text-center min-w-[60px] max-w-[60px] truncate">
-                      {product.kod2 || "-"}
+                      <Tooltip content={product.kod2 || "-"}>
+                        <span className="block truncate">
+                          {product.kod2 || "-"}
+                        </span>
+                      </Tooltip>
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 min-w-[100px] max-w-[100px] truncate">
-                      {Array.isArray(product.usedCars) &&
-                      product.usedCars.length > 0
-                        ? product.usedCars.join(", ")
-                        : "-"}
+                      <Tooltip
+                        content={
+                          Array.isArray(product.usedCars) &&
+                          product.usedCars.length > 0
+                            ? [...new Set(product.usedCars)].join(", ")
+                            : "-"
+                        }
+                      >
+                        <span className="block truncate">
+                          {Array.isArray(product.usedCars) &&
+                          product.usedCars.length > 0
+                            ? [...new Set(product.usedCars)].join(", ")
+                            : "-"}
+                        </span>
+                      </Tooltip>
                     </td>
-                    <td className="px-3 py-2 text-xs flex gap-1 min-w-[120px] max-w-[120px]">
+                    <td className="px-3 py-2 text-xs flex gap-1 min-w-[140px] max-w-[140px]">
                       <button
                         onClick={() => onEdit(product)}
                         className="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors text-xs"
                       >
                         Düzenle
+                      </button>
+                      <button
+                        onClick={() => addToCart(product)}
+                        className={`px-2 py-1 rounded transition-colors text-xs flex items-center gap-1 ${
+                          cartItems[product.id || product.barcode]
+                            ? "bg-green-600 text-white hover:bg-green-700"
+                            : "bg-purple-600 text-white hover:bg-purple-700"
+                        }`}
+                        title={
+                          cartItems[product.id || product.barcode]
+                            ? "Sepette var"
+                            : "Sepete ekle"
+                        }
+                      >
+                        {cartItems[product.id || product.barcode] ? (
+                          <Check className="w-3 h-3" />
+                        ) : (
+                          <Plus className="w-3 h-3" />
+                        )}
                       </button>
                       <button
                         onClick={() => onDelete(product.barcode)}
