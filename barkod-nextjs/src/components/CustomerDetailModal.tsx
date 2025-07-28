@@ -1736,7 +1736,7 @@ const CustomerDetailModal = ({
                                   ? "Hesap Kapalı"
                                   : "Hesap Açık"}
                               </span>
-                              {sc.status === "active" ? (
+                              {sc.status === "active" && (
                                 <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
@@ -1836,32 +1836,6 @@ const CustomerDetailModal = ({
                                   className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
                                 >
                                   Hesabı Kapat
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    try {
-                                      await subCustomerService.openAccount(
-                                        sc.id
-                                      );
-                                      // Alt müşteri listesini yenile
-                                      const updatedSubCustomers =
-                                        await subCustomerService.getByCustomerId(
-                                          customer.id
-                                        );
-                                      setSubCustomers(updatedSubCustomers);
-                                    } catch (error) {
-                                      console.error(
-                                        "Hesap açma hatası:",
-                                        error
-                                      );
-                                      alert("Hesap açılırken hata oluştu!");
-                                    }
-                                  }}
-                                  className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                                >
-                                  Hesabı Aç
                                 </button>
                               )}
                             </div>

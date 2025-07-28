@@ -34,7 +34,6 @@ export async function GET(request) {
     .populate({
       path: "subCustomerId",
       select: "name phone",
-      strictPopulate: false,
     })
     .populate({ path: "debtId", select: "amount description" })
     .populate({ path: "saleId", select: "totalAmount items" })
@@ -75,7 +74,6 @@ export async function POST(request) {
     .populate({
       path: "subCustomerId",
       select: "name phone",
-      strictPopulate: false,
     })
     .populate({ path: "debtId", select: "amount description" })
     .populate({ path: "saleId", select: "totalAmount items" });
@@ -95,7 +93,6 @@ export async function PATCH(request) {
     .populate({
       path: "subCustomerId",
       select: "name phone",
-      strictPopulate: false,
     })
     .populate({ path: "debtId", select: "amount description" })
     .populate({ path: "saleId", select: "totalAmount items" });
