@@ -5,9 +5,34 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const CUSTOMER_API = "/api/customers";
 
 export const customerService = {
-  getAll: async (): Promise<Customer[]> => {
-    const res = await axios.get(`${API_URL}/api/customers`);
-    return res.data.map((c: Customer) => ({ ...c, id: c._id || c.id }));
+  getAll: async (
+    search?: string,
+    page: number = 1,
+    limit: number = 50
+  ): Promise<{
+    customers: Customer[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> => {
+    const params = new URLSearchParams();
+    if (search) params.append("search", search);
+    params.append("page", page.toString());
+    params.append("limit", limit.toString());
+
+    const url = `${API_URL}/api/customers?${params.toString()}`;
+    const res = await axios.get(url);
+
+    return {
+      customers: res.data.customers.map((c: Customer) => ({
+        ...c,
+        id: c._id || c.id,
+      })),
+      pagination: res.data.pagination,
+    };
   },
   create: async (
     customer: Omit<Customer, "id" | "_id" | "createdAt" | "updatedAt">

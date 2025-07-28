@@ -13,11 +13,11 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function Page() {
   const { data: products = [] } = useSWR(`${API_URL}/api/products`, fetcher);
-  const { data: sales = [], mutate: mutateSales } = useSWR(
-    `${API_URL}/api/sales`,
-    fetcher,
-    { fallbackData: [] }
-  );
+  const {
+    data: sales = [],
+    mutate: mutateSales,
+    isLoading: salesLoading,
+  } = useSWR(`${API_URL}/api/sales`, fetcher, { fallbackData: [] });
   const [activeTab, setActiveTab] = useState<Tab>("sales");
 
   return (
@@ -35,6 +35,7 @@ export default function Page() {
         <SalesPage
           sales={sales}
           products={products}
+          isLoading={salesLoading}
           onRefreshSales={async () => {
             await mutateSales(undefined, { revalidate: true });
           }}

@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from "react";
 import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
-import { Product, Customer } from "../../types";
+import { Product, Customer, SubCustomer } from "../../types";
 import { Trash2, Plus, Minus, ShoppingCart } from "lucide-react";
 import { productService } from "../../services/productService";
 import { customerService } from "../../services/customerService";
+import { subCustomerService } from "../../services/subCustomerService";
 
 interface CartItem {
   product: Product;
@@ -27,11 +28,18 @@ const SepetPage: React.FC = () => {
   }>({ message: "", type: "success", show: false });
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
+  const [subCustomers, setSubCustomers] = useState<SubCustomer[]>([]);
+  const [selectedSubCustomer, setSelectedSubCustomer] = useState<string>("");
   const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [showAddSubCustomer, setShowAddSubCustomer] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     phone: "",
     address: "",
+  });
+  const [newSubCustomer, setNewSubCustomer] = useState({
+    name: "",
+    phone: "",
   });
 
   // Sepetten localStorage'dan yükle ve müşterileri yükle
@@ -40,7 +48,19 @@ const SepetPage: React.FC = () => {
     if (savedCart) {
       setCartItems(JSON.parse(savedCart));
     }
-    customerService.getAll().then(setCustomers);
+    customerService
+      .getAll()
+      .then((data) => {
+        if (data && data.customers) {
+          setCustomers(data.customers);
+        } else {
+          setCustomers([]);
+        }
+      })
+      .catch((error) => {
+        console.error("Müşteriler yüklenirken hata:", error);
+        setCustomers([]);
+      });
     setLoading(false);
   }, []);
 
@@ -50,6 +70,25 @@ const SepetPage: React.FC = () => {
       localStorage.setItem("cart", JSON.stringify(cartItems));
     }
   }, [cartItems, loading]);
+
+  // Müşteri seçildiğinde SubCustomer'ları yükle
+  useEffect(() => {
+    if (selectedCustomer) {
+      subCustomerService
+        .getByCustomerId(selectedCustomer)
+        .then((data) => {
+          setSubCustomers(data);
+          setSelectedSubCustomer(""); // Müşteri değiştiğinde SubCustomer seçimini sıfırla
+        })
+        .catch((error) => {
+          console.error("SubCustomer'lar yüklenirken hata:", error);
+          setSubCustomers([]);
+        });
+    } else {
+      setSubCustomers([]);
+      setSelectedSubCustomer("");
+    }
+  }, [selectedCustomer]);
 
   const updateQuantity = (productId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -186,6 +225,23 @@ const SepetPage: React.FC = () => {
     setSelectedCustomer(created.id);
     setShowAddCustomer(false);
     setNewCustomer({ name: "", phone: "", address: "" });
+  };
+
+  const handleAddSubCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubCustomer.name.trim() || !selectedCustomer) return;
+    const created = await subCustomerService.create({
+      ...newSubCustomer,
+      customerId: selectedCustomer,
+      status: "active",
+    });
+    setSubCustomers((prev) => [...prev, created]);
+    setSelectedSubCustomer(created.id);
+    setShowAddSubCustomer(false);
+    setNewSubCustomer({
+      name: "",
+      phone: "",
+    });
   };
 
   const totalAmount = cartItems.reduce(
@@ -402,11 +458,13 @@ const SepetPage: React.FC = () => {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
                         <option value="">Müşteri seçin</option>
-                        {customers.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
+                        {customers &&
+                          Array.isArray(customers) &&
+                          customers.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
                       </select>
                       <button
                         type="button"
@@ -417,6 +475,40 @@ const SepetPage: React.FC = () => {
                       </button>
                     </div>
                   </div>
+
+                  {/* SubCustomer Seçimi */}
+                  {selectedCustomer && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Müşterinin Müşterisi
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          value={selectedSubCustomer}
+                          onChange={(e) =>
+                            setSelectedSubCustomer(e.target.value)
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                          <option value="">Müşterinin müşterisini seçin</option>
+                          {subCustomers &&
+                            Array.isArray(subCustomers) &&
+                            subCustomers.map((sc) => (
+                              <option key={sc.id} value={sc.id}>
+                                {sc.name}
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddSubCustomer(true)}
+                          className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                        >
+                          + Yeni
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -478,6 +570,7 @@ const SepetPage: React.FC = () => {
                             productName: item.product.name,
                           })),
                           customerId: selectedCustomer,
+                          subCustomerId: selectedSubCustomer || undefined,
                           paymentType: selectedPaymentType,
                           totalAmount: totalAmount,
                           isDebt: isDebt,
@@ -495,6 +588,7 @@ const SepetPage: React.FC = () => {
                           // Başarılı satış sonrası sepeti temizle
                           clearCart();
                           setSelectedCustomer("");
+                          setSelectedSubCustomer("");
                           setSelectedPaymentType("nakit");
                           setIsDebt(false);
                           setNotification({
@@ -675,6 +769,77 @@ const SepetPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddCustomer(false)}
+                  className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
+                >
+                  İptal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SubCustomer Ekleme Modal */}
+      {showAddSubCustomer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Yeni Alt Müşteri Ekle
+              </h2>
+              <button
+                onClick={() => setShowAddSubCustomer(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleAddSubCustomer}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Alt Müşteri Adı
+                </label>
+                <input
+                  type="text"
+                  value={newSubCustomer.name}
+                  onChange={(e) =>
+                    setNewSubCustomer({
+                      ...newSubCustomer,
+                      name: e.target.value,
+                    })
+                  }
+                  placeholder="Alt müşteri adını girin..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Telefon
+                </label>
+                <input
+                  type="text"
+                  value={newSubCustomer.phone}
+                  onChange={(e) =>
+                    setNewSubCustomer({
+                      ...newSubCustomer,
+                      phone: e.target.value,
+                    })
+                  }
+                  placeholder="Telefon numarası..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Ekle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddSubCustomer(false)}
                   className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
                 >
                   İptal

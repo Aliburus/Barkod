@@ -201,22 +201,28 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     }
   }, []);
 
-  // Sepete ekleme fonksiyonu
-  const addToCart = async (product: Product) => {
+  // Sepete ekleme/çıkarma fonksiyonu
+  const toggleCart = async (product: Product) => {
     try {
       const productId = product.id || product.barcode;
       const newCartItems = { ...cartItems };
 
       if (newCartItems[productId]) {
-        newCartItems[productId] += 1;
+        // Sepetten çıkar
+        delete newCartItems[productId];
       } else {
+        // Sepete ekle
         newCartItems[productId] = 1;
       }
 
       setCartItems(newCartItems);
 
       // Veritabanına kaydet
-      await cartService.addToCart(product, newCartItems[productId]);
+      if (newCartItems[productId]) {
+        await cartService.addToCart(product, newCartItems[productId]);
+      } else {
+        await cartService.removeFromCart(productId);
+      }
 
       // LocalStorage'a da kaydet (fallback için)
       const cartArray = Object.entries(newCartItems)
@@ -228,7 +234,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
 
       localStorage.setItem("cart", JSON.stringify(cartArray));
     } catch (error) {
-      console.error("Sepete eklenirken hata:", error);
+      console.error("Sepet işlemi sırasında hata:", error);
     }
   };
 
@@ -626,7 +632,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                         Düzenle
                       </button>
                       <button
-                        onClick={() => addToCart(product)}
+                        onClick={() => toggleCart(product)}
                         className={`px-2 py-1 rounded transition-colors text-xs flex items-center gap-1 ${
                           cartItems[product.id || product.barcode]
                             ? "bg-green-600 text-white hover:bg-green-700"
@@ -634,7 +640,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                         }`}
                         title={
                           cartItems[product.id || product.barcode]
-                            ? "Sepette var"
+                            ? "Sepetten çıkar"
                             : "Sepete ekle"
                         }
                       >

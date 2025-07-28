@@ -23,7 +23,6 @@ export interface Sale {
   customerId?: string;
   items?: SaleItem[];
   totalAmount: number;
-  paidAmount: number;
   paymentType: string;
   soldAt: string;
   createdAt: string;
@@ -49,18 +48,33 @@ export interface Customer {
   debt?: number;
 }
 
-export interface Payment {
+export interface SubCustomer {
   id: string;
   _id?: string;
-  company?: string;
+  customerId: string | { _id: string; name: string; phone?: string };
   name: string;
+  phone?: string;
+  status: "active" | "inactive" | "deleted";
+  color?: "yellow" | "red" | "blue" | "green" | "purple" | "orange";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerPayment {
+  _id?: string;
+  customerId: string | { _id: string; name: string; phone?: string };
+  subCustomerId?: string | { _id: string; name: string; phone?: string };
   amount: number;
-  date: string; // <-- backend ile uyumlu zorunlu alan
-  dueDate?: string;
-  isPaid?: boolean;
-  paymentType?: string;
+  paymentDate: string;
+  paymentType: "nakit" | "kredi_karti" | "havale" | "cek" | "diger";
   description?: string;
-  status?: "active" | "deleted";
+  debtId?: string | { _id: string; amount: number; description: string };
+  saleId?: string | { _id: string; totalAmount: number; items: SaleItem[] };
+  receiptNumber?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  status: "active" | "cancelled" | "refunded";
 }
 
 export interface Expense {
@@ -98,8 +112,8 @@ export interface SaleItem {
 export interface Debt {
   _id?: string;
   customerId: string | { _id: string; name: string; phone?: string };
+  subCustomerId?: string | { _id: string; name: string; phone?: string };
   amount: number;
-  paidAmount?: number;
   description?: string;
   isPaid?: boolean;
   createdAt: string;

@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { X } from "lucide-react";
+import { X, Package, ArrowLeft } from "lucide-react";
 import { companyService } from "../../../services/companyService";
 import { productService } from "../../../services/productService";
-import { paymentService } from "../../../services/paymentService";
-import { Product, Payment } from "../../../types";
+import { Product } from "../../../types";
 
 interface Company {
   id: string;
@@ -22,7 +21,6 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
 
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -30,45 +28,7 @@ export default function CompanyDetailPage() {
   // Ürünler için filtreleme ve sıralama state'leri
   const [productStartDate, setProductStartDate] = useState("");
   const [productEndDate, setProductEndDate] = useState("");
-  const [productSort, setProductSort] = useState("date_desc"); // "date_desc", "date_asc", "amount_desc", "amount_asc"
-
-  // Yapılan ödemeler için filtreleme ve sıralama state'leri
-  const [completedStartDate, setCompletedStartDate] = useState("");
-  const [completedEndDate, setCompletedEndDate] = useState("");
-  const [completedSort, setCompletedSort] = useState("date_desc"); // "date_desc", "date_asc", "amount_desc", "amount_asc"
-
-  // Bekleyen ödemeler için filtreleme ve sıralama state'leri
-  const [pendingStartDate, setPendingStartDate] = useState("");
-  const [pendingEndDate, setPendingEndDate] = useState("");
-  const [pendingSort, setPendingSort] = useState("date_desc"); // "date_desc", "date_asc", "amount_desc", "amount_asc"
-
-  // Detay popup state'leri
-  const [showOdemeDetail, setShowOdemeDetail] = useState(false);
-  const [showBorcDetail, setShowBorcDetail] = useState(false);
-
-  // Ödeme modal state'leri
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [paymentModalForm, setPaymentModalForm] = useState({
-    amount: "",
-    description: "",
-    paymentType: "nakit",
-  });
-  const [paymentModalLoading, setPaymentModalLoading] = useState(false);
-
-  // Ödemeleri yenileme fonksiyonu
-  const refreshPayments = useCallback(async () => {
-    if (!company) return;
-    try {
-      const allPayments = await paymentService.getAll();
-      const filteredPayments = allPayments.filter(
-        (p) => p.company === company.name || p.company === id
-      );
-      setPayments(filteredPayments);
-    } catch (error) {
-      console.error("Ödemeler yenilenirken hata:", error);
-    }
-  }, [company, id]);
+  const [productSort, setProductSort] = useState("date_desc");
 
   useEffect(() => {
     if (!id) return;
@@ -82,14 +42,9 @@ export default function CompanyDetailPage() {
         console.log("Firma verisi:", data);
         setCompany(data);
 
-        // Ürünleri ve ödemeleri paralel olarak çek
-        const [allProducts, allPayments] = await Promise.all([
-          productService.getAll(),
-          paymentService.getAll(),
-        ]);
-
+        // Ürünleri çek
+        const allProducts = await productService.getAll();
         console.log("Tüm ürünler:", allProducts.length);
-        console.log("Tüm ödemeler:", allPayments.length);
 
         // Ürünleri filtrele (hem firma adına hem ID'sine göre)
         const filteredProducts = allProducts.filter((p) => {
@@ -101,846 +56,316 @@ export default function CompanyDetailPage() {
           console.log(
             `Ürün: ${p.name}, Supplier: ${p.supplier}, Firma: ${
               data.name
-            }, Eşleşme: ${matchesName || matchesId}`
+            }, ID: ${id}, Eşleşme: ${matchesName || matchesId}`
           );
           return matchesName || matchesId;
         });
+
         console.log("Filtrelenmiş ürünler:", filteredProducts.length);
         setProducts(filteredProducts);
-
-        // Ödemeleri filtrele (hem firma adına hem ID'sine göre)
-        const filteredPayments = allPayments.filter((p) => {
-          const matchesName = p.company === data.name;
-          const matchesId = p.company === id;
-          console.log(
-            `Ödeme: ${p.amount}, Company: ${p.company}, Firma: ${
-              data.name
-            }, Eşleşme: ${matchesName || matchesId}`
-          );
-          return matchesName || matchesId;
-        });
-        console.log("Filtrelenmiş ödemeler:", filteredPayments.length);
-        setPayments(filteredPayments);
       } catch (error) {
-        console.error("Veri yüklenirken hata:", error);
-        // Hata durumunda boş array'ler set et
-        setProducts([]);
-        setPayments([]);
+        console.error("Veri çekilirken hata:", error);
       } finally {
         setLoading(false);
       }
     })();
   }, [id]);
 
-  // Ödemeleri otomatik yenile (her 5 saniyede bir)
-  useEffect(() => {
-    if (!company) return;
+  const handleProductClick = (product: Product) => {
+    setSelectedProduct(product);
+    setShowProductModal(true);
+  };
 
-    const interval = setInterval(() => {
-      refreshPayments();
-    }, 5000);
+  const closeProductModal = () => {
+    setShowProductModal(false);
+    setSelectedProduct(null);
+  };
 
-    return () => clearInterval(interval);
-  }, [company, refreshPayments]);
+  // Ürünleri sırala
+  const sortedProducts = [...products].sort((a, b) => {
+    if (productSort === "date_desc")
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (productSort === "date_asc")
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    if (productSort === "name_asc") return a.name.localeCompare(b.name);
+    if (productSort === "name_desc") return b.name.localeCompare(a.name);
+    if (productSort === "price_desc") return b.price - a.price;
+    if (productSort === "price_asc") return a.price - b.price;
+    return 0;
+  });
 
-  // Ödemeleri ayır
-  const completedPayments = payments.filter((p) => p.isPaid);
-  const pendingPayments = payments.filter((p) => !p.isPaid);
-
-  // Toplam hesaplamalar
-  const totalProductValue = products.reduce(
-    (sum, p) => sum + (p.purchasePrice || p.price || 0) * (p.stock || 0),
-    0
-  );
-  const totalCompletedPayments = completedPayments.reduce(
-    (sum, p) => sum + (p.amount || 0),
-    0
-  );
-  const totalPendingPayments = pendingPayments.reduce(
-    (sum, p) => sum + (p.amount || 0),
-    0
-  );
-  const balance = totalProductValue + totalPendingPayments;
+  // Ürünleri filtrele
+  const filteredProducts = sortedProducts.filter((p) => {
+    if (!productStartDate && !productEndDate) return true;
+    const productDate = new Date(p.createdAt);
+    if (productStartDate && productDate < new Date(productStartDate))
+      return false;
+    if (productEndDate && productDate > new Date(productEndDate + "T23:59:59"))
+      return false;
+    return true;
+  });
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="text-center text-gray-400 py-8">Yükleniyor...</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         </div>
       </div>
     );
   }
+
   if (!company) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="text-center text-red-500 py-8">
-              Firma bulunamadı.
-            </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Firma bulunamadı
+            </h1>
+            <button
+              onClick={() => router.back()}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Geri Dön
+            </button>
           </div>
         </div>
       </div>
     );
   }
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-1 sm:p-2">
-      <div className="bg-white dark:bg-gray-900 shadow-2xl rounded-2xl w-full max-w-[96vw] min-h-[60vh] max-h-[92vh] flex flex-col p-0 relative overflow-hidden">
-        <button
-          onClick={() => router.back()}
-          className="absolute top-4 right-6 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl z-10"
-        >
-          ×
-        </button>
-        {/* Üst başlık ve özet */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-8 pt-8 pb-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-4 min-w-0">
-            <span className="inline-block w-6 h-6 rounded-full border-2 border-gray-300 bg-primary-600"></span>
-            <div className="min-w-0 flex flex-col gap-1">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold text-gray-900 dark:text-white truncate">
-                  {company.name}
-                </span>
-              </div>
-              <div className="text-sm text-gray-500 dark:text-gray-300 truncate">
-                {company.phone || "-"} • {company.address || "-"}
-              </div>
-            </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              {company.name}
+            </h1>
           </div>
-          <div className="flex flex-row gap-8 flex-shrink-0">
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                Toplam Alış
-              </span>
-              <span className="font-bold text-lg text-red-500">
-                {totalProductValue.toFixed(2)} ₺
-              </span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                Toplam Ödeme
-              </span>
-              <span
-                className="font-bold text-lg text-green-500 cursor-pointer underline decoration-dotted hover:decoration-solid"
-                onClick={() => setShowOdemeDetail(true)}
-                title="Ödeme detaylarını gör"
-              >
-                {totalCompletedPayments.toFixed(2)} ₺
-              </span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                Kalan Borç
-              </span>
-              <span
-                className="font-bold text-lg text-orange-500 cursor-pointer underline decoration-dotted hover:decoration-solid"
-                onClick={() => setShowBorcDetail(true)}
-                title="Kalan borç detaylarını gör"
-              >
-                {balance.toFixed(2)} ₺
-              </span>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Firma Bilgileri
+                </h3>
+                <div className="space-y-2">
+                  <p className="text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">Ad:</span> {company.name}
+                  </p>
+                  {company.phone && (
+                    <p className="text-gray-600 dark:text-gray-400">
+                      <span className="font-medium">Telefon:</span>{" "}
+                      {company.phone}
+                    </p>
+                  )}
+                  {company.address && (
+                    <p className="text-gray-600 dark:text-gray-400">
+                      <span className="font-medium">Adres:</span>{" "}
+                      {company.address}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  İstatistikler
+                </h3>
+                <div className="space-y-2">
+                  <p className="text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">Toplam Ürün:</span>{" "}
+                    {products.length}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        {/* Ana içerik yatay iki blok */}
-        <div className="flex-1 flex flex-col md:flex-row gap-0 md:gap-8 px-4 md:px-8 pb-8 pt-4 overflow-hidden">
-          {/* Sol blok: Ürünler */}
-          <div className="flex-1 flex flex-col min-w-0 border-r border-gray-200 dark:border-gray-700 pr-0 md:pr-8">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-lg font-semibold text-primary-700 dark:text-primary-300">
-                Alınan Ürünler
-              </div>
-              <div className="flex items-center gap-2">
+
+        {/* Ürünler Bölümü */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                Ürünler ({filteredProducts.length})
+              </h2>
+            </div>
+
+            {/* Filtreler */}
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Başlangıç Tarihi
+                </label>
                 <input
                   type="date"
                   value={productStartDate}
                   onChange={(e) => setProductStartDate(e.target.value)}
-                  className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 />
-                <span className="text-gray-500">-</span>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Bitiş Tarihi
+                </label>
                 <input
                   type="date"
                   value={productEndDate}
                   onChange={(e) => setProductEndDate(e.target.value)}
-                  className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 />
-                <button
-                  onClick={() => {
-                    setProductStartDate("");
-                    setProductEndDate("");
-                  }}
-                  className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-xs"
-                >
-                  Temizle
-                </button>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Sıralama
+                </label>
                 <select
                   value={productSort}
-                  onChange={(e) =>
-                    setProductSort(
-                      e.target.value as
-                        | "date_desc"
-                        | "date_asc"
-                        | "amount_desc"
-                        | "amount_asc"
-                    )
-                  }
-                  className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  onChange={(e) => setProductSort(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
-                  <option value="date_desc">Tarih (Yeni &gt; Eski)</option>
-                  <option value="date_asc">Tarih (Eski &gt; Yeni)</option>
-                  <option value="amount_desc">Tutar (Büyük &gt; Küçük)</option>
-                  <option value="amount_asc">Tutar (Küçük &gt; Büyük)</option>
+                  <option value="date_desc">Tarih (Yeni)</option>
+                  <option value="date_asc">Tarih (Eski)</option>
+                  <option value="name_asc">İsim (A-Z)</option>
+                  <option value="name_desc">İsim (Z-A)</option>
+                  <option value="price_desc">Fiyat (Yüksek)</option>
+                  <option value="price_asc">Fiyat (Düşük)</option>
                 </select>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto rounded-lg bg-gray-50 dark:bg-gray-800 p-2">
-              <table className="w-full text-xs md:text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                      Ürün
-                    </th>
-                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                      Adet
-                    </th>
-                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                      Birim Fiyat
-                    </th>
-                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                      Toplam
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="text-center text-gray-400 py-8 text-xs"
-                      >
-                        Ürün yok
-                      </td>
-                    </tr>
-                  ) : (
-                    products.map((p) => (
-                      <tr
-                        key={p.id || p._id}
-                        className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                        onClick={() => {
-                          setSelectedProduct(p);
-                          setShowProductModal(true);
-                        }}
-                      >
-                        <td className="font-semibold text-gray-900 dark:text-white max-w-[180px] truncate px-2 py-1">
-                          {p.name}
-                        </td>
-                        <td className="text-gray-500 dark:text-gray-300 px-2 py-1">
-                          {p.stock || 0} adet
-                        </td>
-                        <td className="text-gray-500 dark:text-gray-300 px-2 py-1">
-                          {p.purchasePrice || p.price} ₺
-                        </td>
-                        <td className="font-semibold text-gray-900 dark:text-white px-2 py-1">
-                          {(
-                            (p.purchasePrice || p.price || 0) * (p.stock || 0)
-                          ).toFixed(2)}{" "}
-                          ₺
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
           </div>
-          {/* Sağ blok: Ödemeler */}
-          <div className="flex-1 flex flex-col min-w-0 pl-0 md:pl-8 gap-8">
-            {/* Yapılan Ödemeler */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-lg font-semibold text-success-700 dark:text-success-300">
-                  Yapılan Ödemeler
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={completedStartDate}
-                    onChange={(e) => setCompletedStartDate(e.target.value)}
-                    className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
-                  />
-                  <span className="text-gray-500">-</span>
-                  <input
-                    type="date"
-                    value={completedEndDate}
-                    onChange={(e) => setCompletedEndDate(e.target.value)}
-                    className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
-                  />
-                  <button
-                    onClick={() => {
-                      setCompletedStartDate("");
-                      setCompletedEndDate("");
-                    }}
-                    className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-xs"
-                  >
-                    Temizle
-                  </button>
-                  <select
-                    value={completedSort}
-                    onChange={(e) =>
-                      setCompletedSort(
-                        e.target.value as
-                          | "date_desc"
-                          | "date_asc"
-                          | "amount_desc"
-                          | "amount_asc"
-                      )
-                    }
-                    className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  >
-                    <option value="date_desc">Tarih (Yeni &gt; Eski)</option>
-                    <option value="date_asc">Tarih (Eski &gt; Yeni)</option>
-                    <option value="amount_desc">
-                      Tutar (Büyük &gt; Küçük)
-                    </option>
-                    <option value="amount_asc">Tutar (Küçük &gt; Büyük)</option>
-                  </select>
-                </div>
+
+          {/* Ürün Listesi */}
+          <div className="p-6">
+            {filteredProducts.length === 0 ? (
+              <div className="text-center py-8">
+                <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500 dark:text-gray-400">
+                  Bu firmaya ait ürün bulunamadı
+                </p>
               </div>
-              <div className="flex-1 overflow-y-auto rounded-lg bg-gray-50 dark:bg-gray-800 p-2">
-                <table className="w-full text-xs md:text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                        Tutar
-                      </th>
-                      <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                        Tip
-                      </th>
-                      <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                        Tarih
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {completedPayments.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-center text-gray-400 py-8 text-xs"
-                        >
-                          Ödeme yok
-                        </td>
-                      </tr>
-                    ) : (
-                      completedPayments.map((pay) => (
-                        <tr
-                          key={pay.id || pay._id}
-                          className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          <td className="font-semibold text-success-600 px-2 py-1">
-                            {pay.amount} ₺
-                          </td>
-                          <td className="text-gray-500 dark:text-gray-300 px-2 py-1">
-                            {pay.paymentType || "-"}
-                          </td>
-                          <td className="text-xs text-gray-400 px-2 py-1">
-                            {pay.date
-                              ? new Date(pay.date).toLocaleDateString("tr-TR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                })
-                              : "-"}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredProducts.map((product) => (
+                  <div
+                    key={product.barcode}
+                    onClick={() => handleProductClick(product)}
+                    className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                        {product.name}
+                      </h3>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {product.barcode}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                      <p>Fiyat: ₺{product.price}</p>
+                      <p>Stok: {product.stock}</p>
+                      <p>Kategori: {product.category}</p>
+                      <p>Marka: {product.brand}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Ürün Detay Modal */}
+      {showProductModal && selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Ürün Detayı
+              </h3>
+              <button
+                onClick={closeProductModal}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            {/* Bekleyen Ödemeler */}
-            <div>
-              <div className="flex items-center justify-between mb-2 mt-6">
-                <div className="text-lg font-semibold text-warning-700 dark:text-warning-300">
-                  Bekleyen Ödemeler
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={pendingStartDate}
-                    onChange={(e) => setPendingStartDate(e.target.value)}
-                    className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
-                  />
-                  <span className="text-gray-500">-</span>
-                  <input
-                    type="date"
-                    value={pendingEndDate}
-                    onChange={(e) => setPendingEndDate(e.target.value)}
-                    className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs"
-                  />
-                  <button
-                    onClick={() => {
-                      setPendingStartDate("");
-                      setPendingEndDate("");
-                    }}
-                    className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-xs"
-                  >
-                    Temizle
-                  </button>
-                  <select
-                    value={pendingSort}
-                    onChange={(e) =>
-                      setPendingSort(
-                        e.target.value as
-                          | "date_desc"
-                          | "date_asc"
-                          | "amount_desc"
-                          | "amount_asc"
-                      )
-                    }
-                    className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  >
-                    <option value="date_desc">Tarih (Yeni &gt; Eski)</option>
-                    <option value="date_asc">Tarih (Eski &gt; Yeni)</option>
-                    <option value="amount_desc">
-                      Tutar (Büyük &gt; Küçük)
-                    </option>
-                    <option value="amount_asc">Tutar (Küçük &gt; Büyük)</option>
-                  </select>
-                </div>
+
+            <div className="space-y-3">
+              <div>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  İsim:
+                </span>
+                <p className="text-gray-900 dark:text-white">
+                  {selectedProduct.name}
+                </p>
               </div>
-              <div className="flex-1 overflow-y-auto rounded-lg bg-gray-50 dark:bg-gray-800 p-2">
-                <table className="w-full text-xs md:text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                        Tutar
-                      </th>
-                      <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                        Tip
-                      </th>
-                      <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                        Tarih
-                      </th>
-                      <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2 px-2">
-                        İşlem
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingPayments.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-center text-gray-400 py-8 text-xs"
-                        >
-                          Bekleyen ödeme yok
-                        </td>
-                      </tr>
-                    ) : (
-                      pendingPayments.map((pay) => (
-                        <tr
-                          key={pay.id || pay._id}
-                          className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          <td className="font-semibold text-warning-600 px-2 py-1">
-                            {pay.amount} ₺
-                          </td>
-                          <td className="text-gray-500 dark:text-gray-300 px-2 py-1">
-                            {pay.paymentType || "-"}
-                          </td>
-                          <td className="text-xs text-gray-400 px-2 py-1">
-                            {pay.date
-                              ? new Date(pay.date).toLocaleDateString("tr-TR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                })
-                              : "-"}
-                          </td>
-                          <td className="px-2 py-1">
-                            <button
-                              onClick={() => {
-                                setSelectedPayment(pay);
-                                setPaymentModalForm({
-                                  amount: pay.amount?.toString() || "",
-                                  description: "",
-                                  paymentType: "nakit",
-                                });
-                                setShowPaymentModal(true);
-                              }}
-                              className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                            >
-                              Öde
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+              <div>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Barkod:
+                </span>
+                <p className="text-gray-900 dark:text-white">
+                  {selectedProduct.barcode}
+                </p>
               </div>
+              <div>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Fiyat:
+                </span>
+                <p className="text-gray-900 dark:text-white">
+                  ₺{selectedProduct.price}
+                </p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Stok:
+                </span>
+                <p className="text-gray-900 dark:text-white">
+                  {selectedProduct.stock}
+                </p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Kategori:
+                </span>
+                <p className="text-gray-900 dark:text-white">
+                  {selectedProduct.category}
+                </p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Marka:
+                </span>
+                <p className="text-gray-900 dark:text-white">
+                  {selectedProduct.brand}
+                </p>
+              </div>
+              {selectedProduct.purchasePrice && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    Alış Fiyatı:
+                  </span>
+                  <p className="text-gray-900 dark:text-white">
+                    ₺{selectedProduct.purchasePrice}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
-        {/* Ürün Detay Modalı */}
-        {showProductModal && selectedProduct && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 relative">
-              <button
-                onClick={() => setShowProductModal(false)}
-                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-6 h-6" />
-              </button>
-              <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">
-                {selectedProduct.name}
-              </h3>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">
-                    Barkod:
-                  </span>
-                  <span className="font-mono">{selectedProduct.barcode}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">
-                    Fiyat:
-                  </span>
-                  <span className="font-semibold">
-                    ₺{selectedProduct.price?.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">
-                    Stok:
-                  </span>
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${
-                      selectedProduct.stock === 0
-                        ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200"
-                        : selectedProduct.stock <= 5
-                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                        : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200"
-                    }`}
-                  >
-                    {selectedProduct.stock === 0
-                      ? "Tükendi"
-                      : selectedProduct.stock + " adet"}
-                  </span>
-                </div>
-
-                {selectedProduct.category && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      Kategori:
-                    </span>
-                    <span>{selectedProduct.category}</span>
-                  </div>
-                )}
-
-                {selectedProduct.brand && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      Marka:
-                    </span>
-                    <span>{selectedProduct.brand}</span>
-                  </div>
-                )}
-
-                {selectedProduct.oem && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      OEM:
-                    </span>
-                    <span>{selectedProduct.oem}</span>
-                  </div>
-                )}
-
-                {selectedProduct.kod1 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      Kod 1:
-                    </span>
-                    <span>{selectedProduct.kod1}</span>
-                  </div>
-                )}
-
-                {selectedProduct.kod2 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      Kod 2:
-                    </span>
-                    <span>{selectedProduct.kod2}</span>
-                  </div>
-                )}
-
-                {selectedProduct.usedCars &&
-                  selectedProduct.usedCars.length > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-300">
-                        Kullanılan Araçlar:
-                      </span>
-                      <span className="text-right">
-                        {selectedProduct.usedCars.join(", ")}
-                      </span>
-                    </div>
-                  )}
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Ödeme Detay Modalı */}
-        {showOdemeDetail && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-4 w-full max-w-md max-h-[80vh] overflow-y-auto">
-              <button
-                onClick={() => setShowOdemeDetail(false)}
-                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                Kapat
-              </button>
-              <h4 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">
-                Ödeme Detayı
-              </h4>
-              {completedPayments.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400">Ödeme yok.</p>
-              ) : (
-                <ul>
-                  {completedPayments.map((pay) => (
-                    <li
-                      key={pay.id || pay._id}
-                      className="py-2 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-                    >
-                      <div className="flex justify-between">
-                        <span className="text-gray-900 dark:text-white font-semibold">
-                          {pay.amount.toFixed(2)} ₺
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {pay.date
-                            ? new Date(pay.date).toLocaleDateString("tr-TR", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                              })
-                            : "-"}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        {pay.paymentType || "-"}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        )}
-        {/* Kalan Borç Detay Modalı */}
-        {showBorcDetail && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-4 w-full max-w-md max-h-[80vh] overflow-y-auto">
-              <button
-                onClick={() => setShowBorcDetail(false)}
-                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                Kapat
-              </button>
-              <h4 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">
-                Kalan Borç Detayı
-              </h4>
-              {pendingPayments.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400">
-                  Kalan borç yok.
-                </p>
-              ) : (
-                <ul>
-                  {pendingPayments.map((pay) => (
-                    <li
-                      key={pay.id || pay._id}
-                      className="py-2 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-                    >
-                      <div className="flex justify-between">
-                        <span className="text-gray-900 dark:text-white font-semibold">
-                          {pay.amount.toFixed(2)} ₺
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {pay.date
-                            ? new Date(pay.date).toLocaleDateString("tr-TR", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                              })
-                            : "-"}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        {pay.paymentType || "-"}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        )}
-        {/* Ödeme Modalı */}
-        {showPaymentModal && selectedPayment && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-md">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Ödeme Yap
-                </h3>
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                  <strong>Bekleyen Tutar:</strong> {selectedPayment.amount} ₺
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                  <strong>Tarih:</strong>{" "}
-                  {selectedPayment.date
-                    ? new Date(selectedPayment.date).toLocaleDateString("tr-TR")
-                    : "-"}
-                </div>
-              </div>
-
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (
-                    !paymentModalForm.amount ||
-                    parseFloat(paymentModalForm.amount) <= 0
-                  )
-                    return;
-
-                  setPaymentModalLoading(true);
-                  try {
-                    // Sadece bekleyen ödemeyi güncelle (yeni ödeme oluşturma)
-                    await paymentService.update(
-                      selectedPayment.id || selectedPayment._id || "",
-                      {
-                        isPaid: true,
-                        paymentType: paymentModalForm.paymentType,
-                        description: paymentModalForm.description,
-                        amount: parseFloat(paymentModalForm.amount),
-                      }
-                    );
-
-                    // Ödemeleri yeniden yükle
-                    await refreshPayments();
-
-                    setShowPaymentModal(false);
-                    setSelectedPayment(null);
-                    setPaymentModalForm({
-                      amount: "",
-                      description: "",
-                      paymentType: "nakit",
-                    });
-                  } catch (error) {
-                    console.error("Ödeme yapılırken hata:", error);
-                  } finally {
-                    setPaymentModalLoading(false);
-                  }
-                }}
-              >
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Ödenecek Tutar
-                    </label>
-                    <input
-                      type="number"
-                      value={paymentModalForm.amount}
-                      onChange={(e) =>
-                        setPaymentModalForm({
-                          ...paymentModalForm,
-                          amount: e.target.value,
-                        })
-                      }
-                      placeholder="Tutar"
-                      min="0"
-                      step="0.01"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Ödeme Tipi
-                    </label>
-                    <select
-                      value={paymentModalForm.paymentType}
-                      onChange={(e) =>
-                        setPaymentModalForm({
-                          ...paymentModalForm,
-                          paymentType: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                      <option value="nakit">Nakit</option>
-                      <option value="havale">Havale/EFT</option>
-                      <option value="kredi kartı">Kredi Kartı</option>
-                      <option value="diğer">Diğer</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Açıklama (İsteğe bağlı)
-                    </label>
-                    <textarea
-                      value={paymentModalForm.description}
-                      onChange={(e) =>
-                        setPaymentModalForm({
-                          ...paymentModalForm,
-                          description: e.target.value,
-                        })
-                      }
-                      placeholder="Ödeme açıklaması..."
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowPaymentModal(false)}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      İptal
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={paymentModalLoading}
-                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50"
-                    >
-                      {paymentModalLoading ? "Ödeniyor..." : "Ödemeyi Tamamla"}
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

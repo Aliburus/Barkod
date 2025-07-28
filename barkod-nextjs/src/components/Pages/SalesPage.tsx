@@ -13,12 +13,14 @@ import { Customer } from "../../types";
 interface SalesPageProps {
   sales: Sale[];
   products: Product[];
+  isLoading?: boolean;
   onRefreshSales?: () => void;
 }
 
 const SalesPage: React.FC<SalesPageProps> = ({
   sales,
   products,
+  isLoading = false,
   onRefreshSales,
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<
@@ -47,11 +49,19 @@ const SalesPage: React.FC<SalesPageProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    customerService.getAll().then(setCustomers);
+    customerService.getAll().then((data) => setCustomers(data.customers));
   }, []);
 
-  const getCustomerName = (customerId: string | undefined) => {
+  const getCustomerName = (customerId: string | Customer | undefined) => {
     if (!customerId) return "-";
+
+    // Eğer zaten bir nesne geldiyse
+    if (typeof customerId === "object" && customerId !== null) {
+      return customerId.name || "-";
+    }
+
+    if (!customers || !Array.isArray(customers) || customers.length === 0)
+      return customerId;
     const customer = customers.find((c) => c.id === customerId);
     return customer ? customer.name : customerId;
   };
@@ -75,16 +85,18 @@ const SalesPage: React.FC<SalesPageProps> = ({
     }
 
     // Eski format için fallback
-    const saleAny = sale as {
-      price?: number;
-      productName?: string;
-      barcode?: string;
-      quantity?: number;
+    const saleData = {
+      price: (sale as unknown as { price?: number }).price || 0,
+      productName:
+        (sale as unknown as { productName?: string }).productName ||
+        "Bilinmiyor",
+      barcode: (sale as unknown as { barcode?: string }).barcode || "-",
+      quantity: (sale as unknown as { quantity?: number }).quantity || 0,
     };
-    let price = saleAny.price || 0;
-    let name = saleAny.productName || "Bilinmiyor";
-    let barcode = saleAny.barcode || "-";
-    const quantity = saleAny.quantity || 0;
+    let price = saleData.price;
+    let name = saleData.productName;
+    let barcode = saleData.barcode;
+    const quantity = saleData.quantity;
 
     // Ürün adı ve fiyatı yoksa ürün listesinden bul
     if (!price || !name || name === "Bilinmiyor") {
@@ -108,26 +120,47 @@ const SalesPage: React.FC<SalesPageProps> = ({
       quantity,
     };
   };
-  const salesWithProduct = sales
-    .filter((sale) => sale.status !== "deleted")
-    .map(getSaleWithProduct);
+  const salesWithProduct = useMemo(() => {
+    // Loading durumunda veya sales array değilse boş array döndür
+    if (isLoading || !Array.isArray(sales)) {
+      return [];
+    }
+
+    if (!customers || customers.length === 0) {
+      // Müşteriler henüz yüklenmemişse, müşteri adı olmadan döndür
+      return sales.map((sale) => {
+        const saleWithProduct = getSaleWithProduct(sale);
+        return {
+          ...saleWithProduct,
+          customerName: sale.customerId || sale.customer || "-",
+        };
+      });
+    }
+    return sales.map(getSaleWithProduct);
+  }, [sales, customers, isLoading]);
 
   // Filtreleme ve istatistiklerde salesWithProduct kullan
   const getFilteredSales = () => {
-    let filtered = salesWithProduct.filter((sale) => sale.status !== "deleted");
+    // salesWithProduct array değilse boş array döndür
+    if (!Array.isArray(salesWithProduct)) {
+      return [];
+    }
+
+    let filtered = salesWithProduct;
     const now = new Date();
     switch (selectedPeriod) {
       case "today":
         filtered = filtered.filter(
           (sale) =>
-            sale.soldAt.split("T")[0] === now.toISOString().split("T")[0]
+            (sale.soldAt || sale.createdAt).split("T")[0] ===
+            now.toISOString().split("T")[0]
         );
         break;
       case "week":
         const weekStart = format(new Date(), "yyyy-MM-dd");
         const weekEnd = format(new Date(), "yyyy-MM-dd");
         filtered = filtered.filter((sale) => {
-          const saleDate = sale.soldAt.split("T")[0];
+          const saleDate = (sale.soldAt || sale.createdAt).split("T")[0];
           return saleDate >= weekStart && saleDate <= weekEnd;
         });
         break;
@@ -135,13 +168,13 @@ const SalesPage: React.FC<SalesPageProps> = ({
         const monthStart = format(new Date(), "yyyy-MM-01");
         const monthEnd = format(new Date(), "yyyy-MM-31");
         filtered = filtered.filter((sale) => {
-          const saleDate = sale.soldAt.split("T")[0];
+          const saleDate = (sale.soldAt || sale.createdAt).split("T")[0];
           return saleDate >= monthStart && saleDate <= monthEnd;
         });
         break;
       case "custom":
         filtered = filtered.filter((sale) => {
-          const saleDate = sale.soldAt.split("T")[0];
+          const saleDate = (sale.soldAt || sale.createdAt).split("T")[0];
           return saleDate >= startDate && saleDate <= endDate;
         });
         break;
@@ -171,8 +204,8 @@ const SalesPage: React.FC<SalesPageProps> = ({
 
       switch (sortBy) {
         case "date":
-          aValue = new Date(a.soldAt).getTime();
-          bValue = new Date(b.soldAt).getTime();
+          aValue = new Date(a.soldAt || a.createdAt).getTime();
+          bValue = new Date(b.soldAt || b.createdAt).getTime();
           break;
         case "amount":
           aValue = a.total || 0;
@@ -242,7 +275,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
             quantity: item.quantity,
             price: item.price,
             total: item.price * item.quantity,
-            date: formatDateTime(sale.soldAt),
+            date: formatDateTime(sale.soldAt || sale.createdAt),
           });
         });
       } else {
@@ -253,7 +286,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
           quantity: sale.quantity,
           price: sale.price,
           total: sale.total,
-          date: formatDateTime(sale.soldAt),
+          date: formatDateTime(sale.soldAt || sale.createdAt),
         });
       }
     });
@@ -322,8 +355,17 @@ const SalesPage: React.FC<SalesPageProps> = ({
     }
   };
 
-  const handleCustomerClick = (customerId: string) => {
-    const customer = customers.find((c) => c.id === customerId);
+  const handleCustomerClick = (customerId: string | Customer) => {
+    if (!customers || !Array.isArray(customers)) return;
+
+    let customerIdStr: string;
+    if (typeof customerId === "object" && customerId !== null) {
+      customerIdStr = customerId._id || customerId.id;
+    } else {
+      customerIdStr = customerId as string;
+    }
+
+    const customer = customers.find((c) => c.id === customerIdStr);
     if (customer) {
       setSelectedCustomer(customer);
       setShowCustomerModal(true);
@@ -341,6 +383,23 @@ const SalesPage: React.FC<SalesPageProps> = ({
       ),
     [filteredSales, currentPage, itemsPerPage]
   );
+
+  // subCustomerId gösterimi için yardımcı fonksiyon ekle
+  function getSubCustomerText(subCustomerId: any) {
+    if (subCustomerId && typeof subCustomerId === "object") {
+      if (subCustomerId.name) {
+        return (
+          subCustomerId.name +
+          (subCustomerId.phone ? ` (${subCustomerId.phone})` : "")
+        );
+      } else {
+        return JSON.stringify(subCustomerId);
+      }
+    } else if (subCustomerId && typeof subCustomerId === "string") {
+      return subCustomerId;
+    }
+    return "-";
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 mt-4">
@@ -459,16 +518,28 @@ const SalesPage: React.FC<SalesPageProps> = ({
                 <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   Tarih
                 </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  Alt Müşteri
+                </th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   İşlemler
                 </th>
               </tr>
             </thead>
             <tbody>
-              {paginatedSales.length === 0 ? (
+              {isLoading ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
+                    className="text-center py-8 text-gray-500 dark:text-gray-400"
+                  >
+                    Yükleniyor...
+                  </td>
+                </tr>
+              ) : paginatedSales.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={10}
                     className="text-center py-8 text-gray-500 dark:text-gray-400"
                   >
                     Satış bulunamadı
@@ -477,73 +548,77 @@ const SalesPage: React.FC<SalesPageProps> = ({
               ) : (
                 paginatedSales.flatMap((sale) => {
                   if (Array.isArray(sale.items) && sale.items.length > 0) {
-                    return sale.items.map((item: SaleItem, idx: number) => (
-                      <tr
-                        key={`${sale._id}-${idx}`}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <td className="px-3 py-2 text-sm text-gray-900 dark:text-white font-semibold">
-                          {item.productName || "-"}
-                        </td>
-                        <td className="px-3 py-2 text-sm text-primary-700 dark:text-primary-300 font-mono">
-                          {item.barcode || "-"}
-                        </td>
-                        <td
-                          className="px-3 py-2 text-sm text-primary-600 underline cursor-pointer font-semibold"
-                          onClick={
-                            sale.customerId || sale.customer
-                              ? () =>
-                                  handleCustomerClick(
-                                    sale.customerId || sale.customer || ""
-                                  )
-                              : undefined
-                          }
+                    return sale.items.map((item: SaleItem, idx: number) => {
+                      return (
+                        <tr
+                          key={`${sale._id}-${idx}`}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
-                          {getCustomerName(sale.customerId || sale.customer)}
-                        </td>
-                        <td className="px-3 py-2 text-sm text-center">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            {item.quantity} adet
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-sm text-right font-mono">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                            {formatPrice(item.price)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-sm text-right font-mono font-semibold">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                            {formatPrice(item.price * item.quantity)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-sm">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                            {sale.paymentType || "nakit"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-sm">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                            {formatDateTime(sale.soldAt)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-sm text-center">
-                          <div className="flex justify-center gap-1">
-                            <button
-                              onClick={() => handleEditClick(sale)}
-                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                            >
-                              Düzenle
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSale(sale._id)}
-                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
-                            >
-                              Sil
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ));
+                          <td className="px-3 py-2 text-sm text-gray-900 dark:text-white font-semibold">
+                            {item.productName || "-"}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-primary-700 dark:text-primary-300 font-mono">
+                            {item.barcode || "-"}
+                          </td>
+                          <td
+                            className="px-3 py-2 text-sm text-primary-600 underline cursor-pointer font-semibold"
+                            onClick={() => {
+                              const customerId =
+                                sale.customerId || sale.customer;
+                              if (customerId) {
+                                handleCustomerClick(customerId);
+                              }
+                            }}
+                          >
+                            {getCustomerName(sale.customerId || sale.customer)}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-center">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              {item.quantity} adet
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-sm text-right font-mono">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                              {formatPrice(item.price)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-sm text-right font-mono font-semibold">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                              {formatPrice(item.price * item.quantity)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-sm">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                              {sale.paymentType || "nakit"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-sm">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                              {formatDateTime(sale.soldAt || sale.createdAt)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
+                            {getSubCustomerText((sale as any).subCustomerId)}
+                          </td>
+                          <td className="px-3 py-2 text-sm text-center">
+                            <div className="flex justify-center gap-1">
+                              <button
+                                onClick={() => handleEditClick(sale)}
+                                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                              >
+                                Düzenle
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSale(sale._id)}
+                                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+                              >
+                                Sil
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
                   } else {
                     return (
                       <tr
@@ -558,14 +633,12 @@ const SalesPage: React.FC<SalesPageProps> = ({
                         </td>
                         <td
                           className="px-1 py-1 text-xs text-primary-600 underline cursor-pointer font-semibold"
-                          onClick={
-                            sale.customerId || sale.customer
-                              ? () =>
-                                  handleCustomerClick(
-                                    sale.customerId || sale.customer || ""
-                                  )
-                              : undefined
-                          }
+                          onClick={() => {
+                            const customerId = sale.customerId || sale.customer;
+                            if (customerId) {
+                              handleCustomerClick(customerId);
+                            }
+                          }}
                         >
                           {getCustomerName(sale.customerId || sale.customer)}
                         </td>
@@ -591,8 +664,11 @@ const SalesPage: React.FC<SalesPageProps> = ({
                         </td>
                         <td className="px-1 py-1 text-xs">
                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                            {formatDateTime(sale.soldAt)}
+                            {formatDateTime(sale.soldAt || sale.createdAt)}
                           </span>
+                        </td>
+                        <td className="px-1 py-1 text-xs text-gray-900 dark:text-white">
+                          {getSubCustomerText((sale as any).subCustomerId)}
                         </td>
                         <td className="px-1 py-1 text-xs text-center">
                           <div className="flex justify-center gap-1">

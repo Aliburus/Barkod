@@ -6,6 +6,11 @@ const debtSchema = new mongoose.Schema({
     ref: "Customer",
     required: true,
   },
+  subCustomerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCustomer",
+    required: false,
+  },
   amount: {
     type: Number,
     required: true,
@@ -29,10 +34,6 @@ const debtSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  paidAmount: {
-    type: Number,
-    default: 0,
-  },
   dueDate: {
     type: Date,
     required: false,
@@ -53,9 +54,9 @@ debtSchema.pre("save", function (next) {
   next();
 });
 
-// Kalan borç hesaplama
+// Kalan borç hesaplama (ödeme kayıtlarından hesaplanacak)
 debtSchema.virtual("remainingAmount").get(function () {
-  return this.amount - this.paidAmount;
+  return this.amount; // Bu artık dinamik hesaplanacak
 });
 
 const Debt = mongoose.models.Debt || mongoose.model("Debt", debtSchema);

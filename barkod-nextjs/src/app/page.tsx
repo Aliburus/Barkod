@@ -12,7 +12,6 @@ import SaleModal from "../components/SaleModal";
 import { productService } from "../services/productService";
 import { Product, Sale, ScanResult } from "../types";
 
-import PaymentsPage from "../components/Pages/PaymentsPage";
 import { Loader2 } from "lucide-react";
 import KasaPage from "./kasa/page";
 import GiderlerPage from "./giderler/page";
@@ -24,7 +23,6 @@ export type Tab =
   | "products"
   | "sales"
   | "customers"
-  | "payments"
   | "analytics"
   | "kasa"
   | "giderler"
@@ -213,7 +211,7 @@ export default function Home() {
             {activeTab === "scanner" && (
               <BarcodeScanner onScan={handleScan} isActive={scannerActive} />
             )}
-            {activeTab === "payments" && <PaymentsPage />}
+
             {activeTab === "kasa" && <KasaPage />}
             {activeTab === "giderler" && <GiderlerPage />}
           </main>

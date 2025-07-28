@@ -1,12 +1,25 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Customer } from "../../types";
 import { customerService } from "../../services/customerService";
 
-import { Trash2 } from "lucide-react";
+import { Trash2, Search } from "lucide-react";
 
-import CustomerDetailModal from "../CustomerDetailModal";
+// Debounce utility function
+const debounce = (func: (search: string) => void, wait: number) => {
+  let timeout: NodeJS.Timeout;
+  return function executedFunction(search: string) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(search);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
+import CustomerDetailModal from "../../components/CustomerDetailModal";
 
 const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = React.useState<Customer[]>([]);
@@ -15,16 +28,17 @@ const CustomersPage: React.FC = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (search?: string, page: number = 1) => {
     setLoading(true);
-    const data = await customerService.getAll();
-    setCustomers(data);
+    const data = await customerService.getAll(search, page);
+    setCustomers(data.customers);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchCustomers();
+    fetchCustomers("", 1);
   }, []);
   // Müşteri renklerini db'den çek
   useEffect(() => {
@@ -43,7 +57,30 @@ const CustomersPage: React.FC = () => {
     if (!form.name.trim()) return;
     await customerService.create(form);
     setForm({ name: "", phone: "", address: "" });
-    fetchCustomers();
+    fetchCustomers(searchTerm);
+  };
+
+  // Debounced search
+  const debouncedSearch = useCallback(
+    React.useMemo(
+      () =>
+        debounce((search: string) => {
+          fetchCustomers(search);
+        }, 300),
+      []
+    ),
+    []
+  );
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchCustomers(searchTerm);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    debouncedSearch(value);
   };
 
   const openCustomerDetail = async (customer: Customer) => {
@@ -52,7 +89,7 @@ const CustomersPage: React.FC = () => {
 
   const handleDeleteCustomer = async (id: string) => {
     await customerService.delete(id);
-    fetchCustomers();
+    fetchCustomers(searchTerm);
   };
 
   return (
@@ -109,6 +146,41 @@ const CustomersPage: React.FC = () => {
           </button>
         </form>
       </div>
+      {/* Search alanı */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4">
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              placeholder="Müşteri adı, telefon veya adres ara..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors font-semibold text-sm flex items-center gap-2"
+            disabled={loading}
+          >
+            {loading ? "Aranıyor..." : "Ara"}
+          </button>
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                fetchCustomers();
+              }}
+              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors font-semibold text-sm"
+            >
+              Temizle
+            </button>
+          )}
+        </form>
+      </div>
+
       {/* Altta yatay müşteri listesi */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0 w-full">
         <div className="overflow-x-auto w-full">
@@ -140,6 +212,8 @@ const CustomersPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
+                customers &&
+                Array.isArray(customers) &&
                 customers.map((c) => (
                   <tr
                     key={c.id}

@@ -11,9 +11,9 @@ export async function GET(request, { params }) {
       .populate("saleId", "totalAmount createdAt")
       .sort({ createdAt: -1 });
 
-    // Toplam borç hesaplama
+    // Toplam borç hesaplama (sadece ödenmemiş borçlar)
     const totalDebt = debts.reduce((sum, debt) => {
-      return sum + (debt.amount - debt.paidAmount);
+      return sum + (debt.isPaid ? 0 : debt.amount);
     }, 0);
 
     return NextResponse.json({

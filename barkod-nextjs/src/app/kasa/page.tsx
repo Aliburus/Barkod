@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
 import { Sale } from "../../types";
-import { format } from "date-fns";
+
 import useSWR from "swr";
 
 interface KasaRow {
@@ -581,53 +581,7 @@ const KasaPage: React.FC = () => {
                   )}
                 </div>
               </div>
-              <h3 className="text-md font-semibold mb-2 text-gray-900 dark:text-white">
-                Satış Detayları
-              </h3>
-              <table className="min-w-full text-xs text-left mb-2">
-                <thead>
-                  <tr className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-                    <th className="py-2 px-2">Saat</th>
-                    <th className="py-2 px-2">Ürün</th>
-                    <th className="py-2 px-2">Adet</th>
-                    <th className="py-2 px-2">Ödeme Tipi</th>
-                    <th className="py-2 px-2">Tutar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grouped[selectedDate]
-                    .sort((a, b) => a.soldAt.localeCompare(b.soldAt))
-                    .map((s, idx) => (
-                      <tr
-                        key={`${s._id || "sale"}-${idx}`}
-                        className="border-b border-gray-100 dark:border-gray-800"
-                      >
-                        <td className="py-1 px-2 whitespace-nowrap">
-                          {format(new Date(s.soldAt), "HH:mm")}
-                        </td>
-                        <td className="py-1 px-2 whitespace-nowrap">
-                          {s.items?.[0]?.productName || "-"}
-                        </td>
-                        <td className="py-1 px-2 whitespace-nowrap">
-                          {s.items?.reduce(
-                            (sum, item) => sum + (item.quantity || 0),
-                            0
-                          ) || 0}
-                        </td>
-                        <td className="py-1 px-2 whitespace-nowrap capitalize">
-                          {s.paymentType}
-                        </td>
-                        <td className="py-1 px-2 whitespace-nowrap">
-                          {s.totalAmount ? (
-                            `₺${s.totalAmount.toLocaleString("tr-TR")}`
-                          ) : (
-                            <span className="text-gray-400">₺0</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+              {/* Satış Detayları bölümünü kaldır */}
             </div>
           </div>
         )}

@@ -10,6 +10,11 @@ const SaleItemSchema = new mongoose.Schema({
 const SaleSchema = new mongoose.Schema({
   // Sepet satışı için alanlar
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer" },
+  subCustomerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SubCustomer",
+    required: false,
+  },
   items: [SaleItemSchema],
   totalAmount: { type: Number, required: true },
   paymentType: { type: String, required: true },

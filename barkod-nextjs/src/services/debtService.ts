@@ -1,16 +1,4 @@
-export interface Debt {
-  _id: string;
-  customerId: string;
-  amount: number;
-  description: string;
-  type: "sale" | "manual" | "adjustment";
-  saleId?: string;
-  isPaid: boolean;
-  paidAmount: number;
-  dueDate?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { Debt } from "../types";
 
 export interface CreateDebtData {
   customerId: string;
@@ -25,7 +13,6 @@ export interface UpdateDebtData {
   amount?: number;
   description?: string;
   isPaid?: boolean;
-  paidAmount?: number;
   dueDate?: Date;
 }
 
@@ -113,7 +100,7 @@ class DebtService {
 
   // Borç sil
   async delete(id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${id}`, {
+    const response = await fetch(`${this.baseUrl}?id=${id}`, {
       method: "DELETE",
     });
     if (!response.ok) {
@@ -121,14 +108,12 @@ class DebtService {
     }
   }
 
-  // Borç ödemesi yap
+  // Borç ödemesi yap (artık sadece isPaid güncelleniyor)
   async makePayment(id: string, paymentAmount: number): Promise<Debt> {
     const debt = await this.getById(id);
-    const newPaidAmount = debt.paidAmount + paymentAmount;
-    const isPaid = newPaidAmount >= debt.amount;
+    const isPaid = paymentAmount >= debt.amount;
 
     return this.update(id, {
-      paidAmount: newPaidAmount,
       isPaid,
     });
   }

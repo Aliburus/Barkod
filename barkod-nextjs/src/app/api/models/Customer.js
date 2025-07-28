@@ -10,5 +10,9 @@ const CustomerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Search için index'ler ekle
+CustomerSchema.index({ name: "text", phone: "text", address: "text" });
+CustomerSchema.index({ createdAt: -1 });
+
 export default mongoose.models.Customer ||
   mongoose.model("Customer", CustomerSchema);
