@@ -24,7 +24,6 @@ export async function GET(request) {
     query.$or = [
       { name: { $regex: search, $options: "i" } },
       { phone: { $regex: search, $options: "i" } },
-      { address: { $regex: search, $options: "i" } },
     ];
   }
 

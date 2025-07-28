@@ -31,10 +31,6 @@ export async function GET(request) {
   // Ödemeleri getir (pagination ile)
   const payments = await CustomerPayment.find(query)
     .populate({ path: "customerId", select: "name phone" })
-    .populate({
-      path: "subCustomerId",
-      select: "name phone",
-    })
     .populate({ path: "debtId", select: "amount description" })
     .populate({ path: "saleId", select: "totalAmount items" })
     .sort({ paymentDate: -1 })
@@ -71,10 +67,6 @@ export async function POST(request) {
   // Populate ile müşteri bilgilerini getir
   const populatedPayment = await CustomerPayment.findById(payment._id)
     .populate({ path: "customerId", select: "name phone" })
-    .populate({
-      path: "subCustomerId",
-      select: "name phone",
-    })
     .populate({ path: "debtId", select: "amount description" })
     .populate({ path: "saleId", select: "totalAmount items" });
 
@@ -90,10 +82,6 @@ export async function PATCH(request) {
     new: true,
   })
     .populate({ path: "customerId", select: "name phone" })
-    .populate({
-      path: "subCustomerId",
-      select: "name phone",
-    })
     .populate({ path: "debtId", select: "amount description" })
     .populate({ path: "saleId", select: "totalAmount items" });
 
