@@ -41,6 +41,8 @@ class DebtService {
   async getByCustomerId(customerId: string): Promise<{
     debts: Debt[];
     totalDebt: number;
+    totalPaid: number;
+    remainingDebt: number;
     totalDebts: number;
   }> {
     const response = await fetch(`${this.baseUrl}/customer/${customerId}`);

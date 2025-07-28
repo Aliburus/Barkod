@@ -127,6 +127,7 @@ export interface Debt {
     quantity?: number;
     price?: number;
     totalAmount?: number;
+    barcode?: string;
     createdAt?: string;
   };
 }

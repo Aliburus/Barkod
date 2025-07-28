@@ -3,15 +3,76 @@ import React, { useState, useEffect } from "react";
 import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
 import { Product, Customer, SubCustomer } from "../../types";
-import { Trash2, Plus, Minus, ShoppingCart } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, Edit3 } from "lucide-react";
 import { productService } from "../../services/productService";
 import { customerService } from "../../services/customerService";
 import { subCustomerService } from "../../services/subCustomerService";
+import { saleItemService } from "../../services/saleItemService";
 
 interface CartItem {
   product: Product;
   quantity: number;
+  customPrice?: number; // Düzenlenebilir fiyat
 }
+
+// Düzenlenebilir fiyat bileşeni
+const EditablePrice: React.FC<{
+  value: number;
+  onSave: (newPrice: number) => void;
+}> = ({ value, onSave }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value.toString());
+
+  const handleSave = () => {
+    const newPrice = parseFloat(editValue);
+    if (!isNaN(newPrice) && newPrice >= 0) {
+      onSave(newPrice);
+      setIsEditing(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSave();
+    } else if (e.key === "Escape") {
+      setIsEditing(false);
+      setEditValue(value.toString());
+    }
+  };
+
+  const handleBlur = () => {
+    handleSave();
+  };
+
+  if (isEditing) {
+    return (
+      <input
+        type="number"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleBlur}
+        onKeyPress={handleKeyPress}
+        className="w-20 px-2 py-1 text-right border border-blue-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1 group">
+      <span className="font-medium">₺{value.toLocaleString()}</span>
+      <button
+        onClick={() => {
+          setIsEditing(true);
+          setEditValue(value.toString());
+        }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 hover:text-blue-800"
+      >
+        <Edit3 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+};
 
 const SepetPage: React.FC = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -131,6 +192,20 @@ const SepetPage: React.FC = () => {
     setCartItems([]);
   };
 
+  const updateItemPrice = (productId: string, newPrice: number) => {
+    setCartItems((prev) =>
+      prev.map((item) => {
+        if (
+          item.product.id === productId ||
+          item.product.barcode === productId
+        ) {
+          return { ...item, customPrice: newPrice };
+        }
+        return item;
+      })
+    );
+  };
+
   const addToCart = async (barcode: string) => {
     try {
       const product = await productService.getProductByBarcode(barcode);
@@ -245,7 +320,13 @@ const SepetPage: React.FC = () => {
   };
 
   const totalAmount = cartItems.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) =>
+      sum + (item.customPrice || item.product.price) * item.quantity,
+    0
+  );
+
+  const totalPurchaseAmount = cartItems.reduce(
+    (sum, item) => sum + (item.product.purchasePrice || 0) * item.quantity,
     0
   );
 
@@ -334,9 +415,6 @@ const SepetPage: React.FC = () => {
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
                           Fiyat
                         </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-                          Toplam
-                        </th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
                           İşlem
                         </th>
@@ -388,17 +466,15 @@ const SepetPage: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <span className="font-medium">
-                              ₺{item.product.price.toLocaleString()}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="font-bold text-lg">
-                              ₺
-                              {(
-                                item.product.price * item.quantity
-                              ).toLocaleString()}
-                            </span>
+                            <EditablePrice
+                              value={item.customPrice || item.product.price}
+                              onSave={(newPrice) =>
+                                updateItemPrice(
+                                  item.product.id || item.product.barcode,
+                                  newPrice
+                                )
+                              }
+                            />
                           </td>
                           <td className="px-4 py-3 text-center">
                             <button
@@ -566,7 +642,7 @@ const SepetPage: React.FC = () => {
                           items: cartItems.map((item) => ({
                             barcode: item.product.barcode,
                             quantity: item.quantity,
-                            price: item.product.price,
+                            price: item.customPrice || item.product.price, // Özel fiyat kullan
                             productName: item.product.name,
                           })),
                           customerId: selectedCustomer,
@@ -585,6 +661,31 @@ const SepetPage: React.FC = () => {
                         });
 
                         if (response.ok) {
+                          const saleResult = await response.json();
+
+                          // Sale items oluştur
+                          const saleItemsData = {
+                            saleId: saleResult._id,
+                            customerId: selectedCustomer,
+                            subCustomerId: selectedSubCustomer || undefined,
+                            items: cartItems.map((item) => ({
+                              productId: (item.product.id ||
+                                item.product._id) as string,
+                              barcode: item.product.barcode,
+                              productName: item.product.name,
+                              quantity: item.quantity,
+                              originalPrice: item.product.price,
+                              customPrice: item.customPrice,
+                              finalPrice:
+                                item.customPrice || item.product.price,
+                              totalAmount:
+                                (item.customPrice || item.product.price) *
+                                item.quantity,
+                            })),
+                          };
+
+                          await saleItemService.create(saleItemsData);
+
                           // Başarılı satış sonrası sepeti temizle
                           clearCart();
                           setSelectedCustomer("");
@@ -617,6 +718,13 @@ const SepetPage: React.FC = () => {
                   >
                     Satışı Tamamla
                   </button>
+                  <div className="mt-3 text-center">
+                    <div className="mt-1">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        ₺{totalPurchaseAmount.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
                 </>
               )}
             </div>

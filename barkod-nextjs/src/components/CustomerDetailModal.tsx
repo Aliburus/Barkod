@@ -4,6 +4,7 @@ import { customerService } from "../services/customerService";
 import { debtService } from "../services/debtService";
 import { customerPaymentService } from "../services/customerPaymentService";
 import { subCustomerService } from "../services/subCustomerService";
+import { saleItemService } from "../services/saleItemService";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 import axios from "axios";
@@ -21,6 +22,11 @@ const CustomerDetailModal = ({
 }) => {
   const [debts, setDebts] = React.useState<Debt[]>([]);
   const [payments, setPayments] = React.useState<CustomerPayment[]>([]);
+  const [debtSummary, setDebtSummary] = React.useState<{
+    totalDebt: number;
+    totalPaid: number;
+    remainingDebt: number;
+  }>({ totalDebt: 0, totalPaid: 0, remainingDebt: 0 });
   const [trxForm, setTrxForm] = React.useState({
     amount: "",
     description: "",
@@ -34,6 +40,34 @@ const CustomerDetailModal = ({
   });
   const [trxLoading, setTrxLoading] = React.useState(false);
   const [sales, setSales] = React.useState<Sale[]>([]);
+  const [saleItems, setSaleItems] = React.useState<
+    Array<{
+      _id: string;
+      saleId:
+        | string
+        | {
+            _id: string;
+            items?: Array<{
+              barcode: string;
+              productName: string;
+              quantity: number;
+            }>;
+            barcode?: string;
+          };
+      productId: string;
+      barcode: string;
+      productName: string;
+      quantity: number;
+      originalPrice: number;
+      customPrice?: number;
+      finalPrice: number;
+      totalAmount: number;
+      customerId: string;
+      subCustomerId?: string;
+      createdAt: string;
+      updatedAt?: string;
+    }>
+  >([]);
   const [subCustomers, setSubCustomers] = React.useState<SubCustomer[]>([]);
   // Alt müşteri ekleme ile ilgili state'ler kaldırıldı
 
@@ -43,8 +77,7 @@ const CustomerDetailModal = ({
   const [selectedSubCustomer, setSelectedSubCustomer] =
     React.useState<SubCustomer | null>(null);
 
-  const [selectedPayment, setSelectedPayment] =
-    useState<CustomerPayment | null>(null);
+  const [selectedPayment] = useState<CustomerPayment | null>(null);
   const [paymentDetailOpen, setPaymentDetailOpen] = useState(false);
 
   // Tab state
@@ -100,6 +133,15 @@ const CustomerDetailModal = ({
               dueDate: d.dueDate?.toString() ?? undefined,
             })) as Debt[]
           );
+
+          // API'den gelen özet bilgileri kaydet
+          if (!Array.isArray(data)) {
+            setDebtSummary({
+              totalDebt: data.totalDebt || 0,
+              totalPaid: data.totalPaid || 0,
+              remainingDebt: data.remainingDebt || 0,
+            });
+          }
         })
         .catch((error) => {
           console.error("Borç bilgileri getirilemedi:", error);
@@ -136,6 +178,17 @@ const CustomerDetailModal = ({
           setTrxLoading(false);
         });
 
+      // Sale items verilerini getir
+      saleItemService
+        .getByCustomerId(customer.id)
+        .then((saleItemsData) => {
+          setSaleItems(saleItemsData);
+        })
+        .catch((error) => {
+          console.error("Sale items getirme hatası:", error);
+          setSaleItems([]);
+        });
+
       // SubCustomer'ları getir
       subCustomerService
         .getByCustomerId(customer.id)
@@ -151,16 +204,12 @@ const CustomerDetailModal = ({
 
   if (!open || !customer) return null;
 
-  // Borç sistemi hesaplaması - tüm borçlar ve ödemeler dahil
-  const totalDebtAmount = (debts || []).reduce(
-    (sum, debt) => sum + (debt.amount ?? 0),
-    0
-  );
-  const totalPaidAmount = (payments || []).reduce(
-    (sum, payment) => sum + (payment.amount || 0),
-    0
-  );
-  const remainingDebt = totalDebtAmount - totalPaidAmount;
+  // API'den gelen özet bilgileri kullan
+  const {
+    totalDebt: totalDebtAmount,
+    totalPaid: totalPaidAmount,
+    remainingDebt,
+  } = debtSummary;
 
   // Ana müşteri borçları ve ödemeleri (dropdown'lar için)
   const mainCustomerDebts = (debts || []).filter(
@@ -180,13 +229,78 @@ const CustomerDetailModal = ({
     e.preventDefault();
     if (!customer || !trxForm.amount.trim()) return;
 
+    const paymentAmount = parseFloat(trxForm.amount);
+    if (paymentAmount <= 0) {
+      alert("Ödeme tutarı 0'dan büyük olmalıdır.");
+      return;
+    }
+
+    // Borç kontrolü - eğer subCustomer seçiliyse o hesabın borcunu kontrol et
+    let maxPaymentAmount = remainingDebt;
+    if (trxForm.subCustomerId) {
+      // Seçili alt müşterinin active olup olmadığını kontrol et
+      const selectedSubCustomer = subCustomers.find(
+        (sc) => sc.id === trxForm.subCustomerId
+      );
+
+      if (selectedSubCustomer && selectedSubCustomer.status === "active") {
+        const subCustomerDebts = debts.filter(
+          (d) =>
+            d.subCustomerId === trxForm.subCustomerId ||
+            (typeof d.subCustomerId === "object" &&
+              d.subCustomerId?._id === trxForm.subCustomerId)
+        );
+        const subCustomerPayments = payments.filter(
+          (p) =>
+            p.subCustomerId === trxForm.subCustomerId ||
+            (typeof p.subCustomerId === "object" &&
+              p.subCustomerId?._id === trxForm.subCustomerId)
+        );
+
+        const subCustomerTotalDebt = subCustomerDebts.reduce(
+          (sum, d) => sum + (d.amount || 0),
+          0
+        );
+        const subCustomerTotalPaid = subCustomerPayments.reduce(
+          (sum, p) => sum + (p.amount || 0),
+          0
+        );
+        maxPaymentAmount = Math.max(
+          0,
+          subCustomerTotalDebt - subCustomerTotalPaid
+        );
+      } else {
+        // Eğer seçili alt müşteri active değilse, ana müşteri borcunu göster
+        maxPaymentAmount = remainingDebt;
+      }
+    }
+
+    // Borçtan fazla ödeme kontrolü
+    if (paymentAmount > maxPaymentAmount) {
+      const errorMessage =
+        maxPaymentAmount > 0
+          ? `Borçtan fazla ödeme alamazsınız. Maksimum ödeme tutarı: ${maxPaymentAmount.toFixed(
+              2
+            )} ₺`
+          : "Bu müşterinin borcu bulunmuyor. Ödeme yapılamaz.";
+
+      alert(errorMessage);
+      return;
+    }
+
+    // Borç yoksa ödeme yapılmasını engelle
+    if (maxPaymentAmount <= 0) {
+      alert("Bu müşterinin borcu bulunmuyor. Ödeme yapılamaz.");
+      return;
+    }
+
     setTrxLoading(true);
 
     try {
       // Yeni ödeme sistemi ile ödeme kaydı oluştur
       const paymentData = {
         customerId: customer.id,
-        amount: parseFloat(trxForm.amount),
+        amount: paymentAmount,
         paymentType: trxForm.paymentType,
         description: trxForm.description || "Ödeme",
         paymentDate: new Date().toISOString(),
@@ -213,6 +327,16 @@ const CustomerDetailModal = ({
         customer.id
       );
       setPayments(newPayments);
+
+      // Borç özetini yenile
+      const debtData = await debtService.getByCustomerId(customer.id);
+      if (!Array.isArray(debtData)) {
+        setDebtSummary({
+          totalDebt: debtData.totalDebt || 0,
+          totalPaid: debtData.totalPaid || 0,
+          remainingDebt: debtData.remainingDebt || 0,
+        });
+      }
 
       // Satış listesini de yenile
       const salesResponse = await axios.get(
@@ -254,7 +378,7 @@ const CustomerDetailModal = ({
           );
           const totalPaid =
             subCustomerPayments.reduce((sum, p) => sum + (p.amount || 0), 0) +
-            parseFloat(trxForm.amount);
+            paymentAmount;
 
           // Eğer tüm borçlar ödendiyse hesabı kapat
           if (totalPaid >= totalDebt && totalDebt > 0) {
@@ -376,15 +500,7 @@ const CustomerDetailModal = ({
       return false;
     return true;
   });
-  const filteredPayments = sortedPayments.filter((p) => {
-    if (!paymentStartDate && !paymentEndDate) return true;
-    const paymentDate = new Date(p.paymentDate);
-    if (paymentStartDate && paymentDate < new Date(paymentStartDate))
-      return false;
-    if (paymentEndDate && paymentDate > new Date(paymentEndDate + "T23:59:59"))
-      return false;
-    return true;
-  });
+
   const filteredSales = sortedSales.filter((s) => {
     if (!salesStartDate && !salesEndDate) return true;
     const saleDate = new Date(s.soldAt);
@@ -393,35 +509,6 @@ const CustomerDetailModal = ({
       return false;
     return true;
   });
-
-  // subCustomerId gösterimi için yardımcı fonksiyon ekle
-  function getSubCustomerText(subCustomerId: any, subCustomers: SubCustomer[]) {
-    if (subCustomerId && typeof subCustomerId === "object") {
-      if (subCustomerId.name) {
-        return (
-          subCustomerId.name +
-          (subCustomerId.phone ? ` (${subCustomerId.phone})` : "")
-        );
-      } else {
-        return JSON.stringify(subCustomerId);
-      }
-    } else if (subCustomerId && typeof subCustomerId === "string") {
-      const sc = subCustomers.find(
-        (sc) => sc.id === subCustomerId || sc._id === subCustomerId
-      );
-      if (sc) return sc.name + (sc.phone ? ` (${sc.phone})` : "");
-      return subCustomerId;
-    }
-    return "-";
-  }
-
-  // Fiyat formatlama fonksiyonu
-  const formatPrice = (price: number) => {
-    return price.toLocaleString("tr-TR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -507,8 +594,14 @@ const CustomerDetailModal = ({
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 Kalan Borç
               </span>
-              <span className="font-bold text-lg text-orange-500">
-                {remainingDebt.toFixed(2)} ₺
+              <span
+                className={`font-bold text-lg ${
+                  remainingDebt > 0 ? "text-orange-500" : "text-green-500"
+                }`}
+              >
+                {remainingDebt > 0
+                  ? `${remainingDebt.toFixed(2)} ₺`
+                  : "Ödendi ✓"}
               </span>
             </div>
           </div>
@@ -523,6 +616,61 @@ const CustomerDetailModal = ({
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Müşteriden ödeme almak için aşağıdaki formu kullanın.
             </p>
+            {/* Maksimum ödeme tutarı bilgisi */}
+            {(() => {
+              let maxPaymentAmount = remainingDebt;
+              if (trxForm.subCustomerId) {
+                // Seçili alt müşterinin active olup olmadığını kontrol et
+                const selectedSubCustomer = subCustomers.find(
+                  (sc) => sc.id === trxForm.subCustomerId
+                );
+
+                if (
+                  selectedSubCustomer &&
+                  selectedSubCustomer.status === "active"
+                ) {
+                  const subCustomerDebts = debts.filter(
+                    (d) =>
+                      d.subCustomerId === trxForm.subCustomerId ||
+                      (typeof d.subCustomerId === "object" &&
+                        d.subCustomerId?._id === trxForm.subCustomerId)
+                  );
+                  const subCustomerPayments = payments.filter(
+                    (p) =>
+                      p.subCustomerId === trxForm.subCustomerId ||
+                      (typeof p.subCustomerId === "object" &&
+                        p.subCustomerId?._id === trxForm.subCustomerId)
+                  );
+
+                  const subCustomerTotalDebt = subCustomerDebts.reduce(
+                    (sum, d) => sum + (d.amount || 0),
+                    0
+                  );
+                  const subCustomerTotalPaid = subCustomerPayments.reduce(
+                    (sum, p) => sum + (p.amount || 0),
+                    0
+                  );
+                  maxPaymentAmount = Math.max(
+                    0,
+                    subCustomerTotalDebt - subCustomerTotalPaid
+                  );
+                } else {
+                  // Eğer seçili alt müşteri active değilse, ana müşteri borcunu göster
+                  maxPaymentAmount = remainingDebt;
+                }
+              }
+
+              return maxPaymentAmount > 0 ? (
+                <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                  Maksimum ödeme tutarı:{" "}
+                  <strong>{maxPaymentAmount.toFixed(2)} ₺</strong>
+                </p>
+              ) : (
+                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                  ✅ Tüm borçlar ödendi
+                </p>
+              );
+            })()}
           </div>
           <form
             onSubmit={handleTrxSubmit}
@@ -538,11 +686,13 @@ const CustomerDetailModal = ({
               className="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
             >
               <option value="">Alt Müşteri Seç (opsiyonel)</option>
-              {subCustomers.map((sc) => (
-                <option key={sc.id} value={sc.id}>
-                  {sc.name} {sc.phone ? `(${sc.phone})` : ""}
-                </option>
-              ))}
+              {subCustomers
+                .filter((sc) => sc.status === "active")
+                .map((sc) => (
+                  <option key={sc.id} value={sc.id}>
+                    {sc.name} {sc.phone ? `(${sc.phone})` : ""}
+                  </option>
+                ))}
             </select>
             <input
               name="amount"
@@ -551,6 +701,44 @@ const CustomerDetailModal = ({
               placeholder="Ödeme Tutarı"
               type="number"
               min="0"
+              max={(() => {
+                let maxAmount = remainingDebt;
+                if (trxForm.subCustomerId) {
+                  const selectedSubCustomer = subCustomers.find(
+                    (sc) => sc.id === trxForm.subCustomerId
+                  );
+                  if (
+                    selectedSubCustomer &&
+                    selectedSubCustomer.status === "active"
+                  ) {
+                    const subCustomerDebts = debts.filter(
+                      (d) =>
+                        d.subCustomerId === trxForm.subCustomerId ||
+                        (typeof d.subCustomerId === "object" &&
+                          d.subCustomerId?._id === trxForm.subCustomerId)
+                    );
+                    const subCustomerPayments = payments.filter(
+                      (p) =>
+                        p.subCustomerId === trxForm.subCustomerId ||
+                        (typeof p.subCustomerId === "object" &&
+                          p.subCustomerId?._id === trxForm.subCustomerId)
+                    );
+                    const subCustomerTotalDebt = subCustomerDebts.reduce(
+                      (sum, d) => sum + (d.amount || 0),
+                      0
+                    );
+                    const subCustomerTotalPaid = subCustomerPayments.reduce(
+                      (sum, p) => sum + (p.amount || 0),
+                      0
+                    );
+                    maxAmount = Math.max(
+                      0,
+                      subCustomerTotalDebt - subCustomerTotalPaid
+                    );
+                  }
+                }
+                return maxAmount;
+              })()}
               step="0.01"
               className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
               required
@@ -576,10 +764,130 @@ const CustomerDetailModal = ({
             />
             <button
               type="submit"
-              className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold text-sm"
-              disabled={trxLoading}
+              className={`px-5 py-2 rounded font-semibold text-sm ${
+                (() => {
+                  let maxAmount = remainingDebt;
+                  if (trxForm.subCustomerId) {
+                    const selectedSubCustomer = subCustomers.find(
+                      (sc) => sc.id === trxForm.subCustomerId
+                    );
+                    if (
+                      selectedSubCustomer &&
+                      selectedSubCustomer.status === "active"
+                    ) {
+                      const subCustomerDebts = debts.filter(
+                        (d) =>
+                          d.subCustomerId === trxForm.subCustomerId ||
+                          (typeof d.subCustomerId === "object" &&
+                            d.subCustomerId?._id === trxForm.subCustomerId)
+                      );
+                      const subCustomerPayments = payments.filter(
+                        (p) =>
+                          p.subCustomerId === trxForm.subCustomerId ||
+                          (typeof p.subCustomerId === "object" &&
+                            p.subCustomerId?._id === trxForm.subCustomerId)
+                      );
+                      const subCustomerTotalDebt = subCustomerDebts.reduce(
+                        (sum, d) => sum + (d.amount || 0),
+                        0
+                      );
+                      const subCustomerTotalPaid = subCustomerPayments.reduce(
+                        (sum, p) => sum + (p.amount || 0),
+                        0
+                      );
+                      maxAmount = Math.max(
+                        0,
+                        subCustomerTotalDebt - subCustomerTotalPaid
+                      );
+                    }
+                  }
+                  return maxAmount > 0;
+                })()
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-gray-400 text-gray-600 cursor-not-allowed"
+              }`}
+              disabled={
+                trxLoading ||
+                (() => {
+                  let maxAmount = remainingDebt;
+                  if (trxForm.subCustomerId) {
+                    const selectedSubCustomer = subCustomers.find(
+                      (sc) => sc.id === trxForm.subCustomerId
+                    );
+                    if (
+                      selectedSubCustomer &&
+                      selectedSubCustomer.status === "active"
+                    ) {
+                      const subCustomerDebts = debts.filter(
+                        (d) =>
+                          d.subCustomerId === trxForm.subCustomerId ||
+                          (typeof d.subCustomerId === "object" &&
+                            d.subCustomerId?._id === trxForm.subCustomerId)
+                      );
+                      const subCustomerPayments = payments.filter(
+                        (p) =>
+                          p.subCustomerId === trxForm.subCustomerId ||
+                          (typeof p.subCustomerId === "object" &&
+                            p.subCustomerId?._id === trxForm.subCustomerId)
+                      );
+                      const subCustomerTotalDebt = subCustomerDebts.reduce(
+                        (sum, d) => sum + (d.amount || 0),
+                        0
+                      );
+                      const subCustomerTotalPaid = subCustomerPayments.reduce(
+                        (sum, p) => sum + (p.amount || 0),
+                        0
+                      );
+                      maxAmount = Math.max(
+                        0,
+                        subCustomerTotalDebt - subCustomerTotalPaid
+                      );
+                    }
+                  }
+                  return maxAmount <= 0;
+                })()
+              }
             >
-              {trxLoading ? "Kaydediliyor..." : "Ödeme Al"}
+              {trxLoading
+                ? "Kaydediliyor..."
+                : (() => {
+                    let maxAmount = remainingDebt;
+                    if (trxForm.subCustomerId) {
+                      const selectedSubCustomer = subCustomers.find(
+                        (sc) => sc.id === trxForm.subCustomerId
+                      );
+                      if (
+                        selectedSubCustomer &&
+                        selectedSubCustomer.status === "active"
+                      ) {
+                        const subCustomerDebts = debts.filter(
+                          (d) =>
+                            d.subCustomerId === trxForm.subCustomerId ||
+                            (typeof d.subCustomerId === "object" &&
+                              d.subCustomerId?._id === trxForm.subCustomerId)
+                        );
+                        const subCustomerPayments = payments.filter(
+                          (p) =>
+                            p.subCustomerId === trxForm.subCustomerId ||
+                            (typeof p.subCustomerId === "object" &&
+                              p.subCustomerId?._id === trxForm.subCustomerId)
+                        );
+                        const subCustomerTotalDebt = subCustomerDebts.reduce(
+                          (sum, d) => sum + (d.amount || 0),
+                          0
+                        );
+                        const subCustomerTotalPaid = subCustomerPayments.reduce(
+                          (sum, p) => sum + (p.amount || 0),
+                          0
+                        );
+                        maxAmount = Math.max(
+                          0,
+                          subCustomerTotalDebt - subCustomerTotalPaid
+                        );
+                      }
+                    }
+                    return maxAmount > 0 ? "Ödeme Al" : "Borç Yok";
+                  })()}
             </button>
           </form>
         </div>
@@ -676,7 +984,6 @@ const CustomerDetailModal = ({
                         (sum: number, p: any) => sum + (p.amount || 0),
                         0
                       );
-                      const scRemainingDebt = scTotalDebt - scTotalPaid;
 
                       return (
                         <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
@@ -694,13 +1001,13 @@ const CustomerDetailModal = ({
                               </div>
                               <div className="flex items-center gap-4 text-sm">
                                 <div className="flex flex-col items-center">
-                                  <span className="text-xs text-blue-600 dark:text-blue-400">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
                                     Tüm Borç
                                   </span>
-                                  <span className="font-bold text-red-500">
+                                  <span className="font-bold text-red-600">
                                     {scDebts
                                       .reduce(
-                                        (sum: number, d: any) =>
+                                        (sum: number, d: Debt) =>
                                           sum + (d.amount || 0),
                                         0
                                       )
@@ -709,13 +1016,13 @@ const CustomerDetailModal = ({
                                   </span>
                                 </div>
                                 <div className="flex flex-col items-center">
-                                  <span className="text-xs text-blue-600 dark:text-blue-400">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
                                     Ödenen
                                   </span>
-                                  <span className="font-bold text-green-500">
+                                  <span className="font-bold text-green-600">
                                     {scPayments
                                       .reduce(
-                                        (sum: number, p: any) =>
+                                        (sum: number, p: CustomerPayment) =>
                                           sum + (p.amount || 0),
                                         0
                                       )
@@ -724,18 +1031,18 @@ const CustomerDetailModal = ({
                                   </span>
                                 </div>
                                 <div className="flex flex-col items-center">
-                                  <span className="text-xs text-blue-600 dark:text-blue-400">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
                                     Kalan
                                   </span>
-                                  <span className="font-bold text-orange-500">
+                                  <span className="font-bold text-red-600">
                                     {(
                                       scDebts.reduce(
-                                        (sum: number, d: any) =>
+                                        (sum: number, d: Debt) =>
                                           sum + (d.amount || 0),
                                         0
                                       ) -
                                       scPayments.reduce(
-                                        (sum: number, p: any) =>
+                                        (sum: number, p: CustomerPayment) =>
                                           sum + (p.amount || 0),
                                         0
                                       )
@@ -747,34 +1054,58 @@ const CustomerDetailModal = ({
                             </div>
                           </div>
                           <div className="px-4 pb-4">
-                            {/* Borçlar */}
-                            <div className="mb-2 font-medium text-gray-700 dark:text-gray-300">
-                              Borçlar
-                            </div>
                             {scDebts.length === 0 ? (
                               <div className="text-gray-400 text-sm mb-2">
                                 Borç yok
                               </div>
                             ) : (
-                              <table className="w-full text-sm mb-2">
+                              <table className="w-full text-sm mb-2 border border-gray-200 dark:border-gray-700">
                                 <thead>
-                                  <tr>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                  <tr className="bg-gray-50 dark:bg-gray-800">
+                                    <th className="text-left font-medium text-gray-700 dark:text-gray-300 py-2 px-3 border-b border-gray-200 dark:border-gray-600">
                                       Tutar
                                     </th>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
-                                      Açıklama
+                                    <th className="text-left font-medium text-gray-700 dark:text-gray-300 py-2 px-3 border-b border-gray-200 dark:border-gray-600">
+                                      Ürün Kodu
                                     </th>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                    <th className="text-left font-medium text-gray-700 dark:text-gray-300 py-2 px-3 border-b border-gray-200 dark:border-gray-600">
+                                      Adet Malzeme
+                                    </th>
+                                    <th className="text-left font-medium text-gray-700 dark:text-gray-300 py-2 px-3 border-b border-gray-200 dark:border-gray-600">
                                       Tarih
                                     </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {scDebts.map((d) => (
-                                    <tr key={d._id}>
-                                      <td className="text-red-600 font-semibold">
+                                    <tr
+                                      key={d._id}
+                                      className="border-b border-gray-100 dark:border-gray-700"
+                                    >
+                                      <td className="text-red-600 font-semibold py-2 px-3">
                                         {d.amount.toFixed(2)} ₺
+                                      </td>
+                                      <td className="text-gray-500 dark:text-gray-300 py-2 px-3">
+                                        {(() => {
+                                          if (
+                                            d.saleId &&
+                                            typeof d.saleId === "object" &&
+                                            d.saleId.items &&
+                                            Array.isArray(d.saleId.items)
+                                          ) {
+                                            return d.saleId.items
+                                              .map((item) => item.barcode)
+                                              .join(", ");
+                                          }
+                                          if (
+                                            d.saleId &&
+                                            typeof d.saleId === "object" &&
+                                            d.saleId.barcode
+                                          ) {
+                                            return d.saleId.barcode;
+                                          }
+                                          return "-";
+                                        })()}
                                       </td>
                                       <td className="text-gray-500 dark:text-gray-300">
                                         {(() => {
@@ -784,20 +1115,16 @@ const CustomerDetailModal = ({
                                             d.saleId.items &&
                                             Array.isArray(d.saleId.items)
                                           ) {
-                                            const productDetails =
-                                              d.saleId.items
-                                                .map((item) => {
-                                                  const quantity =
-                                                    item.quantity || 1;
-                                                  const productName =
-                                                    item.productName ||
-                                                    "Bilinmeyen Ürün";
-                                                  return `${quantity} adet ${productName}`;
-                                                })
-                                                .join(", ");
-                                            return `Satış borcu - ${productDetails}`;
+                                            return d.saleId.items
+                                              .map(
+                                                (item) =>
+                                                  `${item.quantity || 1} adet ${
+                                                    item.productName || ""
+                                                  }`
+                                              )
+                                              .join(", ");
                                           }
-                                          return d.description || "-";
+                                          return "-";
                                         })()}
                                       </td>
                                       <td className="text-xs text-gray-400">
@@ -812,34 +1139,50 @@ const CustomerDetailModal = ({
                                 </tbody>
                               </table>
                             )}
-                            {/* Ödemeler */}
-                            <div className="mb-2 font-medium text-gray-700 dark:text-gray-300">
-                              Yapılan Ödemeler
-                            </div>
+
                             {scPayments.length === 0 ? (
                               <div className="text-gray-400 text-sm">
                                 Ödeme yok
                               </div>
                             ) : (
-                              <table className="w-full text-sm">
+                              <table className="w-full text-sm border border-gray-200 dark:border-gray-700">
                                 <thead>
-                                  <tr>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                  <tr className="bg-gray-50 dark:bg-gray-800">
+                                    <th className="text-left font-medium text-gray-700 dark:text-gray-300 py-2 px-3 border-b border-gray-200 dark:border-gray-600">
                                       Tutar
                                     </th>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                    <th className="text-left font-medium text-gray-700 dark:text-gray-300 py-2 px-3 border-b border-gray-200 dark:border-gray-600">
+                                      Ödeme Türü
+                                    </th>
+                                    <th className="text-left font-medium text-gray-700 dark:text-gray-300 py-2 px-3 border-b border-gray-200 dark:border-gray-600">
                                       Açıklama
                                     </th>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                    <th className="text-left font-medium text-gray-700 dark:text-gray-300 py-2 px-3 border-b border-gray-200 dark:border-gray-600">
                                       Tarih
                                     </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {scPayments.map((p) => (
-                                    <tr key={p._id}>
-                                      <td className="text-green-600 font-semibold">
+                                    <tr
+                                      key={p._id}
+                                      className="border-b border-gray-100 dark:border-gray-700"
+                                    >
+                                      <td className="text-green-600 font-semibold py-2 px-3">
                                         {p.amount.toFixed(2)} ₺
+                                      </td>
+                                      <td className="text-gray-500 dark:text-gray-300">
+                                        {p.paymentType === "nakit"
+                                          ? "Nakit"
+                                          : p.paymentType === "kredi_karti"
+                                          ? "Kredi Kartı"
+                                          : p.paymentType === "havale"
+                                          ? "Havale"
+                                          : p.paymentType === "cek"
+                                          ? "Çek"
+                                          : p.paymentType === "diger"
+                                          ? "Diğer"
+                                          : p.paymentType}
                                       </td>
                                       <td className="text-gray-500 dark:text-gray-300">
                                         {p.description || "-"}
@@ -916,10 +1259,6 @@ const CustomerDetailModal = ({
                         </div>
                       </summary>
                       <div className="px-4 pb-4">
-                        {/* Ana müşteri borçları */}
-                        <div className="mb-2 font-medium text-gray-700 dark:text-gray-300">
-                          Borçlar
-                        </div>
                         {mainCustomerDebts.length === 0 ? (
                           <div className="text-gray-400 text-sm mb-2">
                             Borç yok
@@ -932,6 +1271,9 @@ const CustomerDetailModal = ({
                                   Tutar
                                 </th>
                                 <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                  Ürün Kodu
+                                </th>
+                                <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
                                   Açıklama
                                 </th>
                                 <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
@@ -941,51 +1283,65 @@ const CustomerDetailModal = ({
                             </thead>
                             <tbody>
                               {mainCustomerDebts.map((d) => (
-                                <React.Fragment key={d._id}>
-                                  <tr>
-                                    <td className="text-red-600 font-semibold">
-                                      {d.amount.toFixed(2)} ₺
-                                    </td>
-                                    <td className="text-gray-500 dark:text-gray-300">
-                                      {(() => {
-                                        if (
-                                          d.saleId &&
-                                          typeof d.saleId === "object" &&
-                                          d.saleId.items &&
-                                          Array.isArray(d.saleId.items)
-                                        ) {
-                                          const productDetails = d.saleId.items
-                                            .map((item) => {
-                                              const quantity =
-                                                item.quantity || 1;
-                                              const productName =
-                                                item.productName ||
-                                                "Bilinmeyen Ürün";
-                                              return `${quantity} adet ${productName}`;
-                                            })
-                                            .join(", ");
-                                          return `Satış borcu - ${productDetails}`;
-                                        }
-                                        return d.description || "-";
-                                      })()}
-                                    </td>
-                                    <td className="text-xs text-gray-400">
-                                      {format(
-                                        parseISO(d.createdAt),
-                                        "dd MMM yyyy HH:mm",
-                                        { locale: tr }
-                                      )}
-                                    </td>
-                                  </tr>
-                                </React.Fragment>
+                                <tr key={d._id}>
+                                  <td className="text-red-600 font-semibold">
+                                    {d.amount.toFixed(2)} ₺
+                                  </td>
+                                  <td className="text-gray-500 dark:text-gray-300">
+                                    {(() => {
+                                      if (
+                                        d.saleId &&
+                                        typeof d.saleId === "object" &&
+                                        d.saleId.items &&
+                                        Array.isArray(d.saleId.items)
+                                      ) {
+                                        return d.saleId.items
+                                          .map((item) => item.barcode)
+                                          .join(", ");
+                                      }
+                                      if (
+                                        d.saleId &&
+                                        typeof d.saleId === "object" &&
+                                        d.saleId.barcode
+                                      ) {
+                                        return d.saleId.barcode;
+                                      }
+                                      return "-";
+                                    })()}
+                                  </td>
+                                  <td className="text-gray-500 dark:text-gray-300">
+                                    {(() => {
+                                      if (
+                                        d.saleId &&
+                                        typeof d.saleId === "object" &&
+                                        d.saleId.items &&
+                                        Array.isArray(d.saleId.items)
+                                      ) {
+                                        return d.saleId.items
+                                          .map(
+                                            (item) =>
+                                              `${item.quantity || 1} adet ${
+                                                item.productName || ""
+                                              }`
+                                          )
+                                          .join(", ");
+                                      }
+                                      return "-";
+                                    })()}
+                                  </td>
+                                  <td className="text-xs text-gray-400">
+                                    {format(
+                                      parseISO(d.createdAt),
+                                      "dd MMM yyyy HH:mm",
+                                      { locale: tr }
+                                    )}
+                                  </td>
+                                </tr>
                               ))}
                             </tbody>
                           </table>
                         )}
-                        {/* Ana müşteri ödemeleri */}
-                        <div className="mb-2 font-medium text-gray-700 dark:text-gray-300">
-                          Yapılan Ödemeler
-                        </div>
+
                         {mainCustomerPayments.length === 0 ? (
                           <div className="text-gray-400 text-sm">Ödeme yok</div>
                         ) : (
@@ -994,6 +1350,9 @@ const CustomerDetailModal = ({
                               <tr>
                                 <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
                                   Tutar
+                                </th>
+                                <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                  Ödeme Tipi
                                 </th>
                                 <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
                                   Açıklama
@@ -1008,6 +1367,19 @@ const CustomerDetailModal = ({
                                 <tr key={p._id}>
                                   <td className="text-green-600 font-semibold">
                                     {p.amount.toFixed(2)} ₺
+                                  </td>
+                                  <td className="text-gray-500 dark:text-gray-300">
+                                    {p.paymentType === "nakit"
+                                      ? "Nakit"
+                                      : p.paymentType === "kredi_karti"
+                                      ? "Kredi Kartı"
+                                      : p.paymentType === "havale"
+                                      ? "Havale"
+                                      : p.paymentType === "cek"
+                                      ? "Çek"
+                                      : p.paymentType === "diger"
+                                      ? "Diğer"
+                                      : p.paymentType}
                                   </td>
                                   <td className="text-gray-500 dark:text-gray-300">
                                     {p.description || "-"}
@@ -1047,7 +1419,7 @@ const CustomerDetailModal = ({
                               .includes(searchTerm.toLowerCase()))
                         );
                       })
-                      .map((sc, idx) => {
+                      .map((sc) => {
                         const scDebts = debts.filter(
                           (d) =>
                             d.subCustomerId === sc.id ||
@@ -1063,14 +1435,14 @@ const CustomerDetailModal = ({
 
                         // Alt müşteri için borç hesaplamaları
                         const scTotalDebt = scDebts.reduce(
-                          (sum: number, d: any) => sum + (d.amount || 0),
+                          (sum: number, d: Debt) => sum + (d.amount || 0),
                           0
                         );
                         const scTotalPaid = scPayments.reduce(
-                          (sum: number, p: any) => sum + (p.amount || 0),
+                          (sum: number, p: CustomerPayment) =>
+                            sum + (p.amount || 0),
                           0
                         );
-                        const scRemainingDebt = scTotalDebt - scTotalPaid;
 
                         return (
                           <details
@@ -1091,38 +1463,24 @@ const CustomerDetailModal = ({
                               <div className="ml-auto flex flex-col items-end gap-1">
                                 <div className="flex items-center gap-4 text-sm">
                                   <div className="flex flex-col items-center">
-                                    <span className="text-xs text-gray-500">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
                                       Tüm Borç
                                     </span>
                                     <span className="font-bold text-red-500">
-                                      {(
-                                        (debts || [])
-                                          .filter(
-                                            (d) =>
-                                              d.subCustomerId === sc.id ||
-                                              (typeof d.subCustomerId ===
-                                                "object" &&
-                                                d.subCustomerId?._id === sc.id)
-                                          )
-                                          .reduce(
-                                            (sum: number, d: any) =>
-                                              sum + (d.amount || 0),
-                                            0
-                                          ) -
-                                        (payments || [])
-                                          .filter(
-                                            (p) =>
-                                              p.subCustomerId === sc.id ||
-                                              (typeof p.subCustomerId ===
-                                                "object" &&
-                                                p.subCustomerId?._id === sc.id)
-                                          )
-                                          .reduce(
-                                            (sum: number, p: any) =>
-                                              sum + (p.amount || 0),
-                                            0
-                                          )
-                                      ).toFixed(2)}{" "}
+                                      {(debts || [])
+                                        .filter(
+                                          (d) =>
+                                            d.subCustomerId === sc.id ||
+                                            (typeof d.subCustomerId ===
+                                              "object" &&
+                                              d.subCustomerId?._id === sc.id)
+                                        )
+                                        .reduce(
+                                          (sum: number, d: Debt) =>
+                                            sum + (d.amount || 0),
+                                          0
+                                        )
+                                        .toFixed(2)}{" "}
                                       ₺
                                     </span>
                                   </div>
@@ -1140,7 +1498,7 @@ const CustomerDetailModal = ({
                                               p.subCustomerId?._id === sc.id)
                                         )
                                         .reduce(
-                                          (sum: number, p: any) =>
+                                          (sum: number, p: CustomerPayment) =>
                                             sum + (p.amount || 0),
                                           0
                                         )
@@ -1155,12 +1513,12 @@ const CustomerDetailModal = ({
                                     <span className="font-bold text-orange-500">
                                       {(
                                         scDebts.reduce(
-                                          (sum: number, d: any) =>
+                                          (sum: number, d: Debt) =>
                                             sum + (d.amount || 0),
                                           0
                                         ) -
                                         scPayments.reduce(
-                                          (sum: number, p: any) =>
+                                          (sum: number, p: CustomerPayment) =>
                                             sum + (p.amount || 0),
                                           0
                                         )
@@ -1207,14 +1565,16 @@ const CustomerDetailModal = ({
                                                 p.subCustomerId?._id === sc.id)
                                           );
                                           const totalDebt = closeDebts.reduce(
-                                            (sum: number, d: any) =>
+                                            (sum: number, d: Debt) =>
                                               sum + (d.amount || 0),
                                             0
                                           );
                                           const totalPaid =
                                             closePayments.reduce(
-                                              (sum: number, p: any) =>
-                                                sum + (p.amount || 0),
+                                              (
+                                                sum: number,
+                                                p: CustomerPayment
+                                              ) => sum + (p.amount || 0),
                                               0
                                             );
                                           const remainingDebt =
@@ -1283,7 +1643,7 @@ const CustomerDetailModal = ({
                                           )
                                             ? closeDebtsData
                                             : closeDebtsData.debts || [];
-                                          setDebts(closeDebtsArray as any);
+                                          setDebts(closeDebtsArray as Debt[]);
                                           setPayments(updatedPayments);
                                           setSubCustomers(updatedSubCustomers);
 
@@ -1314,10 +1674,6 @@ const CustomerDetailModal = ({
                               </div>
                             </summary>
                             <div className="px-4 pb-4">
-                              {/* Borçlar */}
-                              <div className="mb-2 font-medium text-gray-700 dark:text-gray-300">
-                                Borçlar
-                              </div>
                               {(() => {
                                 const scDebts = (debts || []).filter(
                                   (d) =>
@@ -1337,7 +1693,10 @@ const CustomerDetailModal = ({
                                           Tutar
                                         </th>
                                         <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
-                                          Açıklama
+                                          Ürün Kodu
+                                        </th>
+                                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                          Adet Malzeme
                                         </th>
                                         <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
                                           Tarih
@@ -1345,7 +1704,7 @@ const CustomerDetailModal = ({
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {scDebts.map((d: any) => (
+                                      {scDebts.map((d) => (
                                         <tr key={d._id}>
                                           <td className="text-red-600 font-semibold">
                                             {d.amount.toFixed(2)} ₺
@@ -1358,20 +1717,40 @@ const CustomerDetailModal = ({
                                                 d.saleId.items &&
                                                 Array.isArray(d.saleId.items)
                                               ) {
-                                                const productDetails =
-                                                  d.saleId.items
-                                                    .map((item: any) => {
-                                                      const quantity =
-                                                        item.quantity || 1;
-                                                      const productName =
-                                                        item.productName ||
-                                                        "Bilinmeyen Ürün";
-                                                      return `${quantity} adet ${productName}`;
-                                                    })
-                                                    .join(", ");
-                                                return `Satış borcu - ${productDetails}`;
+                                                return d.saleId.items
+                                                  .map((item) => item.barcode)
+                                                  .join(", ");
                                               }
-                                              return d.description || "-";
+                                              if (
+                                                d.saleId &&
+                                                typeof d.saleId === "object" &&
+                                                d.saleId.barcode
+                                              ) {
+                                                return d.saleId.barcode;
+                                              }
+                                              return "-";
+                                            })()}
+                                          </td>
+                                          <td className="text-gray-500 dark:text-gray-300">
+                                            {(() => {
+                                              if (
+                                                d.saleId &&
+                                                typeof d.saleId === "object" &&
+                                                d.saleId.items &&
+                                                Array.isArray(d.saleId.items)
+                                              ) {
+                                                return d.saleId.items
+                                                  .map(
+                                                    (item) =>
+                                                      `${
+                                                        item.quantity || 1
+                                                      } adet ${
+                                                        item.productName || ""
+                                                      }`
+                                                  )
+                                                  .join(", ");
+                                              }
+                                              return "-";
                                             })()}
                                           </td>
                                           <td className="text-xs text-gray-400">
@@ -1387,10 +1766,7 @@ const CustomerDetailModal = ({
                                   </table>
                                 );
                               })()}
-                              {/* Ödemeler */}
-                              <div className="mb-2 font-medium text-gray-700 dark:text-gray-300">
-                                Yapılan Ödemeler
-                              </div>
+
                               {(() => {
                                 const scPayments = payments.filter(
                                   (p) =>
@@ -1410,6 +1786,9 @@ const CustomerDetailModal = ({
                                           Tutar
                                         </th>
                                         <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                                          Ödeme Tipi
+                                        </th>
+                                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
                                           Açıklama
                                         </th>
                                         <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
@@ -1418,10 +1797,23 @@ const CustomerDetailModal = ({
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {scPayments.map((p: any) => (
+                                      {scPayments.map((p) => (
                                         <tr key={p._id}>
                                           <td className="text-green-600 font-semibold">
                                             {p.amount.toFixed(2)} ₺
+                                          </td>
+                                          <td className="text-gray-500 dark:text-gray-300">
+                                            {p.paymentType === "nakit"
+                                              ? "Nakit"
+                                              : p.paymentType === "kredi_karti"
+                                              ? "Kredi Kartı"
+                                              : p.paymentType === "havale"
+                                              ? "Havale"
+                                              : p.paymentType === "cek"
+                                              ? "Çek"
+                                              : p.paymentType === "diger"
+                                              ? "Diğer"
+                                              : p.paymentType}
                                           </td>
                                           <td className="text-gray-500 dark:text-gray-300">
                                             {p.description || "-"}
@@ -1451,134 +1843,76 @@ const CustomerDetailModal = ({
             {/* Satışlar Tab'ı */}
             {activeTab === "sales" && (
               <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Satış Geçmişi başlığı ve filtre-sıralama alanı */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3 flex-shrink-0">
-                  <div className="text-lg font-semibold text-gray-900 dark:text-white mb-1 md:mb-0">
-                    Satış Geçmişi
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto pr-2">
+                <div className="flex-1 overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-100 dark:border-gray-800">
-                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-3">
-                          Ürün
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                          Tutar
                         </th>
-                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-3">
+                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                          Ürün Kodu
+                        </th>
+                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
                           Adet
                         </th>
-                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-3">
-                          Birim Fiyat
+                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                          Malzeme
                         </th>
-                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-3">
-                          Toplam
-                        </th>
-                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-3">
-                          Ödeme
-                        </th>
-                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-3">
+                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
                           Tarih
-                        </th>
-                        <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-3">
-                          Alt Müşteri
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredSales.length === 0 ? (
+                      {saleItems.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={7}
-                            className="text-center text-gray-400 py-6"
+                            colSpan={5}
+                            className="text-center text-gray-400 py-8"
                           >
                             Satış yok
                           </td>
                         </tr>
                       ) : (
-                        filteredSales.flatMap((sale) => {
-                          if (
-                            Array.isArray(sale.items) &&
-                            sale.items.length > 0
-                          ) {
-                            return sale.items.map((item: any, idx: number) => (
-                              <tr
-                                key={`${sale._id}-${idx}`}
-                                className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
-                              >
-                                <td className="text-gray-900 dark:text-white">
-                                  {item.productName || "Bilinmiyor"}
-                                </td>
-                                <td className="text-gray-500 dark:text-gray-300">
-                                  {item.quantity || 0}
-                                </td>
-                                <td className="text-gray-500 dark:text-gray-300">
-                                  {item.price?.toFixed(2) || "0.00"} ₺
-                                </td>
-                                <td className="text-gray-900 dark:text-white font-semibold">
-                                  {(
-                                    (item.price || 0) * (item.quantity || 0)
-                                  ).toFixed(2)}{" "}
-                                  ₺
-                                </td>
-                                <td className="text-gray-500 dark:text-gray-300">
-                                  {sale.paymentType || "Nakit"}
-                                </td>
-                                <td className="text-xs text-gray-400">
-                                  {format(
-                                    parseISO(sale.createdAt || sale.soldAt),
-                                    "dd MMM yyyy HH:mm",
-                                    {
-                                      locale: tr,
-                                    }
+                        saleItems.map((item) => (
+                          <tr
+                            key={item._id}
+                            className="border-b border-gray-100 dark:border-gray-700"
+                          >
+                            <td className="py-2 text-gray-900 dark:text-white">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold">
+                                  {item.finalPrice?.toFixed(2)} ₺
+                                </span>
+                                {item.customPrice &&
+                                  item.customPrice !== item.originalPrice && (
+                                    <span className="text-xs text-gray-400 line-through">
+                                      {item.originalPrice?.toFixed(2)} ₺
+                                    </span>
                                   )}
-                                </td>
-                                <td className="text-gray-500 dark:text-gray-300">
-                                  {(sale as any).subCustomerId?.name || "-"}
-                                </td>
-                              </tr>
-                            ));
-                          } else {
-                            return (
-                              <tr
-                                key={sale._id}
-                                className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
-                              >
-                                <td className="text-gray-900 dark:text-white">
-                                  {(sale as any).productName ||
-                                    "Ürün bilgisi yok"}
-                                </td>
-                                <td className="text-gray-500 dark:text-gray-300">
-                                  {(sale as any).quantity || 0}
-                                </td>
-                                <td className="text-gray-500 dark:text-gray-300">
-                                  {((sale as any).price || 0).toFixed(2)} ₺
-                                </td>
-                                <td className="text-gray-900 dark:text-white font-semibold">
-                                  {(
-                                    ((sale as any).price || 0) *
-                                    ((sale as any).quantity || 0)
-                                  ).toFixed(2)}{" "}
-                                  ₺
-                                </td>
-                                <td className="text-gray-500 dark:text-gray-300">
-                                  {sale.paymentType || "Nakit"}
-                                </td>
-                                <td className="text-xs text-gray-400">
-                                  {format(
-                                    parseISO(sale.createdAt || sale.soldAt),
-                                    "dd MMM yyyy HH:mm",
-                                    {
-                                      locale: tr,
-                                    }
-                                  )}
-                                </td>
-                                <td className="text-gray-500 dark:text-gray-300">
-                                  {(sale as any).subCustomerId?.name || "-"}
-                                </td>
-                              </tr>
-                            );
-                          }
-                        })
+                              </div>
+                            </td>
+                            <td className="py-2 text-gray-500 dark:text-gray-300 font-mono text-xs">
+                              {item.barcode || "-"}
+                            </td>
+                            <td className="py-2 text-gray-500 dark:text-gray-300">
+                              {item.quantity || 0}
+                            </td>
+                            <td className="py-2 text-gray-900 dark:text-white">
+                              {item.productName || "Bilinmiyor"}
+                            </td>
+                            <td className="py-2 text-xs text-gray-400">
+                              {format(
+                                parseISO(item.createdAt),
+                                "dd MMM yyyy HH:mm",
+                                {
+                                  locale: tr,
+                                }
+                              )}
+                            </td>
+                          </tr>
+                        ))
                       )}
                     </tbody>
                   </table>
@@ -1645,10 +1979,10 @@ const CustomerDetailModal = ({
                           <div className="ml-auto flex flex-col items-end gap-1">
                             <div className="flex items-center gap-4 text-sm">
                               <div className="flex flex-col items-center">
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
                                   Tüm Borç
                                 </span>
-                                <span className="font-bold text-red-500">
+                                <span className="font-bold text-red-600">
                                   {(debts || [])
                                     .filter(
                                       (d) =>
@@ -1666,10 +2000,10 @@ const CustomerDetailModal = ({
                                 </span>
                               </div>
                               <div className="flex flex-col items-center">
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
                                   Ödenen
                                 </span>
-                                <span className="font-bold text-green-500">
+                                <span className="font-bold text-green-600">
                                   {(payments || [])
                                     .filter(
                                       (p) =>
@@ -1687,10 +2021,10 @@ const CustomerDetailModal = ({
                                 </span>
                               </div>
                               <div className="flex flex-col items-center">
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
                                   Kalan
                                 </span>
-                                <span className="font-bold text-orange-500">
+                                <span className="font-bold text-red-600">
                                   {(
                                     (debts || [])
                                       .filter(
@@ -1843,7 +2177,7 @@ const CustomerDetailModal = ({
                         </summary>
                         <div className="px-4 pb-4">
                           {/* Borçlar */}
-                          <div className="mb-2 font-medium text-gray-700 dark:text-gray-300">
+                          <div className="mb-3 font-semibold text-gray-800 dark:text-gray-200 text-sm">
                             Borçlar
                           </div>
                           {(() => {
@@ -1854,69 +2188,97 @@ const CustomerDetailModal = ({
                                   d.subCustomerId?._id === sc.id)
                             );
                             return scDebts.length === 0 ? (
-                              <div className="text-gray-400 text-sm mb-2">
+                              <div className="text-gray-400 text-sm mb-4 p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
                                 Borç yok
                               </div>
                             ) : (
-                              <table className="w-full text-sm mb-2">
-                                <thead>
-                                  <tr>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
-                                      Tutar
-                                    </th>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
-                                      Açıklama
-                                    </th>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
-                                      Tarih
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {scDebts.map((d: any) => (
-                                    <tr key={d._id}>
-                                      <td className="text-red-600 font-semibold">
-                                        {d.amount.toFixed(2)} ₺
-                                      </td>
-                                      <td className="text-gray-500 dark:text-gray-300">
-                                        {(() => {
-                                          if (
-                                            d.saleId &&
-                                            typeof d.saleId === "object" &&
-                                            d.saleId.items &&
-                                            Array.isArray(d.saleId.items)
-                                          ) {
-                                            const productDetails =
-                                              d.saleId.items
-                                                .map((item: any) => {
-                                                  const quantity =
-                                                    item.quantity || 1;
-                                                  const productName =
-                                                    item.productName ||
-                                                    "Bilinmeyen Ürün";
-                                                  return `${quantity} adet ${productName}`;
-                                                })
-                                                .join(", ");
-                                            return `Satış borcu - ${productDetails}`;
-                                          }
-                                          return d.description || "-";
-                                        })()}
-                                      </td>
-                                      <td className="text-xs text-gray-400">
-                                        {format(
-                                          parseISO(d.createdAt),
-                                          "dd MMM yyyy HH:mm",
-                                          { locale: tr }
-                                        )}
-                                      </td>
+                              <div className="mb-4 overflow-x-auto">
+                                <table className="w-full text-xs border-collapse border border-gray-300 dark:border-gray-600">
+                                  <thead>
+                                    <tr className="bg-gray-100 dark:bg-gray-700">
+                                      <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                                        Tutar
+                                      </th>
+                                      <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                                        Ürün Kodu
+                                      </th>
+                                      <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                                        Malzeme
+                                      </th>
+                                      <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                                        Tarih
+                                      </th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                  </thead>
+                                  <tbody>
+                                    {scDebts.map((d) => (
+                                      <tr
+                                        key={d._id}
+                                        className="hover:bg-gray-50 dark:hover:bg-gray-800"
+                                      >
+                                        <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-medium">
+                                          {d.amount.toFixed(2)} ₺
+                                        </td>
+                                        <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                          {(() => {
+                                            if (
+                                              d.saleId &&
+                                              typeof d.saleId === "object" &&
+                                              d.saleId.items &&
+                                              Array.isArray(d.saleId.items)
+                                            ) {
+                                              return d.saleId.items
+                                                .map((item) => item.barcode)
+                                                .join(", ");
+                                            }
+                                            if (
+                                              d.saleId &&
+                                              typeof d.saleId === "object" &&
+                                              d.saleId.barcode
+                                            ) {
+                                              return d.saleId.barcode;
+                                            }
+                                            return "-";
+                                          })()}
+                                        </td>
+                                        <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                          {(() => {
+                                            if (
+                                              d.saleId &&
+                                              typeof d.saleId === "object" &&
+                                              d.saleId.items &&
+                                              Array.isArray(d.saleId.items)
+                                            ) {
+                                              return d.saleId.items
+                                                .map(
+                                                  (item) =>
+                                                    `${
+                                                      item.quantity || 1
+                                                    } adet ${
+                                                      item.productName || ""
+                                                    }`
+                                                )
+                                                .join(", ");
+                                            }
+                                            return "-";
+                                          })()}
+                                        </td>
+                                        <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400">
+                                          {format(
+                                            parseISO(d.createdAt),
+                                            "dd.MM.yyyy HH:mm",
+                                            { locale: tr }
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             );
                           })()}
                           {/* Ödemeler */}
-                          <div className="mb-2 font-medium text-gray-700 dark:text-gray-300">
+                          <div className="mb-3 font-semibold text-gray-800 dark:text-gray-200 text-sm">
                             Yapılan Ödemeler
                           </div>
                           {(() => {
@@ -1927,44 +2289,65 @@ const CustomerDetailModal = ({
                                   p.subCustomerId?._id === sc.id)
                             );
                             return scPayments.length === 0 ? (
-                              <div className="text-gray-400 text-sm">
+                              <div className="text-gray-400 text-sm p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
                                 Ödeme yok
                               </div>
                             ) : (
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
-                                      Tutar
-                                    </th>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
-                                      Açıklama
-                                    </th>
-                                    <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
-                                      Tarih
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {scPayments.map((p: any) => (
-                                    <tr key={p._id}>
-                                      <td className="text-green-600 font-semibold">
-                                        {p.amount.toFixed(2)} ₺
-                                      </td>
-                                      <td className="text-gray-500 dark:text-gray-300">
-                                        {p.description || "-"}
-                                      </td>
-                                      <td className="text-xs text-gray-400">
-                                        {format(
-                                          parseISO(p.paymentDate),
-                                          "dd MMM yyyy HH:mm",
-                                          { locale: tr }
-                                        )}
-                                      </td>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs border-collapse border border-gray-300 dark:border-gray-600">
+                                  <thead>
+                                    <tr className="bg-gray-100 dark:bg-gray-700">
+                                      <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                                        Tutar
+                                      </th>
+                                      <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                                        Ödeme Tipi
+                                      </th>
+                                      <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                                        Açıklama
+                                      </th>
+                                      <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                                        Tarih
+                                      </th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                  </thead>
+                                  <tbody>
+                                    {scPayments.map((p) => (
+                                      <tr
+                                        key={p._id}
+                                        className="hover:bg-gray-50 dark:hover:bg-gray-800"
+                                      >
+                                        <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-green-600 font-medium">
+                                          {p.amount.toFixed(2)} ₺
+                                        </td>
+                                        <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                          {p.paymentType === "nakit"
+                                            ? "Nakit"
+                                            : p.paymentType === "kredi_karti"
+                                            ? "Kredi Kartı"
+                                            : p.paymentType === "havale"
+                                            ? "Havale"
+                                            : p.paymentType === "cek"
+                                            ? "Çek"
+                                            : p.paymentType === "diger"
+                                            ? "Diğer"
+                                            : p.paymentType}
+                                        </td>
+                                        <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                          {p.description || "-"}
+                                        </td>
+                                        <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400">
+                                          {format(
+                                            parseISO(p.paymentDate),
+                                            "dd.MM.yyyy HH:mm",
+                                            { locale: tr }
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             );
                           })()}
                         </div>

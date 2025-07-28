@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { Sale, Product, SaleItem } from "../../types";
-import { Download, Search } from "lucide-react";
+import { Download, Search, Edit3 } from "lucide-react";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 import ExcelJS from "exceljs";
@@ -16,6 +16,65 @@ interface SalesPageProps {
   isLoading?: boolean;
   onRefreshSales?: () => void;
 }
+
+// Düzenlenebilir fiyat bileşeni
+const EditablePrice: React.FC<{
+  value: number;
+  onSave: (newPrice: number) => void;
+}> = ({ value, onSave }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value.toString());
+
+  const handleSave = () => {
+    const newPrice = parseFloat(editValue);
+    if (!isNaN(newPrice) && newPrice >= 0) {
+      onSave(newPrice);
+      setIsEditing(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSave();
+    } else if (e.key === "Escape") {
+      setIsEditing(false);
+      setEditValue(value.toString());
+    }
+  };
+
+  const handleBlur = () => {
+    handleSave();
+  };
+
+  if (isEditing) {
+    return (
+      <input
+        type="number"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleBlur}
+        onKeyPress={handleKeyPress}
+        className="w-20 px-2 py-1 text-right border border-blue-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1 group">
+      <span className="font-medium">₺{value.toLocaleString()}</span>
+      <button
+        onClick={() => {
+          setIsEditing(true);
+          setEditValue(value.toString());
+        }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 hover:text-blue-800"
+      >
+        <Edit3 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+};
 
 const SalesPage: React.FC<SalesPageProps> = ({
   sales,
@@ -401,6 +460,28 @@ const SalesPage: React.FC<SalesPageProps> = ({
     return "-";
   }
 
+  const handlePriceUpdate = async (saleId: string, newPrice: number) => {
+    try {
+      const response = await fetch(`/api/sales/${saleId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ price: newPrice }),
+      });
+
+      if (response.ok) {
+        if (onRefreshSales) {
+          onRefreshSales();
+        }
+      } else {
+        console.error("Fiyat güncellenirken hata oluştu");
+      }
+    } catch (error) {
+      console.error("Fiyat güncelleme hatası:", error);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 mt-4">
       {/* ÜSTTE ARAMA VE FİLTRELER */}
@@ -506,9 +587,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   Adet
                 </th>
-                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Birim Fiyat
-                </th>
+
                 <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   Toplam
                 </th>
@@ -530,7 +609,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
               {isLoading ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={9}
                     className="text-center py-8 text-gray-500 dark:text-gray-400"
                   >
                     Yükleniyor...
@@ -539,7 +618,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
               ) : paginatedSales.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={9}
                     className="text-center py-8 text-gray-500 dark:text-gray-400"
                   >
                     Satış bulunamadı
@@ -577,11 +656,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
                               {item.quantity} adet
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-sm text-right font-mono">
-                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                              {formatPrice(item.price)}
-                            </span>
-                          </td>
+
                           <td className="px-3 py-2 text-sm text-right font-mono font-semibold">
                             <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                               {formatPrice(item.price * item.quantity)}
@@ -648,9 +723,12 @@ const SalesPage: React.FC<SalesPageProps> = ({
                           </span>
                         </td>
                         <td className="px-1 py-1 text-xs text-right font-mono">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                            {formatPrice(sale.price || 0)}
-                          </span>
+                          <EditablePrice
+                            value={sale.price || 0}
+                            onSave={(newPrice) =>
+                              handlePriceUpdate(sale._id, newPrice)
+                            }
+                          />
                         </td>
                         <td className="px-1 py-1 text-xs text-right font-mono font-semibold">
                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">

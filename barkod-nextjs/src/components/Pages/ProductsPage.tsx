@@ -507,13 +507,16 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   İşlemler
                 </th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  AF
+                </th>
               </tr>
             </thead>
             <tbody>
               {paginatedProducts.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={12}
                     className="text-center py-8 text-gray-500 dark:text-gray-400"
                   >
                     Ürün bulunamadı
@@ -656,6 +659,9 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                       >
                         Sil
                       </button>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-center text-gray-900 dark:text-white min-w-[60px] max-w-[60px]">
+                      {product.purchasePrice || "-"}
                     </td>
                   </tr>
                 ))
