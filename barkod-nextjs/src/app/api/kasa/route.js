@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../utils/db";
+import connectDB from "../utils/db.js";
 import Kasa from "../models/Kasa";
 
 export async function GET(request) {

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo, memo } from "react";
+import React, { useState, useMemo, memo, useEffect, useRef } from "react";
 import { Product } from "../../types";
 import { Search, Plus, Check, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -14,7 +14,9 @@ const Tooltip: React.FC<{ content: string; children: React.ReactNode }> = ({
   children,
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
-  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [timeoutId, setTimeoutId] = useState<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   const handleMouseEnter = (e: React.MouseEvent) => {
@@ -61,7 +63,6 @@ const Tooltip: React.FC<{ content: string; children: React.ReactNode }> = ({
 };
 
 interface ProductsPageProps {
-  products: Product[];
   onEdit: (product: Product) => void;
   onDelete: (productId: string) => void;
   onView: (product: Product) => void;
@@ -155,8 +156,111 @@ const ProductCard = memo(
 );
 ProductCard.displayName = "ProductCard";
 
+// Custom hook for infinite scroll
+const useInfiniteProducts = (filters: {
+  search: string;
+  category: string;
+  vendor: string;
+  brand: string;
+  tool: string;
+  stockFilter: string;
+  sortBy: string;
+  sortOrder: string;
+}) => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [skip, setSkip] = useState(0);
+
+  // Debounce için timeout ref'i
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+
+  // İlk yükleme - debounce ile
+  useEffect(() => {
+    // Önceki timeout'u temizle
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    const fetchProducts = async () => {
+      setLoading(true);
+      setSkip(0);
+      setHasMore(true);
+      try {
+        const params = new URLSearchParams();
+        if (filters.search) params.append("search", filters.search);
+        if (filters.category) params.append("category", filters.category);
+        if (filters.vendor) params.append("vendor", filters.vendor);
+        if (filters.brand) params.append("brand", filters.brand);
+        if (filters.tool) params.append("tool", filters.tool);
+        if (filters.stockFilter !== "all")
+          params.append("stockFilter", filters.stockFilter);
+        if (filters.sortBy) params.append("sortBy", filters.sortBy);
+        if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+        params.append("skip", "0");
+
+        const response = await fetch(`/api/products?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProducts(data.products || data);
+          setHasMore(data.hasMore || false);
+          setSkip(data.nextSkip || 50);
+        }
+      } catch (error) {
+        console.error("Ürünler yüklenirken hata:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // 300ms debounce
+    timeoutRef.current = setTimeout(fetchProducts, 300);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [filters]);
+
+  // Daha fazla ürün yükleme fonksiyonu
+  const loadMore = async () => {
+    if (loading || !hasMore) return;
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filters.search) params.append("search", filters.search);
+      if (filters.category) params.append("category", filters.category);
+      if (filters.vendor) params.append("vendor", filters.vendor);
+      if (filters.brand) params.append("brand", filters.brand);
+      if (filters.tool) params.append("tool", filters.tool);
+      if (filters.stockFilter !== "all")
+        params.append("stockFilter", filters.stockFilter);
+      if (filters.sortBy) params.append("sortBy", filters.sortBy);
+      if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+      params.append("skip", skip.toString());
+
+      const response = await fetch(`/api/products?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProducts((prev) => [...prev, ...(data.products || data)]);
+        setHasMore(data.hasMore || false);
+        setSkip(data.nextSkip || skip + 50);
+      }
+    } catch (error) {
+      console.error("Daha fazla ürün yüklenirken hata:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { products, loading, hasMore, loadMore };
+};
+
 const ProductsPage: React.FC<ProductsPageProps> = ({
-  products,
   onEdit,
   onDelete,
   lowStockThreshold = 5,
@@ -171,7 +275,6 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     "name"
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
 
   const [cartItems, setCartItems] = useState<{ [key: string]: number }>({});
@@ -229,7 +332,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
       // LocalStorage'a da kaydet (fallback için)
       const cartArray = Object.entries(newCartItems)
         .map(([id, quantity]) => ({
-          product: products.find((p) => (p.id || p.barcode) === id),
+          product: filteredProducts.find((p) => (p.id || p.barcode) === id),
           quantity,
         }))
         .filter((item) => item.product);
@@ -255,94 +358,50 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   };
   const router = useRouter();
 
-  const filteredProducts = products
-    .filter((product) => {
-      const matchesSearch =
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.barcode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.brand.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory =
-        !selectedCategory || product.category === selectedCategory;
-      const matchesVendor =
-        !selectedVendor ||
-        (() => {
-          const supplier = Array.isArray(product.supplier)
-            ? product.supplier[0]
-            : product.supplier;
-          return getVendorName(supplier) === selectedVendor;
-        })();
-      const matchesBrand = !selectedBrand || product.brand === selectedBrand;
-      const matchesTool =
-        !selectedTool ||
-        (() => {
-          if (!product.usedCars || !Array.isArray(product.usedCars)) {
-            return false;
-          }
-          return product.usedCars.some((car) =>
-            car.toLowerCase().includes(selectedTool.toLowerCase())
-          );
-        })();
-      const matchesStockFilter =
-        stockFilter === "all" ||
-        (stockFilter === "low" &&
-          product.stock <= lowStockThreshold &&
-          product.stock > 0) ||
-        (stockFilter === "out" && product.stock === 0);
-      return (
-        matchesSearch &&
-        matchesCategory &&
-        matchesVendor &&
-        matchesBrand &&
-        matchesTool &&
-        matchesStockFilter
-      );
-    })
-    .sort((a, b) => {
-      let aValue, bValue;
-      switch (sortBy) {
-        case "price":
-          aValue = a.price;
-          bValue = b.price;
-          break;
-        case "stock":
-          aValue = a.stock;
-          bValue = b.stock;
-          break;
-        case "created":
-          aValue = new Date(a.createdAt).getTime();
-          bValue = new Date(b.createdAt).getTime();
-          break;
-        default:
-          aValue = a.name.toLowerCase();
-          bValue = b.name.toLowerCase();
-      }
-
-      if (sortOrder === "asc") {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-  const itemsPerPage = 20;
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const paginatedProducts = useMemo(
-    () =>
-      filteredProducts.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-      ),
-    [filteredProducts, currentPage, itemsPerPage]
+  // Filters objesini useMemo ile optimize et
+  const filters = React.useMemo(
+    () => ({
+      search: searchTerm,
+      category: selectedCategory,
+      vendor: selectedVendor,
+      brand: selectedBrand,
+      tool: selectedTool,
+      stockFilter: stockFilter,
+      sortBy: sortBy,
+      sortOrder: sortOrder,
+    }),
+    [
+      searchTerm,
+      selectedCategory,
+      selectedVendor,
+      selectedBrand,
+      selectedTool,
+      stockFilter,
+      sortBy,
+      sortOrder,
+    ]
   );
 
+  const {
+    products: filteredProducts,
+    loading,
+    hasMore,
+    loadMore,
+  } = useInfiniteProducts(filters);
+
+  // Backend'de pagination yapıldığı için frontend pagination'ı kaldırıyoruz
+
   const categories = [
-    ...new Set(products.map((p) => p.category).filter(Boolean)),
+    ...new Set(filteredProducts.map((p) => p.category).filter(Boolean)),
   ];
 
-  const brands = [...new Set(products.map((p) => p.brand).filter(Boolean))];
+  const brands = [
+    ...new Set(filteredProducts.map((p) => p.brand).filter(Boolean)),
+  ];
 
   const tools = [
     ...new Set(
-      products.flatMap((p) => {
+      filteredProducts.flatMap((p) => {
         if (Array.isArray(p.usedCars)) {
           return p.usedCars.filter(Boolean);
         }
@@ -353,7 +412,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
 
   const vendorsList = [
     ...new Set(
-      products
+      filteredProducts
         .map((p) => {
           const supplier = Array.isArray(p.supplier)
             ? p.supplier[0]
@@ -546,7 +605,6 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                     setStockFilter("all");
                     setSortBy("name");
                     setSortOrder("asc");
-                    setCurrentPage(1);
                   }}
                   className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-6 py-3 rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
                 >
@@ -608,7 +666,21 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
               </tr>
             </thead>
             <tbody>
-              {paginatedProducts.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={13}
+                    className="text-center py-8 text-gray-500 dark:text-gray-400"
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Ürünler yükleniyor...
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td
                     colSpan={13}
@@ -618,7 +690,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                   </td>
                 </tr>
               ) : (
-                paginatedProducts.map((product) => (
+                filteredProducts.map((product: Product) => (
                   <tr
                     key={product.id || product.barcode}
                     className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -769,25 +841,15 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
             </tbody>
           </table>
         </div>
-        {/* Sayfalama */}
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-1 mt-[10px] pb-[10px]">
+        {/* Infinite Scroll Load More */}
+        {hasMore && (
+          <div className="flex justify-center mt-6">
             <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+              onClick={loadMore}
+              disabled={loading}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
-              Önceki
-            </button>
-            <span className="font-medium text-gray-700 dark:text-gray-200">
-              {currentPage} / {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 disabled:opacity-50"
-            >
-              Sonraki
+              {loading ? "Ürünler yükleniyor..." : "Daha Fazla Yükle"}
             </button>
           </div>
         )}

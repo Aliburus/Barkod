@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import connectDB from "../../utils/db";
+import connectDB from "../../utils/db.js";
 import Product from "../../models/Product";
 
 export async function GET(request, { params }) {
   await connectDB();
   try {
-    const product = await Product.findOne({ barcode: params.barcode });
+    const { barcode } = await params;
+    const product = await Product.findOne({ barcode });
     if (!product)
       return NextResponse.json({ error: "Ürün bulunamadı" }, { status: 404 });
     return NextResponse.json(product);

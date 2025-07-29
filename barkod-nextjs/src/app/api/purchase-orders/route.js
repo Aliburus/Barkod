@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../utils/db";
+import connectDB from "../utils/db.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
 
 export async function GET(request) {
@@ -7,18 +7,61 @@ export async function GET(request) {
     await connectDB();
     const { searchParams } = new URL(request.url);
     const vendorId = searchParams.get("vendorId");
+    const search = searchParams.get("search");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const skip = parseInt(searchParams.get("skip") || "0");
 
     let query = {};
     if (vendorId) {
       query.vendorId = vendorId;
     }
 
-    const purchaseOrders = await PurchaseOrder.find(query).sort({
-      createdAt: -1,
-    });
+    // Date filtering - optimized
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        query.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+      }
+    }
 
-    // Test verisi ekle (eğer veri yoksa)
-    if (purchaseOrders.length === 0 && vendorId) {
+    // Search functionality - optimized with index support
+    if (search) {
+      query.$or = [
+        { orderNumber: { $regex: search, $options: "i" } },
+        { "items.productName": { $regex: search, $options: "i" } },
+        { "items.barcode": { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Build sort object - optimized for common cases
+    const sortObject = {};
+    sortObject[sortBy] = sortOrder === "asc" ? 1 : -1;
+
+    // Optimized query with projection for better performance
+    const purchaseOrders = await PurchaseOrder.find(query)
+      .select(
+        "_id vendorId orderNumber orderDate items totalAmount status notes createdAt updatedAt"
+      )
+      .sort(sortObject)
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance
+
+    // Check if there are more results - optimized count
+    const totalCount = await PurchaseOrder.countDocuments(query);
+    const hasMore = skip + limit < totalCount;
+    const nextSkip = hasMore ? skip + limit : skip;
+
+    // Test verisi ekle (eğer veri yoksa) - only for first page
+    if (purchaseOrders.length === 0 && vendorId && skip === 0) {
       const testOrder = new PurchaseOrder({
         vendorId: vendorId,
         orderNumber: `PO-TEST-${Date.now()}`,
@@ -31,6 +74,7 @@ export async function GET(request) {
             quantity: 10,
             unitPrice: 100,
             totalPrice: 1000,
+            createdAt: new Date(),
           },
         ],
         totalAmount: 1000,
@@ -42,14 +86,27 @@ export async function GET(request) {
       await testOrder.save();
 
       // Test verisini de döndür
-      const updatedOrders = await PurchaseOrder.find(query).sort({
-        createdAt: -1,
-      });
+      const updatedOrders = await PurchaseOrder.find(query)
+        .select(
+          "_id vendorId orderNumber orderDate items totalAmount status notes createdAt updatedAt"
+        )
+        .sort(sortObject)
+        .skip(skip)
+        .limit(limit)
+        .lean();
 
-      return NextResponse.json(updatedOrders);
+      return NextResponse.json({
+        orders: updatedOrders,
+        hasMore: false,
+        nextSkip: skip,
+      });
     }
 
-    return NextResponse.json(purchaseOrders);
+    return NextResponse.json({
+      orders: purchaseOrders,
+      hasMore,
+      nextSkip,
+    });
   } catch (error) {
     console.error("Purchase orders GET error:", error);
     return NextResponse.json(
@@ -78,6 +135,7 @@ export async function POST(request) {
         quantity: parseInt(item.quantity),
         unitPrice: parseFloat(item.unitPrice),
         totalPrice: parseFloat(item.totalPrice),
+        createdAt: new Date(), // Her ürün için ayrı tarih
       })),
       totalAmount: parseFloat(body.totalAmount),
       status: body.status,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../../utils/db";
+import connectDB from "../../utils/db.js";
 import Debt from "../../models/Debt";
 
 // Belirli borç kaydını getir

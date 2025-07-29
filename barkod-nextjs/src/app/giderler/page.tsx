@@ -64,7 +64,7 @@ const GiderlerPage: React.FC<GiderlerPageProps> = ({
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
-      <Header activeTab="giderler" lowStockCount={0} onAddProduct={() => {}} />
+      <Header activeTab="giderler" onAddProduct={() => {}} />
       <Navigation activeTab="giderler" onTabChange={() => {}} />
       <main className="max-w-5xl mx-auto px-2 sm:px-4 lg:px-8 mt-4">
         {/* Üstte yatay ekleme alanı */}

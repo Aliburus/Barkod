@@ -10,7 +10,7 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <Header lowStockCount={0} activeTab={activeTab} onAddProduct={() => {}} />
+      <Header activeTab={activeTab} onAddProduct={() => {}} />
       <Navigation
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab as Tab)}

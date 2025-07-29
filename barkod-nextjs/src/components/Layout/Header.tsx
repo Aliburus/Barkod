@@ -1,21 +1,36 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BarChart3, AlertTriangle, Plus } from "lucide-react";
 
 interface HeaderProps {
-  lowStockCount: number;
   activeTab: string;
   onAddProduct: () => void;
   onBulkUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
-  lowStockCount,
   activeTab,
   onAddProduct,
   onBulkUpload,
 }) => {
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [lowStockCount, setLowStockCount] = useState(0);
+
+  useEffect(() => {
+    const fetchLowStockCount = async () => {
+      try {
+        const response = await fetch("/api/products/low-stock-count");
+        if (response.ok) {
+          const data = await response.json();
+          setLowStockCount(data.count || 0);
+        }
+      } catch (error) {
+        console.error("Low stock count fetch error:", error);
+      }
+    };
+
+    fetchLowStockCount();
+  }, []);
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors">

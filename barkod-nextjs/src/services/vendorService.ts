@@ -6,11 +6,13 @@ export const vendorService = {
   // Vendor CRUD operations
   async getAll(
     search?: string,
-    page: number = 1
-  ): Promise<{ vendors: Vendor[]; total: number }> {
+    skip: number = 0,
+    limit: number = 50
+  ): Promise<{ vendors: Vendor[]; hasMore: boolean; nextSkip: number }> {
     const params = new URLSearchParams();
     if (search) params.append("search", search);
-    params.append("page", page.toString());
+    params.append("skip", skip.toString());
+    params.append("limit", limit.toString());
 
     const response = await fetch(`${API_BASE_URL}/vendors?${params}`);
     if (!response.ok) throw new Error("Tedarikçiler yüklenirken hata oluştu");

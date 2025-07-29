@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../utils/db";
+import connectDB from "../utils/db.js";
 import CustomerPayment from "../models/CustomerPayment";
 
 export async function GET(request) {
@@ -8,9 +8,8 @@ export async function GET(request) {
   const customerId = searchParams.get("customerId");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
-  const skip = (page - 1) * limit;
+  const skip = parseInt(searchParams.get("skip") || "0");
 
   let query = { status: "active" };
 
@@ -25,10 +24,7 @@ export async function GET(request) {
     };
   }
 
-  // Toplam sayıyı al
-  const total = await CustomerPayment.countDocuments(query);
-
-  // Ödemeleri getir (pagination ile)
+  // Ödemeleri getir (infinite scroll için)
   const payments = await CustomerPayment.find(query)
     .populate({ path: "customerId", select: "name phone" })
     .populate({ path: "debtId", select: "amount description" })
@@ -38,14 +34,13 @@ export async function GET(request) {
     .limit(limit)
     .lean();
 
+  // Daha fazla ödeme var mı kontrol et
+  const hasMore = payments.length === limit;
+
   return NextResponse.json({
     payments,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
+    hasMore,
+    nextSkip: skip + limit,
   });
 }
 

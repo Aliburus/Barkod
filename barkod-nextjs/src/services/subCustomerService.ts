@@ -7,21 +7,17 @@ export const subCustomerService = {
   getAll: async (
     customerId?: string,
     search?: string,
-    page: number = 1,
+    skip: number = 0,
     limit: number = 50
   ): Promise<{
     subCustomers: SubCustomer[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
+    hasMore: boolean;
+    nextSkip: number;
   }> => {
     const params = new URLSearchParams();
     if (customerId) params.append("customerId", customerId);
     if (search) params.append("search", search);
-    params.append("page", page.toString());
+    params.append("skip", skip.toString());
     params.append("limit", limit.toString());
 
     const url = `${API_URL}/api/sub-customers?${params.toString()}`;
@@ -32,7 +28,8 @@ export const subCustomerService = {
         ...sc,
         id: sc._id,
       })),
-      pagination: res.data.pagination,
+      hasMore: res.data.hasMore,
+      nextSkip: res.data.nextSkip,
     };
   },
 

@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { BrowserMultiFormatReader } from "@zxing/browser";
 import { Camera, CameraOff, Scan, Keyboard } from "lucide-react";
 import { ScanResult } from "../types";
 
@@ -21,43 +20,77 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   const [selectedDevice, setSelectedDevice] = useState<string>("");
   const [scannerType, setScannerType] = useState<"camera" | "manual">("camera");
   const [manualInput, setManualInput] = useState("");
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const [isClient, setIsClient] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const codeReaderRef = useRef<any>(null);
+
+  // Prevent hydration mismatch by only rendering on client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const stopScanning = () => {
+    if (
+      codeReaderRef.current &&
+      typeof codeReaderRef.current.reset === "function"
+    ) {
+      try {
+        codeReaderRef.current.reset();
+      } catch (error) {
+        console.error("Error resetting scanner:", error);
+      }
+    }
+    setIsScanning(false);
+  };
 
   const startScanning = React.useCallback(
     async (deviceId: string) => {
-      if (!codeReaderRef.current || !videoRef.current) return;
+      if (!videoRef.current || !isClient) return;
+
       try {
+        // Dynamically import the library only on client side
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+
+        if (!codeReaderRef.current) {
+          codeReaderRef.current = new BrowserMultiFormatReader();
+        }
+
         setIsScanning(true);
         setScanLocked(false);
+
         await codeReaderRef.current.decodeFromVideoDevice(
           deviceId,
           videoRef.current,
-          (result) => {
+          (result: any) => {
             if (result && !scanLocked) {
               setScanLocked(true);
               onScan({
                 text: result.getText(),
                 format: result.getBarcodeFormat().toString(),
               });
-              if (scanLocked === false) {
-                setTimeout(() => stopScanning(), 300);
-              }
+              setTimeout(() => stopScanning(), 300);
             }
           }
         );
-      } catch {
+      } catch (error) {
+        console.error("Error starting scanner:", error);
         setIsScanning(false);
       }
     },
-    [onScan, scanLocked]
+    [onScan, scanLocked, isClient]
   );
 
   const initializeScanner = React.useCallback(async () => {
+    if (!isClient) return;
+
     try {
+      const { BrowserMultiFormatReader } = await import("@zxing/browser");
       codeReaderRef.current = new BrowserMultiFormatReader();
+
       const videoDevices =
         await BrowserMultiFormatReader.listVideoInputDevices();
       setDevices(videoDevices);
+
       if (videoDevices.length > 0) {
         let deviceId = selectedDevice;
         if (!deviceId) {
@@ -69,15 +102,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           deviceId = backCam ? backCam.deviceId : videoDevices[0].deviceId;
         }
         setSelectedDevice(deviceId);
-        startScanning(deviceId);
+        setIsInitialized(true);
       }
-    } catch (e) {
-      console.error("Error initializing scanner:", e);
+    } catch (error) {
+      console.error("Error initializing scanner:", error);
     }
-  }, [selectedDevice, startScanning]);
+  }, [selectedDevice, isClient]);
 
   useEffect(() => {
-    if (isActive && scannerType === "camera") {
+    if (isActive && scannerType === "camera" && isClient) {
       initializeScanner();
     } else {
       stopScanning();
@@ -86,11 +119,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     return () => {
       stopScanning();
     };
-  }, [isActive, scannerType, selectedDevice, initializeScanner]);
+  }, [isActive, scannerType, isClient, initializeScanner]);
 
-  const stopScanning = () => {
-    setIsScanning(false);
-  };
+  useEffect(() => {
+    if (
+      isInitialized &&
+      isActive &&
+      scannerType === "camera" &&
+      selectedDevice
+    ) {
+      startScanning(selectedDevice);
+    }
+  }, [isInitialized, isActive, scannerType, selectedDevice, startScanning]);
 
   const handleManualSubmit = () => {
     if (manualInput.trim()) {
@@ -103,7 +143,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    // Barkod okuyucu genellikle Enter tuşu ile sonlandırır
     if (e.key === "Enter" && manualInput.trim()) {
       onScan({
         text: manualInput.trim(),
@@ -112,6 +151,22 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       setManualInput("");
     }
   };
+
+  // Don't render anything until client-side hydration is complete
+  if (!isClient) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700 transition-colors pt-safe-top pb-safe-bottom sm:p-8 max-w-xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <CameraOff className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+            <p className="text-gray-500 dark:text-gray-400">
+              Barkod tarayıcı yükleniyor...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700 transition-colors pt-safe-top pb-safe-bottom sm:p-8 max-w-xl mx-auto">

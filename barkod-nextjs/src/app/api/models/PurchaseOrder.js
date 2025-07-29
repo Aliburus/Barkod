@@ -28,6 +28,10 @@ const purchaseOrderItemSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
 const purchaseOrderSchema = new mongoose.Schema(

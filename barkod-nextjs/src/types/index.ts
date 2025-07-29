@@ -20,7 +20,6 @@ export interface Product {
 
 export interface Sale {
   _id: string;
-  customer: string;
   customerId?: string;
   subCustomerId?: string | { name: string; phone?: string };
   items?: SaleItem[];
@@ -170,6 +169,7 @@ export interface PurchaseOrderItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  createdAt?: string;
 }
 
 export interface VendorDebt {

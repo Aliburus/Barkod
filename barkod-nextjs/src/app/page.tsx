@@ -1,8 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import ProductsPage from "../components/Pages/ProductsPage";
-import SalesPage from "../components/Pages/SalesPage";
-import AnalyticsPage from "../components/Pages/AnalyticsPage";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import Header from "../components/Layout/Header";
 import Navigation from "../components/Layout/Navigation";
 import BarcodeScanner from "../components/BarcodeScanner";
@@ -10,13 +7,16 @@ import Notification from "../components/Layout/Notification";
 import ProductForm from "../components/ProductForm";
 import SaleModal from "../components/SaleModal";
 import { productService } from "../services/productService";
-import { Product, Sale, ScanResult } from "../types";
+import { Product, ScanResult } from "../types";
 
-import { Loader2 } from "lucide-react";
-import KasaPage from "./kasa/page";
-import GiderlerPage from "./giderler/page";
-import ExcelJS from "exceljs";
-import type { Row } from "exceljs";
+import { Loader2, Search } from "lucide-react";
+
+// Lazy load heavy components
+const ProductsPage = lazy(() => import("../components/Pages/ProductsPage"));
+const SalesPage = lazy(() => import("../components/Pages/SalesPage"));
+const AnalyticsPage = lazy(() => import("../components/Pages/AnalyticsPage"));
+const KasaPage = lazy(() => import("./kasa/page"));
+const GiderlerPage = lazy(() => import("./giderler/page"));
 
 export type Tab =
   | "scanner"
@@ -29,48 +29,31 @@ export type Tab =
   | "sepet"
   | "vendors";
 
+// Loading component for lazy loaded components
+const PageLoader = () => (
+  <div className="flex items-center justify-center py-20">
+    <div className="text-center">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+      <p className="text-gray-600 dark:text-gray-400 text-sm">
+        Sayfa yükleniyor...
+      </p>
+    </div>
+  </div>
+);
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("scanner");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [notification, setNotification] = useState<{
     message: string;
     type: "success" | "error" | "warning" | "info";
   } | null>(null);
-  // showTotalValue state'ini localStorage'dan kaldır, sadece useState ile tut
-
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [scannerActive, setScannerActive] = useState(false);
+  const [scannerActive, setScannerActive] = useState(true);
   const [prefilledBarcode, setPrefilledBarcode] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const products = await productService.getAll();
-        setProducts(Array.isArray(products) ? products : []);
-        const sales = await productService.getAllSales();
-        setSales(sales);
-      } catch {
-        setProducts([]);
-        setSales([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  // Aktif tab kasa olduğunda sales tekrar çek
-  useEffect(() => {
-    if (activeTab === "kasa") {
-      productService.getAllSales().then(setSales);
-    }
-  }, [activeTab]);
+  const [scanLoading, setScanLoading] = useState(false);
 
   useEffect(() => {
     setScannerActive(activeTab === "scanner");
@@ -88,8 +71,6 @@ export default function Home() {
     setShowProductForm(true);
   };
 
-  // handleDeleteProduct fonksiyonu kullanılmıyor, kaldırıldı
-
   const handleSaveProduct = async (product: Product) => {
     try {
       if (editingProduct) {
@@ -99,8 +80,6 @@ export default function Home() {
         await productService.create(product);
         showNotification("Yeni ürün eklendi", "success");
       }
-      const products = await productService.getAll();
-      setProducts(products);
       setShowProductForm(false);
       setEditingProduct(null);
     } catch {
@@ -112,42 +91,65 @@ export default function Home() {
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await file.arrayBuffer());
-    const worksheet = workbook.worksheets[0];
-    worksheet.eachRow((row: Row, rowNumber: number) => {
-      if (rowNumber === 1) return; // başlık satırı
-      const values = Array.isArray(row.values) ? row.values : [];
-      const [barcode, name, price, stock, category, brand] = values.slice(1);
-      if (!barcode || !name) return;
-      handleSaveProduct({
-        id: "",
-        barcode: typeof barcode === "string" ? barcode : String(barcode),
-        name: typeof name === "string" ? name : String(name),
-        price: parseFloat(
-          price !== undefined && price !== null ? price.toString() : "0"
-        ),
-        stock: parseInt(
-          stock !== undefined && stock !== null ? stock.toString() : "0"
-        ),
-        category: category?.toString() || "",
-        brand: brand?.toString() || "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+
+    try {
+      const { default: ExcelJS } = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(await file.arrayBuffer());
+      const worksheet = workbook.worksheets[0];
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      worksheet.eachRow((row: any, rowNumber: number) => {
+        if (rowNumber === 1) return; // başlık satırı
+        const values = Array.isArray(row.values) ? row.values : [];
+        const [barcode, name, price, stock, category, brand] = values.slice(1);
+        if (!barcode || !name) return;
+
+        try {
+          handleSaveProduct({
+            id: "",
+            barcode: typeof barcode === "string" ? barcode : String(barcode),
+            name: typeof name === "string" ? name : String(name),
+            price: parseFloat(
+              price !== undefined && price !== null ? price.toString() : "0"
+            ),
+            stock: parseInt(
+              stock !== undefined && stock !== null ? stock.toString() : "0"
+            ),
+            category: category?.toString() || "",
+            brand: brand?.toString() || "",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          successCount++;
+        } catch {
+          errorCount++;
+        }
       });
-    });
-    alert("Toplu ürün ekleme tamamlandı!");
+
+      showNotification(
+        `Toplu yükleme tamamlandı! Başarılı: ${successCount}, Hata: ${errorCount}`,
+        errorCount > 0 ? "warning" : "success"
+      );
+    } catch {
+      showNotification("Excel dosyası okunamadı", "error");
+    }
   };
 
   const handleScan = async (result: ScanResult) => {
     const barcode = result.text;
+    setScanLoading(true);
     setScannerActive(false);
+
     // Önce tüm modal state'lerini kapat
     setShowSaleModal(false);
     setShowProductForm(false);
     setEditingProduct(null);
     setSelectedProduct(null);
     setPrefilledBarcode("");
+
     try {
       const product = await productService.getProductByBarcode(barcode);
       if (product && product.name) {
@@ -158,128 +160,130 @@ export default function Home() {
         setEditingProduct(null);
         setPrefilledBarcode(barcode);
         setShowProductForm(true);
-        showNotification("Ürün bulunamadı", "warning");
+        showNotification(
+          "Ürün bulunamadı, yeni ürün ekleyebilirsiniz",
+          "warning"
+        );
       }
     } catch {
       showNotification("Barkod sorgulanırken hata oluştu", "error");
+    } finally {
+      setScanLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      {loading ? (
-        <div className="flex items-center justify-center min-h-screen">
-          <Loader2 className="w-16 h-16 animate-spin text-primary-600 dark:text-primary-400" />
-        </div>
-      ) : (
-        <>
-          <Header
-            lowStockCount={
-              products.filter((p) => p.stock <= 5 && p.stock > 0).length
-            }
-            activeTab={activeTab}
-            onAddProduct={() => {
-              setEditingProduct(null);
-              setShowProductForm(true);
-            }}
-            onBulkUpload={handleBulkUpload}
-          />
-          {notification && (
-            <Notification
-              message={notification.message}
-              type={notification.type}
-              onClose={() => setNotification(null)}
-            />
-          )}
-          <Navigation
-            activeTab={activeTab}
-            onTabChange={(tab) => setActiveTab(tab as Tab)}
-          />
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {activeTab === "products" && (
-              <ProductsPage
-                products={products}
-                onEdit={handleEditProduct}
-                onDelete={() => {}}
-                onView={setSelectedProduct}
-              />
-            )}
-            {activeTab === "sales" && (
-              <SalesPage sales={sales} products={products} />
-            )}
-            {activeTab === "analytics" && <AnalyticsPage />}
-            {activeTab === "scanner" && (
-              <BarcodeScanner onScan={handleScan} isActive={scannerActive} />
-            )}
-
-            {activeTab === "kasa" && <KasaPage />}
-            {activeTab === "giderler" && <GiderlerPage />}
-          </main>
-          {showProductForm && (
-            <ProductForm
-              product={editingProduct}
-              prefilledBarcode={prefilledBarcode || ""}
-              onSave={async (product) => {
-                try {
-                  await productService.create(product);
-                  const products = await productService.getAll();
-                  setProducts(products);
-                  setShowProductForm(false);
-                  setEditingProduct(null);
-                  setPrefilledBarcode("");
-                  setScannerActive(true);
-                  showNotification("Ürün başarıyla eklendi", "success");
-                } catch (error) {
-                  let msg = "Ürün eklenirken hata oluştu";
-                  if (
-                    typeof error === "object" &&
-                    error !== null &&
-                    "message" in error &&
-                    typeof (error as { message?: string }).message ===
-                      "string" &&
-                    (error as { message?: string }).message?.includes(
-                      "duplicate key"
-                    )
-                  ) {
-                    msg = "Bu barkod zaten kayıtlı!";
-                  }
-                  setShowProductForm(false);
-                  setEditingProduct(null);
-                  setPrefilledBarcode("");
-                  setScannerActive(true);
-                  showNotification(msg, "error");
-                }
-              }}
-              onCancel={() => {
-                setShowProductForm(false);
-                setEditingProduct(null);
-                setPrefilledBarcode("");
-                setScannerActive(true);
-              }}
-            />
-          )}
-          {showSaleModal &&
-            selectedProduct &&
-            selectedProduct.price !== undefined &&
-            selectedProduct.stock !== undefined && (
-              <SaleModal
-                product={selectedProduct}
-                onAddToCart={(product, quantity) => {
-                  // Sepete ekleme işlemi burada yapılacak
-                  console.log("Ürün sepete eklendi:", product, quantity);
-                  setShowSaleModal(false);
-                  setSelectedProduct(null);
-                  setScannerActive(true);
-                }}
-                onClose={() => {
-                  setShowSaleModal(false);
-                  setSelectedProduct(null);
-                  setScannerActive(true);
-                }}
-              />
-            )}
-        </>
+      <Header
+        activeTab={activeTab}
+        onAddProduct={() => {
+          setEditingProduct(null);
+          setShowProductForm(true);
+        }}
+        onBulkUpload={handleBulkUpload}
+      />
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
       )}
+      <Navigation
+        activeTab={activeTab}
+        onTabChange={(tab) => setActiveTab(tab as Tab)}
+      />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Suspense fallback={<PageLoader />}>
+          {activeTab === "products" && (
+            <ProductsPage
+              onEdit={handleEditProduct}
+              onDelete={() => {}}
+              onView={setSelectedProduct}
+            />
+          )}
+          {activeTab === "sales" && <SalesPage />}
+          {activeTab === "analytics" && <AnalyticsPage />}
+          {activeTab === "scanner" && (
+            <div className="relative">
+              {scanLoading && (
+                <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-xl">
+                  <div className="text-center">
+                    <Loader2 className="w-12 h-12 animate-spin text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+                    <p className="text-gray-600 dark:text-gray-400 font-medium">
+                      Ürün aranıyor...
+                    </p>
+                  </div>
+                </div>
+              )}
+              <BarcodeScanner onScan={handleScan} isActive={scannerActive} />
+            </div>
+          )}
+
+          {activeTab === "kasa" && <KasaPage />}
+          {activeTab === "giderler" && <GiderlerPage />}
+        </Suspense>
+      </main>
+      {showProductForm && (
+        <ProductForm
+          product={editingProduct}
+          prefilledBarcode={prefilledBarcode || ""}
+          onSave={async (product) => {
+            try {
+              await productService.create(product);
+              setShowProductForm(false);
+              setEditingProduct(null);
+              setPrefilledBarcode("");
+              setScannerActive(true);
+              showNotification("Ürün başarıyla eklendi", "success");
+            } catch (error) {
+              let msg = "Ürün eklenirken hata oluştu";
+              if (
+                typeof error === "object" &&
+                error !== null &&
+                "message" in error &&
+                typeof (error as { message?: string }).message === "string" &&
+                (error as { message?: string }).message?.includes(
+                  "duplicate key"
+                )
+              ) {
+                msg = "Bu barkod zaten kayıtlı!";
+              }
+              setShowProductForm(false);
+              setEditingProduct(null);
+              setPrefilledBarcode("");
+              setScannerActive(true);
+              showNotification(msg, "error");
+            }
+          }}
+          onCancel={() => {
+            setShowProductForm(false);
+            setEditingProduct(null);
+            setPrefilledBarcode("");
+            setScannerActive(true);
+          }}
+        />
+      )}
+      {showSaleModal &&
+        selectedProduct &&
+        selectedProduct.price !== undefined &&
+        selectedProduct.stock !== undefined && (
+          <SaleModal
+            product={selectedProduct}
+            onAddToCart={(product, quantity) => {
+              // Sepete ekleme işlemi burada yapılacak
+              console.log("Ürün sepete eklendi:", product, quantity);
+              setShowSaleModal(false);
+              setSelectedProduct(null);
+              setScannerActive(true);
+            }}
+            onClose={() => {
+              setShowSaleModal(false);
+              setSelectedProduct(null);
+              setScannerActive(true);
+            }}
+          />
+        )}
     </div>
   );
 }

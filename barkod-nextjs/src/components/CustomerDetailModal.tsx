@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Customer, Sale, Debt, CustomerPayment, SubCustomer } from "../types";
+import { Customer, Debt, CustomerPayment, SubCustomer } from "../types";
 import { customerService } from "../services/customerService";
 import { debtService } from "../services/debtService";
 import { customerPaymentService } from "../services/customerPaymentService";
@@ -114,7 +114,7 @@ const CustomerDetailModal = ({
       // Satış bilgilerini getir
       axios
         .get(`/api/sales?customerId=${customer.id}`)
-        .then((response) => {
+        .then(() => {
           // Sales data is not used currently
         })
         .catch((error) => {
@@ -262,6 +262,28 @@ const CustomerDetailModal = ({
               </div>
             </div>
           </div>
+
+          {/* Kapatma Butonu */}
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="Kapat"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+
           <div className="flex flex-row gap-8 flex-shrink-0">
             <div className="flex flex-col items-center">
               <span className="text-xs text-gray-500 dark:text-gray-400">

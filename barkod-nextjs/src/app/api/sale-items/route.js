@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import dbConnect from "../utils/db";
+import connectDB from "../utils/db.js";
 import SaleItem from "../models/SaleItem";
 
 export async function GET(req) {
   try {
-    await dbConnect();
+    await connectDB();
     const { searchParams } = new URL(req.url);
 
     const saleId = searchParams.get("saleId");
@@ -39,7 +39,7 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    await dbConnect();
+    await connectDB();
     const body = await req.json();
 
     const saleItems = [];

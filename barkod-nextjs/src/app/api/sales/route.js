@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../utils/db";
+import connectDB from "../utils/db.js";
 import Sale from "../models/Sale";
 import Product from "../models/Product";
 import Debt from "../models/Debt";
@@ -8,10 +8,13 @@ import SubCustomer from "../models/SubCustomer";
 export async function GET(request) {
   await connectDB();
   const { searchParams } = new URL(request.url);
-  const limit = parseInt(searchParams.get("limit")) || 1000; // Limit'i artırdık
+  const limit = parseInt(searchParams.get("limit")) || 50;
   const skip = parseInt(searchParams.get("skip")) || 0;
   const search = searchParams.get("search");
   const customerId = searchParams.get("customerId");
+  const period = searchParams.get("period");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
 
   try {
     let query = {};
@@ -29,6 +32,53 @@ export async function GET(request) {
       query.customerId = customerId;
     }
 
+    // Tarih filtresi
+    if (period && period !== "all") {
+      const now = new Date();
+      let startOfPeriod, endOfPeriod;
+
+      switch (period) {
+        case "today":
+          startOfPeriod = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate()
+          );
+          endOfPeriod = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() + 1
+          );
+          break;
+        case "week":
+          const dayOfWeek = now.getDay();
+          const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+          startOfPeriod = new Date(now.getFullYear(), now.getMonth(), diff);
+          endOfPeriod = new Date(
+            startOfPeriod.getTime() + 7 * 24 * 60 * 60 * 1000
+          );
+          break;
+        case "month":
+          startOfPeriod = new Date(now.getFullYear(), now.getMonth(), 1);
+          endOfPeriod = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+          break;
+        case "custom":
+          if (startDate && endDate) {
+            startOfPeriod = new Date(startDate);
+            endOfPeriod = new Date(endDate);
+            endOfPeriod.setDate(endOfPeriod.getDate() + 1);
+          }
+          break;
+      }
+
+      if (startOfPeriod && endOfPeriod) {
+        query.createdAt = {
+          $gte: startOfPeriod,
+          $lt: endOfPeriod,
+        };
+      }
+    }
+
     // Silinmiş satışları getirme
     query.status = { $ne: "deleted" };
 
@@ -42,7 +92,15 @@ export async function GET(request) {
       .sort({ createdAt: -1 }) // En yeni satışlar önce
       .skip(skip)
       .limit(limit);
-    return NextResponse.json(sales);
+
+    // Daha fazla satış var mı kontrol et
+    const hasMore = sales.length === limit;
+
+    return NextResponse.json({
+      sales,
+      hasMore,
+      nextSkip: skip + limit,
+    });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

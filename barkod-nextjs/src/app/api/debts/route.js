@@ -1,12 +1,78 @@
 import { NextResponse } from "next/server";
-import connectDB from "../utils/db";
+import connectDB from "../utils/db.js";
 import Debt from "../models/Debt";
 
 // Tüm borçları getir
-export async function GET() {
+export async function GET(request) {
   try {
     await connectDB();
-    const debts = await Debt.find()
+    const { searchParams } = new URL(request.url);
+
+    // Query parametreleri
+    const vendorId = searchParams.get("vendorId");
+    const search = searchParams.get("search");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = searchParams.get("sortOrder") || "desc";
+    const skip = parseInt(searchParams.get("skip") || "0");
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const typeFilter = searchParams.get("typeFilter");
+    const amountRange = searchParams.get("amountRange");
+
+    // Filtreleme objesi oluştur
+    const filter = {};
+
+    if (vendorId) {
+      filter.vendorId = vendorId;
+    }
+
+    if (search) {
+      filter.$or = [
+        { description: { $regex: search, $options: "i" } },
+        { notes: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) filter.createdAt.$lte = new Date(endDate + "T23:59:59.999Z");
+    }
+
+    // Tutar aralığı filtresi
+    if (amountRange && amountRange !== "all") {
+      switch (amountRange) {
+        case "low":
+          filter.amount = { $gte: 0, $lte: 1000 };
+          break;
+        case "medium":
+          filter.amount = { $gt: 1000, $lte: 10000 };
+          break;
+        case "high":
+          filter.amount = { $gt: 10000 };
+          break;
+      }
+    }
+
+    // Tip filtresi - sadece borçlar
+    if (typeFilter === "debt") {
+      // Sadece borçları getir
+    } else if (typeFilter === "payment") {
+      // Borçları getirme, ödemeler ayrı API'den gelecek
+      return NextResponse.json({
+        debts: [],
+        hasMore: false,
+        nextSkip: skip,
+        total: 0,
+      });
+    }
+
+    // Sıralama
+    const sort = {};
+    sort[sortBy] = sortOrder === "asc" ? 1 : -1;
+
+    const debts = await Debt.find(filter)
       .populate({ path: "customerId", select: "name phone" })
       .populate({
         path: "subCustomerId",
@@ -14,9 +80,19 @@ export async function GET() {
         strictPopulate: false,
       })
       .populate("saleId")
-      .sort({ createdAt: -1 });
+      .sort(sort)
+      .skip(skip)
+      .limit(limit);
 
-    return NextResponse.json(debts);
+    const total = await Debt.countDocuments(filter);
+    const hasMore = skip + limit < total;
+
+    return NextResponse.json({
+      debts,
+      hasMore,
+      nextSkip: skip + limit,
+      total,
+    });
   } catch (error) {
     console.error("Borç getirme hatası:", error);
     return NextResponse.json(

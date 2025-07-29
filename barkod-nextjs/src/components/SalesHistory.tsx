@@ -150,7 +150,7 @@ const SalesHistory: React.FC<SalesHistoryProps> = ({ sales }) => {
                   {sale.items?.length ? `${sale.items.length} ürün` : "Satış"}
                 </div>
                 <div className="text-sm text-gray-500">
-                  Müşteri: {sale.customer}
+                  Müşteri: {sale.customerId || "Bilinmeyen"}
                 </div>
               </div>
 

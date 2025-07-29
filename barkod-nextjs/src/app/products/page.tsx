@@ -16,11 +16,13 @@ const fetcher = (url: string) =>
   fetch(`${API_URL}${url}`).then((res) => res.json());
 
 export default function Page() {
-  const { data: products = [], mutate } = useSWR(
-    `${API_URL}/api/products`,
-    fetcher,
-    { fallbackData: [] }
-  );
+  const { mutate } = useSWR(`${API_URL}/api/products`, fetcher, {
+    fallbackData: [],
+  });
+
+  useSWR(`${API_URL}/api/products/low-stock-count`, fetcher, {
+    fallbackData: { lowStockCount: 0 },
+  });
   const [activeTab, setActiveTab] = useState<Tab>("products");
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -60,7 +62,6 @@ export default function Page() {
         </div>
       )}
       <Header
-        lowStockCount={products.filter((p: Product) => p.stock <= 5).length}
         activeTab={activeTab}
         onAddProduct={() => {
           setEditingProduct(null);
@@ -73,7 +74,6 @@ export default function Page() {
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <ProductsPage
-          products={products}
           onEdit={async (product) => {
             setEditingProduct(product);
             setShowProductForm(true);

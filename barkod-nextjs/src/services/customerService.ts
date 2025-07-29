@@ -7,20 +7,16 @@ const CUSTOMER_API = "/api/customers";
 export const customerService = {
   getAll: async (
     search?: string,
-    page: number = 1,
+    skip: number = 0,
     limit: number = 50
   ): Promise<{
     customers: Customer[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
+    hasMore: boolean;
+    nextSkip: number;
   }> => {
     const params = new URLSearchParams();
     if (search) params.append("search", search);
-    params.append("page", page.toString());
+    params.append("skip", skip.toString());
     params.append("limit", limit.toString());
 
     const url = `${API_URL}/api/customers?${params.toString()}`;
@@ -31,7 +27,8 @@ export const customerService = {
         ...c,
         id: c._id || c.id,
       })),
-      pagination: res.data.pagination,
+      hasMore: res.data.hasMore,
+      nextSkip: res.data.nextSkip,
     };
   },
   create: async (

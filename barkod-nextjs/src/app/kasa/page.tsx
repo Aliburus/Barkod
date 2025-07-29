@@ -66,14 +66,29 @@ const KasaPage: React.FC = () => {
 
   if (error) return <div className="text-red-500">Veri hatası oluştu</div>;
   if (isLoading) return <div className="text-gray-500">Yükleniyor...</div>;
+
   console.log("KasaPage sales:", sales);
+
+  // Ensure sales is an array and handle new format
+  const salesArray = Array.isArray(sales) ? sales : [];
+
   // Satışları güne göre grupla (00:00-23:59)
   const grouped: Record<string, Sale[]> = {};
-  sales.forEach((sale: Sale) => {
-    const date = sale.soldAt.split("T")[0];
-    if (!grouped[date]) grouped[date] = [];
-    grouped[date].push(sale);
+  salesArray.forEach((sale: Sale) => {
+    // Handle new format with items array
+    if (sale.items && sale.items.length > 0) {
+      // For new format, use the first item's date or sale date
+      const date = (sale.soldAt || sale.createdAt).split("T")[0];
+      if (!grouped[date]) grouped[date] = [];
+      grouped[date].push(sale);
+    } else {
+      // Fallback for old format
+      const date = (sale.soldAt || sale.createdAt).split("T")[0];
+      if (!grouped[date]) grouped[date] = [];
+      grouped[date].push(sale);
+    }
   });
+
   // Tarih sıralı dizi
   const dates = Object.keys(grouped).sort();
 
@@ -85,18 +100,63 @@ const KasaPage: React.FC = () => {
     const daySales = grouped[date];
     const nakit = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "nakit")
-      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+      .reduce((sum, s) => {
+        // Handle new format with items array
+        if (s.items && s.items.length > 0) {
+          return (
+            sum +
+            s.items.reduce(
+              (itemSum, item) => itemSum + item.price * item.quantity,
+              0
+            )
+          );
+        }
+        return sum + (s.totalAmount || 0);
+      }, 0);
     const krediKarti = daySales
       .filter(
         (s) => (s.paymentType || "").trim().toLowerCase() === "kredi kartı"
       )
-      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+      .reduce((sum, s) => {
+        if (s.items && s.items.length > 0) {
+          return (
+            sum +
+            s.items.reduce(
+              (itemSum, item) => itemSum + item.price * item.quantity,
+              0
+            )
+          );
+        }
+        return sum + (s.totalAmount || 0);
+      }, 0);
     const havale = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "havale")
-      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+      .reduce((sum, s) => {
+        if (s.items && s.items.length > 0) {
+          return (
+            sum +
+            s.items.reduce(
+              (itemSum, item) => itemSum + item.price * item.quantity,
+              0
+            )
+          );
+        }
+        return sum + (s.totalAmount || 0);
+      }, 0);
     const diger = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "diğer")
-      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+      .reduce((sum, s) => {
+        if (s.items && s.items.length > 0) {
+          return (
+            sum +
+            s.items.reduce(
+              (itemSum, item) => itemSum + item.price * item.quantity,
+              0
+            )
+          );
+        }
+        return sum + (s.totalAmount || 0);
+      }, 0);
 
     // Günlük toplam satış
     const dailySales = nakit + krediKarti + havale + diger;
@@ -108,18 +168,62 @@ const KasaPage: React.FC = () => {
     const daySales = grouped[date];
     const nakit = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "nakit")
-      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+      .reduce((sum, s) => {
+        if (s.items && s.items.length > 0) {
+          return (
+            sum +
+            s.items.reduce(
+              (itemSum, item) => itemSum + item.price * item.quantity,
+              0
+            )
+          );
+        }
+        return sum + (s.totalAmount || 0);
+      }, 0);
     const krediKarti = daySales
       .filter(
         (s) => (s.paymentType || "").trim().toLowerCase() === "kredi kartı"
       )
-      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+      .reduce((sum, s) => {
+        if (s.items && s.items.length > 0) {
+          return (
+            sum +
+            s.items.reduce(
+              (itemSum, item) => itemSum + item.price * item.quantity,
+              0
+            )
+          );
+        }
+        return sum + (s.totalAmount || 0);
+      }, 0);
     const havale = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "havale")
-      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+      .reduce((sum, s) => {
+        if (s.items && s.items.length > 0) {
+          return (
+            sum +
+            s.items.reduce(
+              (itemSum, item) => itemSum + item.price * item.quantity,
+              0
+            )
+          );
+        }
+        return sum + (s.totalAmount || 0);
+      }, 0);
     const diger = daySales
       .filter((s) => (s.paymentType || "").trim().toLowerCase() === "diğer")
-      .reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+      .reduce((sum, s) => {
+        if (s.items && s.items.length > 0) {
+          return (
+            sum +
+            s.items.reduce(
+              (itemSum, item) => itemSum + item.price * item.quantity,
+              0
+            )
+          );
+        }
+        return sum + (s.totalAmount || 0);
+      }, 0);
     // Tahsilat, harcama, banka değerleri elle giriliyor, sadece son gün için uygulanacak
     const tahsilat = date === dates[dates.length - 1] ? manualTahsilat || 0 : 0;
     const harcama = date === dates[dates.length - 1] ? manualHarcama || 0 : 0;
@@ -202,7 +306,7 @@ const KasaPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
-      <Header activeTab="kasa" lowStockCount={0} onAddProduct={() => {}} />
+      <Header activeTab="kasa" onAddProduct={() => {}} />
       <Navigation activeTab="kasa" onTabChange={() => {}} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../../../utils/db";
+import connectDB from "../../../utils/db.js";
 import Sale from "../../../models/Sale";
 
 export async function PATCH(request, context) {

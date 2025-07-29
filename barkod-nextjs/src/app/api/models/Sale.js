@@ -21,13 +21,7 @@ const SaleSchema = new mongoose.Schema({
   isDebt: { type: Boolean, default: false },
   dueDate: { type: Date },
 
-  // Eski format için alanlar (opsiyonel)
-  barcode: { type: String, required: false },
-  quantity: { type: Number, required: false },
   soldAt: { type: Date, default: Date.now },
-  price: { type: Number, required: false },
-  productName: { type: String, required: false },
-  customer: { type: String, required: false },
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import connectDB from "../../../api/utils/db";
-import Sale from "../../../api/models/Sale";
+import connectDB from "../../utils/db.js";
+import Sale from "../../models/Sale.js";
 
 export async function GET() {
   await connectDB();

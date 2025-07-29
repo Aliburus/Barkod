@@ -8,22 +8,18 @@ export const customerPaymentService = {
     customerId?: string,
     startDate?: string,
     endDate?: string,
-    page: number = 1,
+    skip: number = 0,
     limit: number = 50
   ): Promise<{
     payments: CustomerPayment[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
+    hasMore: boolean;
+    nextSkip: number;
   }> => {
     const params = new URLSearchParams();
     if (customerId) params.append("customerId", customerId);
     if (startDate) params.append("startDate", startDate);
     if (endDate) params.append("endDate", endDate);
-    params.append("page", page.toString());
+    params.append("skip", skip.toString());
     params.append("limit", limit.toString());
 
     const url = `${API_URL}/api/customer-payments?${params.toString()}`;
@@ -34,7 +30,8 @@ export const customerPaymentService = {
         ...p,
         id: p._id,
       })),
-      pagination: res.data.pagination,
+      hasMore: res.data.hasMore,
+      nextSkip: res.data.nextSkip,
     };
   },
 

@@ -250,7 +250,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         >
           <div className="flex flex-col gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Barkod *
               </label>
               <input
@@ -264,7 +264,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Ürün Adı *
               </label>
               <input
@@ -279,7 +279,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                   Fiyat (₺) *
                 </label>
                 <input
@@ -295,7 +295,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                   Stok *
                 </label>
                 <input
@@ -311,7 +311,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Alış Fiyatı (₺)
               </label>
               <input
@@ -324,7 +324,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 OEM
               </label>
               <input
@@ -337,7 +337,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Kod 1
               </label>
               <input
@@ -350,7 +350,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Kod 2
               </label>
               <input
@@ -363,7 +363,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Kullanılan Araçlar
               </label>
               <input
@@ -378,7 +378,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           </div>
           <div className="flex flex-col gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Kategori
               </label>
               <input
@@ -391,7 +391,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Marka
               </label>
               <input
@@ -404,7 +404,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Raf
               </label>
               <input
@@ -417,7 +417,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-white mb-1">
                 Tedarikçi
               </label>
               <div className="text-xs text-gray-500 mb-1">

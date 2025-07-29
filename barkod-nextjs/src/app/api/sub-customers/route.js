@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../utils/db";
+import connectDB from "../utils/db.js";
 import SubCustomer from "../models/SubCustomer";
 
 export async function GET(request) {
@@ -7,9 +7,8 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const customerId = searchParams.get("customerId");
   const search = searchParams.get("search");
-  const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
-  const skip = (page - 1) * limit;
+  const skip = parseInt(searchParams.get("skip") || "0");
 
   let query = {};
 
@@ -27,10 +26,7 @@ export async function GET(request) {
     ];
   }
 
-  // Toplam sayıyı al
-  const total = await SubCustomer.countDocuments(query);
-
-  // SubCustomer'ları getir (pagination ile)
+  // SubCustomer'ları getir (infinite scroll için)
   const subCustomers = await SubCustomer.find(query)
     .populate("customerId", "name phone")
     .sort({ createdAt: -1 })
@@ -38,14 +34,13 @@ export async function GET(request) {
     .limit(limit)
     .lean();
 
+  // Daha fazla alt müşteri var mı kontrol et
+  const hasMore = subCustomers.length === limit;
+
   return NextResponse.json({
     subCustomers,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
+    hasMore,
+    nextSkip: skip + limit,
   });
 }
 

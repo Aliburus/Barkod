@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../utils/db";
+import connectDB from "../utils/db.js";
 import Vendor from "../models/Vendor";
 
 export async function GET(request) {
@@ -7,9 +7,8 @@ export async function GET(request) {
     await connectDB();
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search");
-    const page = parseInt(searchParams.get("page")) || 1;
-    const limit = 50;
-    const skip = (page - 1) * limit;
+    const limit = parseInt(searchParams.get("limit")) || 50;
+    const skip = parseInt(searchParams.get("skip")) || 0;
 
     let query = { status: { $ne: "deleted" } };
 
@@ -30,7 +29,8 @@ export async function GET(request) {
       .limit(limit)
       .lean();
 
-    const total = await Vendor.countDocuments(query);
+    // Daha fazla tedarikçi var mı kontrol et
+    const hasMore = vendors.length === limit;
 
     return NextResponse.json({
       vendors: vendors.map((vendor) => ({
@@ -39,7 +39,8 @@ export async function GET(request) {
         createdAt: vendor.createdAt.toString(),
         updatedAt: vendor.updatedAt.toString(),
       })),
-      total,
+      hasMore,
+      nextSkip: skip + limit,
     });
   } catch (error) {
     console.error("Vendors GET error:", error);

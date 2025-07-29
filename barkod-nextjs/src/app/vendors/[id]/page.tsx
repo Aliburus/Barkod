@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Vendor,
@@ -11,7 +11,316 @@ import {
 import { vendorService } from "../../../services/vendorService";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { ArrowLeft, Search, Package, DollarSign, Plus } from "lucide-react";
+import {
+  ArrowLeft,
+  Search,
+  Package,
+  DollarSign,
+  Plus,
+  Filter,
+  SortAsc,
+  SortDesc,
+  AlertCircle,
+} from "lucide-react";
+
+// Custom hook for infinite scroll purchase orders
+const useInfinitePurchaseOrders = (vendorId: string, filters: any) => {
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [skip, setSkip] = useState(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+
+  useEffect(() => {
+    // Eğer filters null ise yükleme yapma
+    if (!filters) {
+      setOrders([]);
+      setLoading(false);
+      setHasMore(false);
+      return;
+    }
+
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    const fetchOrders = async () => {
+      setLoading(true);
+      setSkip(0);
+      setHasMore(true);
+      try {
+        const params = new URLSearchParams();
+        params.append("vendorId", vendorId);
+        params.append("skip", "0");
+
+        // Add filters
+        if (filters.search) params.append("search", filters.search);
+        if (filters.startDate) params.append("startDate", filters.startDate);
+        if (filters.endDate) params.append("endDate", filters.endDate);
+        if (filters.sortBy) params.append("sortBy", filters.sortBy);
+        if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+
+        const response = await fetch(
+          `/api/purchase-orders?${params.toString()}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setOrders(data.orders || data);
+          setHasMore(data.hasMore || false);
+          setSkip(data.nextSkip || 50);
+        }
+      } catch (error) {
+        console.error("Siparişler yüklenirken hata:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    timeoutRef.current = setTimeout(fetchOrders, 150); // Reduced from 300ms to 150ms
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [vendorId, filters]);
+
+  const loadMore = async () => {
+    if (loading || !hasMore) return;
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("vendorId", vendorId);
+      params.append("skip", skip.toString());
+
+      // Add filters
+      if (filters.search) params.append("search", filters.search);
+      if (filters.startDate) params.append("startDate", filters.startDate);
+      if (filters.endDate) params.append("endDate", filters.endDate);
+      if (filters.sortBy) params.append("sortBy", filters.sortBy);
+      if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+
+      const response = await fetch(`/api/purchase-orders?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setOrders((prev) => [...prev, ...(data.orders || data)]);
+        setHasMore(data.hasMore || false);
+        setSkip(data.nextSkip || skip + 50);
+      }
+    } catch (error) {
+      console.error("Daha fazla sipariş yüklenirken hata:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { orders, loading, hasMore, loadMore };
+};
+
+// Custom hook for infinite scroll debts
+const useInfiniteDebts = (vendorId: string, filters: any) => {
+  const [debts, setDebts] = useState<VendorDebt[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [skip, setSkip] = useState(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+
+  useEffect(() => {
+    // Eğer filters null ise yükleme yapma
+    if (!filters) {
+      setDebts([]);
+      setLoading(false);
+      setHasMore(false);
+      return;
+    }
+
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    const fetchDebts = async () => {
+      setLoading(true);
+      setSkip(0);
+      setHasMore(true);
+      try {
+        const params = new URLSearchParams();
+        params.append("vendorId", vendorId);
+        params.append("skip", "0");
+
+        // Add filters
+        if (filters.search) params.append("search", filters.search);
+        if (filters.startDate) params.append("startDate", filters.startDate);
+        if (filters.endDate) params.append("endDate", filters.endDate);
+        if (filters.sortBy) params.append("sortBy", filters.sortBy);
+        if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+        if (filters.amountRange)
+          params.append("amountRange", filters.amountRange);
+        if (filters.typeFilter) params.append("typeFilter", filters.typeFilter);
+
+        const response = await fetch(`/api/my-debts?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          setDebts(data.debts || data);
+          setHasMore(data.hasMore || false);
+          setSkip(data.nextSkip || 50);
+        }
+      } catch (error) {
+        console.error("Borçlar yüklenirken hata:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    timeoutRef.current = setTimeout(fetchDebts, 150); // Reduced from 300ms to 150ms
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [vendorId, filters]);
+
+  const loadMore = async () => {
+    if (loading || !hasMore) return;
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("vendorId", vendorId);
+      params.append("skip", skip.toString());
+
+      // Add filters
+      if (filters.search) params.append("search", filters.search);
+      if (filters.startDate) params.append("startDate", filters.startDate);
+      if (filters.endDate) params.append("endDate", filters.endDate);
+      if (filters.sortBy) params.append("sortBy", filters.sortBy);
+      if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+      if (filters.amountRange)
+        params.append("amountRange", filters.amountRange);
+      if (filters.typeFilter) params.append("typeFilter", filters.typeFilter);
+
+      const response = await fetch(`/api/my-debts?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setDebts((prev) => [...prev, ...(data.debts || data)]);
+        setHasMore(data.hasMore || false);
+        setSkip(data.nextSkip || skip + 50);
+      }
+    } catch (error) {
+      console.error("Daha fazla borç yüklenirken hata:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { debts, loading, hasMore, loadMore };
+};
+
+// Custom hook for infinite scroll payments
+const useInfinitePayments = (vendorId: string, filters: any) => {
+  const [payments, setPayments] = useState<VendorPayment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [skip, setSkip] = useState(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+
+  useEffect(() => {
+    // Eğer filters null ise yükleme yapma
+    if (!filters) {
+      setPayments([]);
+      setLoading(false);
+      setHasMore(false);
+      return;
+    }
+
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    const fetchPayments = async () => {
+      setLoading(true);
+      setSkip(0);
+      setHasMore(true);
+      try {
+        const params = new URLSearchParams();
+        params.append("vendorId", vendorId);
+        params.append("skip", "0");
+
+        // Add filters
+        if (filters.search) params.append("search", filters.search);
+        if (filters.startDate) params.append("startDate", filters.startDate);
+        if (filters.endDate) params.append("endDate", filters.endDate);
+        if (filters.sortBy) params.append("sortBy", filters.sortBy);
+        if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+        if (filters.amountRange)
+          params.append("amountRange", filters.amountRange);
+        if (filters.typeFilter) params.append("typeFilter", filters.typeFilter);
+
+        const response = await fetch(`/api/my-payments?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          setPayments(data.payments || data);
+          setHasMore(data.hasMore || false);
+          setSkip(data.nextSkip || 50);
+        }
+      } catch (error) {
+        console.error("Ödemeler yüklenirken hata:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    timeoutRef.current = setTimeout(fetchPayments, 150); // Reduced from 300ms to 150ms
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [vendorId, filters]);
+
+  const loadMore = async () => {
+    if (loading || !hasMore) return;
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("vendorId", vendorId);
+      params.append("skip", skip.toString());
+
+      // Add filters
+      if (filters.search) params.append("search", filters.search);
+      if (filters.startDate) params.append("startDate", filters.startDate);
+      if (filters.endDate) params.append("endDate", filters.endDate);
+      if (filters.sortBy) params.append("sortBy", filters.sortBy);
+      if (filters.sortOrder) params.append("sortOrder", filters.sortOrder);
+      if (filters.amountRange)
+        params.append("amountRange", filters.amountRange);
+      if (filters.typeFilter) params.append("typeFilter", filters.typeFilter);
+
+      const response = await fetch(`/api/my-payments?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPayments((prev) => [...prev, ...(data.payments || data)]);
+        setHasMore(data.hasMore || false);
+        setSkip(data.nextSkip || skip + 50);
+      }
+    } catch (error) {
+      console.error("Daha fazla ödeme yüklenirken hata:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { payments, loading, hasMore, loadMore };
+};
 
 const VendorDetailPage: React.FC = () => {
   const params = useParams();
@@ -19,11 +328,8 @@ const VendorDetailPage: React.FC = () => {
   const vendorId = params.id as string;
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [myDebts, setMyDebts] = useState<VendorDebt[]>([]);
-  const [myPayments, setMyPayments] = useState<VendorPayment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"orders" | "debts" | "payments">(
     "orders"
   );
@@ -37,86 +343,126 @@ const VendorDetailPage: React.FC = () => {
     notes: "",
   });
 
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Borç ve ödemeler için özel filtreler
+  const [typeFilter, setTypeFilter] = useState<"all" | "debt" | "payment">(
+    "all"
+  );
+  const [amountRange, setAmountRange] = useState<
+    "all" | "low" | "medium" | "high"
+  >("all");
+
+  // Create filters object for hooks - optimized with useMemo
+  const filters = React.useMemo(
+    () => ({
+      search: searchTerm,
+      startDate,
+      endDate,
+      sortBy,
+      sortOrder,
+      typeFilter,
+      amountRange,
+    }),
+    [searchTerm, startDate, endDate, sortBy, sortOrder, typeFilter, amountRange]
+  );
+
+  // Infinite scroll hooks - sadece aktif sekme için yükle
+  const {
+    orders,
+    loading: ordersLoading,
+    hasMore: ordersHasMore,
+    loadMore: loadMoreOrders,
+  } = useInfinitePurchaseOrders(
+    vendorId,
+    activeTab === "orders" ? filters : null
+  );
+  const {
+    debts,
+    loading: debtsLoading,
+    hasMore: debtsHasMore,
+    loadMore: loadMoreDebts,
+  } = useInfiniteDebts(vendorId, activeTab === "debts" ? filters : null);
+  const {
+    payments,
+    loading: paymentsLoading,
+    hasMore: paymentsHasMore,
+    loadMore: loadMorePayments,
+  } = useInfinitePayments(vendorId, activeTab === "debts" ? filters : null);
+
   useEffect(() => {
     const fetchVendorData = async () => {
+      if (!vendorId) return;
+
       try {
         setLoading(true);
         console.log("Fetching data for vendor ID:", vendorId);
 
-        // Vendor bilgilerini al
-        const vendorData = await vendorService.getById(vendorId);
-        setVendor(vendorData);
+        // Vendor bilgilerini al - daha uzun timeout süresi ve retry mekanizması
+        let vendorData;
+        let retryCount = 0;
+        const maxRetries = 2;
 
-        // Tedarikçinin alınan ürünlerini al
-        const purchaseOrdersResponse = await fetch(
-          `/api/purchase-orders?vendorId=${vendorId}`
-        );
-        if (purchaseOrdersResponse.ok) {
-          const purchaseOrdersData = await purchaseOrdersResponse.json();
-          console.log("Purchase Orders Data:", purchaseOrdersData);
-          setPurchaseOrders(purchaseOrdersData);
-        } else {
-          console.error(
-            "Purchase orders fetch failed:",
-            purchaseOrdersResponse.status
-          );
-        }
-
-        // MyDebts ve MyPayments verilerini al
-        const myDebtsResponse = await fetch(
-          `/api/my-debts?vendorId=${vendorId}`
-        );
-        if (myDebtsResponse.ok) {
-          const myDebtsData = await myDebtsResponse.json();
-          // En yeni tarih en başta olacak şekilde sırala
-          const sortedDebts = myDebtsData.sort(
-            (a: { createdAt: string }, b: { createdAt: string }) => {
-              const dateA = new Date(a.createdAt);
-              const dateB = new Date(b.createdAt);
-              return dateB.getTime() - dateA.getTime();
+        while (retryCount <= maxRetries) {
+          try {
+            vendorData = await Promise.race([
+              vendorService.getById(vendorId),
+              new Promise((_, reject) =>
+                setTimeout(
+                  () =>
+                    reject(
+                      new Error("Tedarikçi bilgileri yüklenirken zaman aşımı")
+                    ),
+                  30000 // 30 saniye timeout
+                )
+              ),
+            ]);
+            break; // Başarılı olursa döngüden çık
+          } catch (error) {
+            retryCount++;
+            if (retryCount > maxRetries) {
+              throw error; // Son deneme de başarısız olursa hatayı fırlat
             }
-          );
-          setMyDebts(sortedDebts);
+            console.log(`Deneme ${retryCount} başarısız, tekrar deneniyor...`);
+            await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 saniye bekle
+          }
         }
-
-        const myPaymentsResponse = await fetch(
-          `/api/my-payments?vendorId=${vendorId}`
-        );
-        if (myPaymentsResponse.ok) {
-          const myPaymentsData = await myPaymentsResponse.json();
-          // En yeni tarih en başta olacak şekilde sırala
-          const sortedPayments = myPaymentsData.sort(
-            (a: { createdAt: string }, b: { createdAt: string }) => {
-              const dateA = new Date(a.createdAt);
-              const dateB = new Date(b.createdAt);
-              return dateB.getTime() - dateA.getTime();
-            }
-          );
-          setMyPayments(sortedPayments);
-        }
-
-        // Diğer verileri al (placeholder - gerçek API'ler eklenecek)
-        // setVendorDebts(await vendorService.getVendorDebtsByVendor(vendorId));
-        // setVendorPayments(await vendorService.getVendorPaymentsByVendor(vendorId));
+        setVendor(vendorData as Vendor);
       } catch (error) {
         console.error("Tedarikçi bilgileri yüklenirken hata:", error);
+        // Hata durumunda kullanıcıya bilgi ver
+        setError(error instanceof Error ? error.message : "Bilinmeyen hata");
       } finally {
         setLoading(false);
       }
     };
 
-    if (vendorId) {
-      fetchVendorData();
-    }
+    fetchVendorData();
   }, [vendorId]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
 
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStartDate("");
+    setEndDate("");
+    setSortBy("createdAt");
+    setSortOrder("desc");
+    setTypeFilter("all");
+    setAmountRange("all");
+  };
+
   // Toplam borç ve ödeme hesaplama
-  const totalDebts = myDebts.reduce((sum, debt) => sum + (debt.amount || 0), 0);
-  const totalPayments = myPayments.reduce(
+  const totalDebts = debts.reduce((sum, debt) => sum + (debt.amount || 0), 0);
+  const totalPayments = payments.reduce(
     (sum, payment) => sum + (payment.amount || 0),
     0
   );
@@ -148,8 +494,9 @@ const VendorDetailPage: React.FC = () => {
       });
 
       if (response.ok) {
-        const newPayment = await response.json();
-        setMyPayments([newPayment, ...myPayments]);
+        await response.json(); // Response'u oku ama kullanma
+        // Refresh payments data
+        window.location.reload();
         setShowPaymentModal(false);
         setPaymentForm({
           amount: "",
@@ -170,51 +517,8 @@ const VendorDetailPage: React.FC = () => {
     setPaymentForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const clearSearch = () => {
-    setSearchTerm("");
-  };
-
-  const filteredData = () => {
-    if (activeTab === "orders") {
-      const data = purchaseOrders;
-      if (!searchTerm) return data;
-      return data.filter((item) => {
-        const searchLower = searchTerm.toLowerCase();
-        return (
-          item.orderNumber?.toLowerCase().includes(searchLower) ||
-          item.items?.some((orderItem) =>
-            orderItem.productName?.toLowerCase().includes(searchLower)
-          )
-        );
-      });
-    } else if (activeTab === "debts" && showDebtsAndPayments) {
-      // MyDebts ve MyPayments'i birlikte filtrele
-      const allData = [...myDebts, ...myPayments];
-      if (!searchTerm) return allData;
-      return allData.filter((item) => {
-        const searchLower = searchTerm.toLowerCase();
-        return item.description?.toLowerCase().includes(searchLower);
-      });
-    } else if (activeTab === "debts") {
-      const debtsData = myDebts;
-      if (!searchTerm) return debtsData;
-      return debtsData.filter((item) => {
-        const searchLower = searchTerm.toLowerCase();
-        return item.description?.toLowerCase().includes(searchLower);
-      });
-    } else {
-      const paymentsData = myPayments;
-      if (!searchTerm) return paymentsData;
-      return paymentsData.filter((item) => {
-        const searchLower = searchTerm.toLowerCase();
-        return item.description?.toLowerCase().includes(searchLower);
-      });
-    }
-  };
-
   const getTabData = () => {
     if (activeTab === "orders") {
-      const data = filteredData() as PurchaseOrder[];
       const allItems: Array<{
         id: string;
         date: string;
@@ -226,23 +530,19 @@ const VendorDetailPage: React.FC = () => {
         description: string;
       }> = [];
 
-      data.forEach((order) => {
+      orders.forEach((order) => {
         if (order.items && order.items.length > 0) {
           order.items.forEach((item, index) => {
+            // Her ürün için kendi tarihini kullan, yoksa sipariş tarihini kullan
+            const itemDate = item.createdAt || order.createdAt;
+
             allItems.push({
               id: `${order._id}-${item.productId || item.barcode}`,
-              date:
-                index === 0
-                  ? order.createdAt
-                    ? format(
-                        parseISO(order.createdAt.toString()),
-                        "dd.MM.yyyy",
-                        {
-                          locale: tr,
-                        }
-                      )
-                    : "-"
-                  : "",
+              date: itemDate
+                ? format(parseISO(itemDate.toString()), "dd.MM.yyyy", {
+                    locale: tr,
+                  })
+                : "-",
               productName: item.productName || "-",
               barcode: item.barcode || "-",
               quantity: item.quantity || 0,
@@ -256,8 +556,8 @@ const VendorDetailPage: React.FC = () => {
 
       return allItems;
     } else if (activeTab === "debts" && showDebtsAndPayments) {
-      // MyDebts ve MyPayments'i birlikte göster
-      const debts = myDebts.map((debt) => ({
+      // Debts ve Payments'i birlikte göster
+      const debtsData = debts.map((debt) => ({
         id: debt._id,
         date: debt.createdAt
           ? format(parseISO(debt.createdAt.toString()), "dd.MM.yyyy", {
@@ -275,7 +575,7 @@ const VendorDetailPage: React.FC = () => {
         notes: debt.description || "-",
       }));
 
-      const payments = myPayments.map((payment) => ({
+      const paymentsData = payments.map((payment) => ({
         id: payment._id,
         date: payment.createdAt
           ? format(parseISO(payment.createdAt.toString()), "dd.MM.yyyy", {
@@ -289,15 +589,16 @@ const VendorDetailPage: React.FC = () => {
         notes: payment.notes || "-",
       }));
 
-      const combinedData = [...debts, ...payments];
+      // Frontend filtreleme kaldırıldı - Backend'de yapılıyor
+
+      const combinedData = [...debtsData, ...paymentsData];
       return combinedData.sort((a, b) => {
         const dateA = new Date(a.date);
         const dateB = new Date(b.date);
         return dateB.getTime() - dateA.getTime(); // En yeni en başta
       });
     } else if (activeTab === "debts") {
-      const data = filteredData() as VendorDebt[];
-      return data.map((debt) => ({
+      return debts.map((debt) => ({
         id: debt._id,
         date: debt.createdAt
           ? format(parseISO(debt.createdAt.toString()), "dd.MM.yyyy", {
@@ -315,8 +616,7 @@ const VendorDetailPage: React.FC = () => {
         notes: debt.description || "-",
       }));
     } else {
-      const data = filteredData() as VendorPayment[];
-      return data.map((payment) => ({
+      return payments.map((payment) => ({
         id: payment._id,
         date: payment.createdAt
           ? format(parseISO(payment.createdAt.toString()), "dd.MM.yyyy", {
@@ -373,12 +673,82 @@ const VendorDetailPage: React.FC = () => {
     }
   };
 
+  const getCurrentLoading = () => {
+    if (activeTab === "orders") return ordersLoading;
+    if (activeTab === "debts") return debtsLoading;
+    return paymentsLoading;
+  };
+
+  const getCurrentHasMore = () => {
+    if (activeTab === "orders") return ordersHasMore;
+    if (activeTab === "debts") return debtsHasMore;
+    return paymentsHasMore;
+  };
+
+  const getCurrentLoadMore = () => {
+    if (activeTab === "orders") return loadMoreOrders;
+    if (activeTab === "debts") return loadMoreDebts;
+    return loadMorePayments;
+  };
+
+  const getSortOptions = () => {
+    if (activeTab === "orders") {
+      return [
+        { value: "createdAt", label: "Tarih" },
+        { value: "orderNumber", label: "Sipariş No" },
+        { value: "totalAmount", label: "Toplam Tutar" },
+      ];
+    } else if (activeTab === "debts" || activeTab === "payments") {
+      return [
+        { value: "createdAt", label: "Tarih" },
+        { value: "amount", label: "Tutar" },
+        { value: "description", label: "Açıklama" },
+      ];
+    }
+    return [];
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">
+            Tedarikçi bilgileri yükleniyor...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-6 h-6 text-red-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Hata Oluştu
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Tekrar Dene
+          </button>
         </div>
       </div>
     );
@@ -493,34 +863,172 @@ const VendorDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={`${
-              activeTab === "orders"
-                ? "Alınan ürün"
-                : activeTab === "debts" && showDebtsAndPayments
-                ? "Borç veya ödeme"
-                : activeTab === "debts"
-                ? "Borç"
-                : "Ödeme"
-            } ara...`}
-            value={searchTerm}
-            onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-          />
-          {searchTerm && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              ×
-            </button>
-          )}
+      {/* Search and Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder={`${
+                activeTab === "orders"
+                  ? "Ürün adı, barkod veya açıklama ara..."
+                  : activeTab === "debts" && showDebtsAndPayments
+                  ? "Borç veya ödeme ara..."
+                  : activeTab === "debts"
+                  ? "Borç ara..."
+                  : "Ödeme ara..."
+              }`}
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            />
+          </div>
+
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+              showFilters
+                ? "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-300"
+                : "bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            Filtreler
+          </button>
+
+          <button
+            onClick={clearFilters}
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+          >
+            Temizle
+          </button>
         </div>
+
+        {/* Advanced Filters */}
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            {/* Date Range */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Başlangıç Tarihi
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Bitiş Tarihi
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              />
+            </div>
+
+            {/* Borç ve Ödemeler için özel filtreler */}
+            {activeTab === "debts" && showDebtsAndPayments && (
+              <>
+                {/* Tip Filtresi */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tip
+                  </label>
+                  <select
+                    value={typeFilter}
+                    onChange={(e) =>
+                      setTypeFilter(
+                        e.target.value as "all" | "debt" | "payment"
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  >
+                    <option value="all">Tümü</option>
+                    <option value="debt">Sadece Borçlar</option>
+                    <option value="payment">Sadece Ödemeler</option>
+                  </select>
+                </div>
+
+                {/* Tutar Aralığı Filtresi */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tutar Aralığı
+                  </label>
+                  <select
+                    value={amountRange}
+                    onChange={(e) =>
+                      setAmountRange(
+                        e.target.value as "all" | "low" | "medium" | "high"
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  >
+                    <option value="all">Tüm Tutarlar</option>
+                    <option value="low">0 - 1.000 ₺</option>
+                    <option value="medium">1.000 - 10.000 ₺</option>
+                    <option value="high">10.000 ₺+</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* Sort By */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Sıralama
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              >
+                {getSortOptions().map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort Order */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Sıralama Yönü
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSortOrder("asc")}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                    sortOrder === "asc"
+                      ? "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-300"
+                      : "bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  <SortAsc className="w-4 h-4" />
+                  Artan
+                </button>
+                <button
+                  onClick={() => setSortOrder("desc")}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                    sortOrder === "desc"
+                      ? "bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-300"
+                      : "bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  <SortDesc className="w-4 h-4" />
+                  Azalan
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Data Table */}
@@ -546,8 +1054,10 @@ const VendorDetailPage: React.FC = () => {
                     colSpan={getTabHeaders().length}
                     className="text-center py-8 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-600"
                   >
-                    {searchTerm
-                      ? "Arama sonucu bulunamadı"
+                    {searchTerm || startDate || endDate
+                      ? "Filtre sonucu bulunamadı"
+                      : getCurrentLoading()
+                      ? "Yükleniyor..."
                       : `${
                           activeTab === "orders"
                             ? "Alınan ürün"
@@ -573,7 +1083,17 @@ const VendorDetailPage: React.FC = () => {
                         {header.key === "amount" ||
                         header.key === "unitPrice" ||
                         header.key === "totalAmount" ? (
-                          <span className="font-semibold text-green-600">
+                          <span
+                            className={`font-semibold ${
+                              // Borç ve ödemeler sekmesinde tip kontrolü yap
+                              activeTab === "debts" &&
+                              showDebtsAndPayments &&
+                              "type" in item &&
+                              (item as any).type === "Borç"
+                                ? "text-red-600 dark:text-red-400" // Borçlar kırmızı
+                                : "text-green-600 dark:text-green-400" // Ödemeler yeşil
+                            }`}
+                          >
                             {typeof item[header.key as keyof typeof item] ===
                             "number"
                               ? (
@@ -619,6 +1139,23 @@ const VendorDetailPage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Infinite Scroll Load More */}
+      {getCurrentHasMore() && (
+        <div className="mt-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex justify-center">
+              <button
+                onClick={getCurrentLoadMore()}
+                disabled={getCurrentLoading()}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+              >
+                {getCurrentLoading() ? "Yükleniyor..." : "Daha Fazla Yükle"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ödeme Modal */}
       {showPaymentModal && (

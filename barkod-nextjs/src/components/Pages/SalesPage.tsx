@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Sale, Product, SaleItem } from "../../types";
 import {
   Download,
@@ -12,14 +12,102 @@ import {
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 import ExcelJS from "exceljs";
-import { useEffect } from "react";
 import { customerService } from "../../services/customerService";
 import CustomerDetailModal from "../CustomerDetailModal";
 import { Customer } from "../../types";
 
+// Custom hook for infinite scroll
+const useInfiniteSales = (filters: {
+  search: string;
+  period: string;
+  startDate: string;
+  endDate: string;
+}) => {
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [skip, setSkip] = useState(0);
+
+  // Debounce için timeout ref'i
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+
+  // İlk yükleme - debounce ile
+  useEffect(() => {
+    // Önceki timeout'u temizle
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    const fetchSales = async () => {
+      setLoading(true);
+      setSkip(0);
+      setHasMore(true);
+      try {
+        const params = new URLSearchParams();
+        if (filters.search) params.append("search", filters.search);
+        if (filters.period) params.append("period", filters.period);
+        if (filters.startDate) params.append("startDate", filters.startDate);
+        if (filters.endDate) params.append("endDate", filters.endDate);
+        params.append("skip", "0");
+
+        const response = await fetch(`/api/sales?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSales(data.sales || data);
+          setHasMore(data.hasMore || false);
+          setSkip(data.nextSkip || 50);
+        }
+      } catch (error) {
+        console.error("Satışlar yüklenirken hata:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // 300ms debounce
+    timeoutRef.current = setTimeout(fetchSales, 300);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [filters]);
+
+  // Daha fazla satış yükleme fonksiyonu
+  const loadMore = async () => {
+    if (loading || !hasMore) return;
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filters.search) params.append("search", filters.search);
+      if (filters.period) params.append("period", filters.period);
+      if (filters.startDate) params.append("startDate", filters.startDate);
+      if (filters.endDate) params.append("endDate", filters.endDate);
+      params.append("skip", skip.toString());
+
+      const response = await fetch(`/api/sales?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSales((prev) => [...prev, ...(data.sales || data)]);
+        setHasMore(data.hasMore || false);
+        setSkip(data.nextSkip || skip + 50);
+      }
+    } catch (error) {
+      console.error("Daha fazla satış yüklenirken hata:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { sales, loading, hasMore, loadMore };
+};
+
 interface SalesPageProps {
-  sales: Sale[];
-  products: Product[];
+  sales?: Sale[];
   isLoading?: boolean;
   onRefreshSales?: () => void;
 }
@@ -84,36 +172,50 @@ const EditablePrice: React.FC<{
 };
 
 const SalesPage: React.FC<SalesPageProps> = ({
-  sales,
-  products,
+  sales: initialSales,
   isLoading = false,
   onRefreshSales,
 }) => {
-  const [selectedPeriod, setSelectedPeriod] = useState<
-    "all" | "today" | "week" | "month" | "custom"
-  >("all");
-  const [startDate, setStartDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
-  const [endDate, setEndDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
   const [searchTerm, setSearchTerm] = useState("");
+  const [period, setPeriod] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Sale>>({});
-  const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [sortBy, setSortBy] = useState<
     "date" | "amount" | "customer" | "product"
   >("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [currentPage, setCurrentPage] = useState(1);
+
+  // Create filters object for the hook
+  const filters = React.useMemo(
+    () => ({
+      search: searchTerm,
+      period,
+      startDate,
+      endDate,
+    }),
+    [searchTerm, period, startDate, endDate]
+  );
+
+  // Use infinite scroll hook
+  const {
+    sales,
+    loading: salesLoading,
+    hasMore,
+    loadMore,
+  } = useInfiniteSales(filters);
+
+  // Combine loading states - if page is loading, don't show component loading
+  const isPageLoading = isLoading;
+  const isComponentLoading = salesLoading && !isPageLoading;
 
   useEffect(() => {
     customerService.getAll().then((data) => setCustomers(data.customers));
@@ -135,11 +237,10 @@ const SalesPage: React.FC<SalesPageProps> = ({
 
   // Satış mapping fonksiyonu
   const getSaleWithProduct = (sale: Sale) => {
-    // Eğer items array'i varsa (yeni format), ilk item'ı kullan
+    // Items array'i varsa ilk item'ı kullan
     if (sale.items && sale.items.length > 0) {
       const firstItem = sale.items[0];
-      const customerName =
-        getCustomerName(sale.customerId || sale.customer) || "-";
+      const customerName = getCustomerName(sale.customerId) || "-";
       return {
         ...sale,
         price: firstItem.price,
@@ -151,40 +252,15 @@ const SalesPage: React.FC<SalesPageProps> = ({
       };
     }
 
-    // Eski format için fallback
-    const saleData = {
-      price: (sale as unknown as { price?: number }).price || 0,
-      productName:
-        (sale as unknown as { productName?: string }).productName ||
-        "Bilinmiyor",
-      barcode: (sale as unknown as { barcode?: string }).barcode || "-",
-      quantity: (sale as unknown as { quantity?: number }).quantity || 0,
-    };
-    let price = saleData.price;
-    let name = saleData.productName;
-    let barcode = saleData.barcode;
-    const quantity = saleData.quantity;
-
-    // Ürün adı ve fiyatı yoksa ürün listesinden bul
-    if (!price || !name || name === "Bilinmiyor") {
-      const product = products.find((p) => p.barcode === barcode);
-      price = product ? product.price : 0;
-      name = product ? product.name : "Bilinmiyor";
-      barcode = product ? product.barcode : barcode;
-    }
-
-    // Müşteri adı yoksa '-' yaz
-    let customerName = getCustomerName(sale.customerId || sale.customer);
-    if (!customerName) customerName = "-";
-    const total = price * quantity;
+    // Eğer items yoksa boş obje döndür
     return {
       ...sale,
-      price,
-      productName: name,
-      barcode,
-      customerName,
-      total,
-      quantity,
+      price: 0,
+      productName: "Ürün bulunamadı",
+      barcode: "-",
+      customerName: getCustomerName(sale.customerId) || "-",
+      total: 0,
+      quantity: 0,
     };
   };
   const salesWithProduct = useMemo(() => {
@@ -199,7 +275,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
         const saleWithProduct = getSaleWithProduct(sale);
         return {
           ...saleWithProduct,
-          customerName: sale.customerId || sale.customer || "-",
+          customerName: sale.customerId || "-",
         };
       });
     }
@@ -215,7 +291,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
 
     let filtered = salesWithProduct;
     const now = new Date();
-    switch (selectedPeriod) {
+    switch (period) {
       case "today":
         filtered = filtered.filter(
           (sale) =>
@@ -254,8 +330,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
         const productName = sale.productName?.toLowerCase() || "";
         const barcode = sale.barcode?.toLowerCase() || "";
         const customerName =
-          getCustomerName(sale.customerId || sale.customer)?.toLowerCase() ||
-          "";
+          getCustomerName(sale.customerId)?.toLowerCase() || "";
 
         return (
           productName.includes(searchLower) ||
@@ -279,8 +354,8 @@ const SalesPage: React.FC<SalesPageProps> = ({
           bValue = b.total || 0;
           break;
         case "customer":
-          aValue = getCustomerName(a.customerId || a.customer) || "";
-          bValue = getCustomerName(b.customerId || b.customer) || "";
+          aValue = getCustomerName(a.customerId) || "";
+          bValue = getCustomerName(b.customerId) || "";
           break;
         case "product":
           aValue = a.productName || "";
@@ -338,7 +413,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
           worksheet.addRow({
             product: item.productName || "-",
             barcode: item.barcode || "-",
-            customer: getCustomerName(sale.customerId || sale.customer) || "-",
+            customer: getCustomerName(sale.customerId) || "-",
             quantity: item.quantity,
             price: item.price,
             total: item.price * item.quantity,
@@ -349,7 +424,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
         worksheet.addRow({
           product: sale.productName || "-",
           barcode: sale.barcode || "-",
-          customer: getCustomerName(sale.customerId || sale.customer) || "-",
+          customer: getCustomerName(sale.customerId) || "-",
           quantity: sale.quantity,
           price: sale.price,
           total: sale.total,
@@ -438,18 +513,6 @@ const SalesPage: React.FC<SalesPageProps> = ({
       setShowCustomerModal(true);
     }
   };
-
-  // Pagination için
-  const itemsPerPage = 20;
-  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const paginatedSales = useMemo(
-    () =>
-      filteredSales.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-      ),
-    [filteredSales, currentPage, itemsPerPage]
-  );
 
   // subCustomerId gösterimi için yardımcı fonksiyon ekle
   function getSubCustomerText(
@@ -547,9 +610,9 @@ const SalesPage: React.FC<SalesPageProps> = ({
                   Dönem
                 </label>
                 <select
-                  value={selectedPeriod}
+                  value={period}
                   onChange={(e) =>
-                    setSelectedPeriod(
+                    setPeriod(
                       e.target.value as
                         | "all"
                         | "today"
@@ -602,12 +665,11 @@ const SalesPage: React.FC<SalesPageProps> = ({
                 <button
                   onClick={() => {
                     setSearchTerm("");
-                    setSelectedPeriod("all");
+                    setPeriod("all");
                     setStartDate(new Date().toISOString().split("T")[0]);
                     setEndDate(new Date().toISOString().split("T")[0]);
                     setSortBy("date");
                     setSortOrder("desc");
-                    setCurrentPage(1);
                   }}
                   className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-6 py-3 rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
                 >
@@ -624,7 +686,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
             </div>
 
             {/* Custom Date Range - Only show when custom is selected */}
-            {selectedPeriod === "custom" && (
+            {period === "custom" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -667,70 +729,72 @@ const SalesPage: React.FC<SalesPageProps> = ({
               </h2>
             </div>
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              {paginatedSales.length} satış
+              {sales.length} satış
             </div>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
+            {/* Table header */}
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Ürün
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  ÜRÜN
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Barkod
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  BARKOD
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Müşteri
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  MÜŞTERİ
                 </th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Adet
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  ADET
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Toplam
+                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  TOPLAM
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Ödeme
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  ÖDEME
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Tarih
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  TARİH
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Alt Müşteri
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  ALT MÜŞTERİ
                 </th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  İşlemler
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  İŞLEMLER
                 </th>
               </tr>
             </thead>
+            {/* Table body */}
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {isLoading ? (
+              {isComponentLoading ? (
                 <tr>
                   <td
                     colSpan={9}
-                    className="text-center py-12 text-gray-500 dark:text-gray-400"
+                    className="text-center py-6 text-gray-500 dark:text-gray-400 text-xs"
                   >
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                      <p className="text-xs font-medium text-gray-900 dark:text-white">
                         Yükleniyor...
                       </p>
                     </div>
                   </td>
                 </tr>
-              ) : paginatedSales.length === 0 ? (
+              ) : sales.length === 0 ? (
                 <tr>
                   <td
                     colSpan={9}
-                    className="text-center py-12 text-gray-500 dark:text-gray-400"
+                    className="text-center py-6 text-gray-500 dark:text-gray-400 text-xs"
                   >
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                        <div className="w-6 h-6 bg-gray-400 rounded-full"></div>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                        <div className="w-4 h-4 bg-gray-400 rounded-full"></div>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        <p className="text-xs font-medium text-gray-900 dark:text-white">
                           Satış bulunamadı
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -741,7 +805,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
                   </td>
                 </tr>
               ) : (
-                paginatedSales.flatMap((sale) => {
+                sales.flatMap((sale: Sale) => {
                   if (Array.isArray(sale.items) && sale.items.length > 0) {
                     return sale.items.map((item: SaleItem, idx: number) => {
                       return (
@@ -749,59 +813,57 @@ const SalesPage: React.FC<SalesPageProps> = ({
                           key={`${sale._id}-${idx}`}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
-                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-semibold">
+                          <td className="px-3 py-2 text-xs text-gray-900 dark:text-white font-semibold">
                             {item.productName || "-"}
                           </td>
-                          <td className="px-6 py-4 text-sm text-primary-700 dark:text-primary-300 font-mono">
+                          <td className="px-3 py-2 text-xs text-primary-700 dark:text-primary-300 font-mono">
                             {item.barcode || "-"}
                           </td>
                           <td
-                            className="px-6 py-4 text-sm text-primary-600 underline cursor-pointer font-semibold hover:text-primary-700 transition-colors"
+                            className="px-3 py-2 text-xs text-primary-600 underline cursor-pointer font-semibold hover:text-primary-700 transition-colors"
                             onClick={() => {
-                              const customerId =
-                                sale.customerId || sale.customer;
+                              const customerId = sale.customerId;
                               if (customerId) {
                                 handleCustomerClick(customerId);
                               }
                             }}
                           >
-                            {getCustomerName(sale.customerId || sale.customer)}
+                            {getCustomerName(sale.customerId)}
                           </td>
-                          <td className="px-6 py-4 text-sm text-center">
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          <td className="px-3 py-2 text-xs text-center">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xxs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                               {item.quantity} adet
                             </span>
                           </td>
-
-                          <td className="px-6 py-4 text-sm text-right font-mono font-semibold">
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          <td className="px-3 py-2 text-xs text-right font-mono font-semibold">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xxs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                               {formatPrice(item.price * item.quantity)}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm">
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                          <td className="px-3 py-2 text-xs">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xxs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                               {sale.paymentType || "nakit"}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm">
-                            <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                          <td className="px-3 py-2 text-xs">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xxs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                               {formatDateTime(sale.soldAt || sale.createdAt)}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                          <td className="px-3 py-2 text-xs text-gray-900 dark:text-white">
                             {getSubCustomerText(sale.subCustomerId)}
                           </td>
-                          <td className="px-6 py-4 text-sm text-center">
-                            <div className="flex justify-center gap-2">
+                          <td className="px-3 py-2 text-xs text-center">
+                            <div className="flex justify-center gap-1">
                               <button
                                 onClick={() => handleEditClick(sale)}
-                                className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
+                                className="inline-flex items-center px-2 py-1 rounded-md text-xxs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
                               >
                                 Düzenle
                               </button>
                               <button
                                 onClick={() => handleDeleteSale(sale._id)}
-                                className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm hover:shadow-md"
+                                className="inline-flex items-center px-2 py-1 rounded-md text-xxs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm hover:shadow-md"
                               >
                                 Sil
                               </button>
@@ -810,79 +872,8 @@ const SalesPage: React.FC<SalesPageProps> = ({
                         </tr>
                       );
                     });
-                  } else {
-                    return (
-                      <tr
-                        key={sale._id}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-semibold">
-                          {sale.productName || "-"}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-primary-700 dark:text-primary-300 font-mono">
-                          {sale.barcode || "-"}
-                        </td>
-                        <td
-                          className="px-6 py-4 text-sm text-primary-600 underline cursor-pointer font-semibold hover:text-primary-700 transition-colors"
-                          onClick={() => {
-                            const customerId = sale.customerId || sale.customer;
-                            if (customerId) {
-                              handleCustomerClick(customerId);
-                            }
-                          }}
-                        >
-                          {getCustomerName(sale.customerId || sale.customer)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-center">
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            {(sale as { quantity?: number }).quantity || 0} adet
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right font-mono">
-                          <EditablePrice
-                            value={sale.price || 0}
-                            onSave={(newPrice) =>
-                              handlePriceUpdate(sale._id, newPrice)
-                            }
-                          />
-                        </td>
-                        <td className="px-6 py-4 text-sm text-right font-mono font-semibold">
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                            {formatPrice(sale.total || 0)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                            {sale.paymentType || "nakit"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                            {formatDateTime(sale.soldAt || sale.createdAt)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                          {getSubCustomerText(sale.subCustomerId)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-center">
-                          <div className="flex justify-center gap-2">
-                            <button
-                              onClick={() => handleEditClick(sale)}
-                              className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
-                            >
-                              Düzenle
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSale(sale._id)}
-                              className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm hover:shadow-md"
-                            >
-                              Sil
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
                   }
+                  return null;
                 })
               )}
             </tbody>
@@ -890,31 +881,19 @@ const SalesPage: React.FC<SalesPageProps> = ({
         </div>
       </div>
 
-      {/* Pagination Section */}
-      {totalPages > 1 && (
+      {/* Infinite Scroll Load More */}
+      {hasMore && (
         <div className="mt-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-            <div className="flex justify-center items-center gap-4">
+            <div className="flex justify-center">
               <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-6 py-3 rounded-lg hover:from-gray-600 hover:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+                onClick={loadMore}
+                disabled={salesLoading}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
               >
-                ← Önceki
-              </button>
-              <div className="bg-gray-100 dark:bg-gray-700 px-6 py-3 rounded-lg">
-                <span className="text-gray-700 dark:text-gray-300 font-semibold">
-                  Sayfa {currentPage} / {totalPages}
-                </span>
-              </div>
-              <button
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
-                disabled={currentPage === totalPages}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
-              >
-                Sonraki →
+                {isComponentLoading
+                  ? "Satışlar yükleniyor..."
+                  : "Daha Fazla Satış Yükle"}
               </button>
             </div>
           </div>

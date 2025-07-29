@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import connectDB from "../../utils/db";
+import connectDB from "../../utils/db.js";
 import Vendor from "../../models/Vendor";
 
 export async function GET(request, { params }) {
   try {
     await connectDB();
-    const vendor = await Vendor.findById(params.id).lean();
+    const { id } = await params;
+
+    // MongoDB timeout ayarları
+    const vendor = await Vendor.findById(id).lean().maxTimeMS(25000); // 25 saniye timeout
 
     if (!vendor) {
       return NextResponse.json(
@@ -22,6 +25,18 @@ export async function GET(request, { params }) {
     });
   } catch (error) {
     console.error("Vendor GET error:", error);
+
+    // MongoDB timeout hatası kontrolü
+    if (error.message && error.message.includes("timeout")) {
+      return NextResponse.json(
+        {
+          error:
+            "Veritabanı bağlantısı zaman aşımına uğradı. Lütfen tekrar deneyin.",
+        },
+        { status: 408 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Tedarikçi yüklenirken hata oluştu" },
       { status: 500 }
@@ -32,10 +47,11 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     await connectDB();
+    const { id } = await params;
     const body = await request.json();
 
     const updatedVendor = await Vendor.findByIdAndUpdate(
-      params.id,
+      id,
       {
         name: body.name,
         phone: body.phone,
@@ -75,8 +91,9 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     await connectDB();
+    const { id } = await params;
     const deletedVendor = await Vendor.findByIdAndUpdate(
-      params.id,
+      id,
       { status: "deleted", updatedAt: new Date() },
       { new: true }
     );

@@ -421,7 +421,7 @@ const SepetPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900">
-        <Header activeTab="sepet" lowStockCount={0} onAddProduct={() => {}} />
+        <Header activeTab="sepet" onAddProduct={() => {}} />
         <Navigation activeTab="sepet" onTabChange={() => {}} />
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-500">Yükleniyor...</div>
@@ -432,7 +432,7 @@ const SepetPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
-      <Header activeTab="sepet" lowStockCount={0} onAddProduct={() => {}} />
+      <Header activeTab="sepet" onAddProduct={() => {}} />
       <Navigation activeTab="sepet" onTabChange={() => {}} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

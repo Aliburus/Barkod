@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Debt, CustomerPayment } from "../../types";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -22,6 +22,70 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   payments,
   type,
 }) => {
+  const [filterType, setFilterType] = useState<"all" | "debts" | "payments">(
+    "all"
+  );
+  const [loading, setLoading] = useState(false);
+  const [filteredData, setFilteredData] = useState<{
+    debts: Debt[];
+    payments: CustomerPayment[];
+    totalDebt: number;
+    totalPaid: number;
+    remainingDebt: number;
+  }>({ debts: [], payments: [], totalDebt: 0, totalPaid: 0, remainingDebt: 0 });
+
+  // Filter değiştiğinde backend'den veri çek
+  const fetchFilteredData = async (
+    newFilterType: "all" | "debts" | "payments"
+  ) => {
+    setLoading(true);
+    try {
+      // Customer ID'yi debts veya payments'dan al
+      const customerId = debts[0]?.customerId || payments[0]?.customerId;
+      if (!customerId) {
+        setFilteredData({
+          debts: [],
+          payments: [],
+          totalDebt: 0,
+          totalPaid: 0,
+          remainingDebt: 0,
+        });
+        return;
+      }
+
+      const response = await fetch(
+        `/api/debts/customer/${customerId}?filter=${newFilterType}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setFilteredData({
+          debts: data.debts || [],
+          payments: data.payments || [],
+          totalDebt: data.totalDebt || 0,
+          totalPaid: data.totalPaid || 0,
+          remainingDebt: data.remainingDebt || 0,
+        });
+      }
+    } catch (error) {
+      console.error("Filtrelenmiş veri çekme hatası:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // İlk yüklemede tüm verileri çek
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchFilteredData("all");
+    }
+  }, [isOpen]);
+
+  // Filter değiştiğinde veri çek
+  const handleFilterChange = (newFilterType: "all" | "debts" | "payments") => {
+    setFilterType(newFilterType);
+    fetchFilteredData(newFilterType);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -47,11 +111,59 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
           {type === "debt" ? (
             // Borç ve ödeme detayları
             <div>
+              {/* Filtre Butonları */}
+              <div className="mb-4 flex gap-2">
+                <button
+                  onClick={() => handleFilterChange("all")}
+                  disabled={loading}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    filterType === "all"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  Tümü (
+                  {filteredData.debts.length + filteredData.payments.length})
+                </button>
+                <button
+                  onClick={() => handleFilterChange("debts")}
+                  disabled={loading}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    filterType === "debts"
+                      ? "bg-red-600 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  Borçlar ({filteredData.debts.length})
+                </button>
+                <button
+                  onClick={() => handleFilterChange("payments")}
+                  disabled={loading}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    filterType === "payments"
+                      ? "bg-green-600 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  Ödemeler ({filteredData.payments.length})
+                </button>
+              </div>
+
               <div className="mb-4">
                 <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
-                  Tüm İşlem Detayları
+                  {filterType === "all" && "Tüm İşlem Detayları"}
+                  {filterType === "debts" && "Borç Detayları"}
+                  {filterType === "payments" && "Ödeme Detayları"}
                 </h4>
-                {debts.length === 0 && payments.length === 0 ? (
+                {loading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-2 text-gray-600 dark:text-gray-400">
+                      Veriler yükleniyor...
+                    </span>
+                  </div>
+                ) : filteredData.debts.length === 0 &&
+                  filteredData.payments.length === 0 ? (
                   <p className="text-gray-500 dark:text-gray-400">
                     İşlem kaydı bulunamadı.
                   </p>
@@ -99,64 +211,68 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                           isFirstItem?: boolean;
                         }> = [];
 
-                        // Borç kayıtlarını ekle
-                        debts.forEach((debt) => {
-                          let items: Array<{
-                            barcode?: string;
-                            productName?: string;
-                            quantity?: number;
-                            price?: number;
-                          }> = [];
+                        // Borç kayıtlarını ekle (filtreye göre)
+                        if (filterType === "all" || filterType === "debts") {
+                          filteredData.debts.forEach((debt) => {
+                            let items: Array<{
+                              barcode?: string;
+                              productName?: string;
+                              quantity?: number;
+                              price?: number;
+                            }> = [];
 
-                          if (
-                            debt.saleId &&
-                            typeof debt.saleId === "object" &&
-                            debt.saleId.items &&
-                            Array.isArray(debt.saleId.items)
-                          ) {
-                            items = debt.saleId.items;
-                          } else if (
-                            debt.saleId &&
-                            typeof debt.saleId === "object" &&
-                            debt.saleId.barcode
-                          ) {
-                            items = [
-                              {
-                                barcode: debt.saleId.barcode,
-                                productName: debt.saleId.productName || "-",
-                                quantity: debt.saleId.quantity || 1,
-                                price: debt.saleId.price || 0,
-                              },
-                            ];
-                          }
+                            if (
+                              debt.saleId &&
+                              typeof debt.saleId === "object" &&
+                              debt.saleId.items &&
+                              Array.isArray(debt.saleId.items)
+                            ) {
+                              items = debt.saleId.items;
+                            } else if (
+                              debt.saleId &&
+                              typeof debt.saleId === "object" &&
+                              debt.saleId.barcode
+                            ) {
+                              items = [
+                                {
+                                  barcode: debt.saleId.barcode,
+                                  productName: debt.saleId.productName || "-",
+                                  quantity: debt.saleId.quantity || 1,
+                                  price: debt.saleId.price || 0,
+                                },
+                              ];
+                            }
 
-                          if (items.length > 0) {
-                            items.forEach((item, index) => {
+                            if (items.length > 0) {
+                              items.forEach((item, index) => {
+                                allRecords.push({
+                                  type: "debt",
+                                  date: debt.createdAt,
+                                  debt,
+                                  item,
+                                  isFirstItem: index === 0,
+                                });
+                              });
+                            } else {
                               allRecords.push({
                                 type: "debt",
                                 date: debt.createdAt,
                                 debt,
-                                item,
-                                isFirstItem: index === 0,
                               });
-                            });
-                          } else {
-                            allRecords.push({
-                              type: "debt",
-                              date: debt.createdAt,
-                              debt,
-                            });
-                          }
-                        });
-
-                        // Ödeme kayıtlarını ekle
-                        payments.forEach((payment) => {
-                          allRecords.push({
-                            type: "payment",
-                            date: payment.paymentDate,
-                            payment,
+                            }
                           });
-                        });
+                        }
+
+                        // Ödeme kayıtlarını ekle (filtreye göre)
+                        if (filterType === "all" || filterType === "payments") {
+                          filteredData.payments.forEach((payment) => {
+                            allRecords.push({
+                              type: "payment",
+                              date: payment.paymentDate,
+                              payment,
+                            });
+                          });
+                        }
 
                         // Tarihe göre sırala (en yeni en üstte)
                         allRecords.sort(
@@ -294,41 +410,70 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                 {/* Genel Özet */}
                 <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                   <h5 className="font-semibold text-gray-900 dark:text-white mb-2">
-                    Genel Özet
+                    {filterType === "all" && "Genel Özet"}
+                    {filterType === "debts" && "Borç Özeti"}
+                    {filterType === "payments" && "Ödeme Özeti"}
                   </h5>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div>
                       <span className="text-gray-600 dark:text-gray-400">
-                        Toplam Borç:
+                        {filterType === "all" && "Toplam Borç:"}
+                        {filterType === "debts" && "Toplam Borç:"}
+                        {filterType === "payments" && "Toplam Ödeme:"}
                       </span>
                       <span className="ml-2 font-semibold text-red-600">
-                        {debts
-                          .reduce((sum, d) => sum + (d.amount || 0), 0)
-                          .toFixed(2)}{" "}
+                        {filterType === "all" &&
+                          filteredData.totalDebt.toFixed(2)}
+                        {filterType === "debts" &&
+                          filteredData.totalDebt.toFixed(2)}
+                        {filterType === "payments" &&
+                          filteredData.totalPaid.toFixed(2)}{" "}
                         ₺
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-600 dark:text-gray-400">
-                        Toplam Ödeme:
+                        {filterType === "all" && "Toplam Ödeme:"}
+                        {filterType === "debts" && "Ödenen:"}
+                        {filterType === "payments" && "Ortalama:"}
                       </span>
                       <span className="ml-2 font-semibold text-green-600">
-                        {payments
-                          .reduce((sum, p) => sum + (p.amount || 0), 0)
-                          .toFixed(2)}{" "}
+                        {filterType === "all" &&
+                          filteredData.totalPaid.toFixed(2)}
+                        {filterType === "debts" &&
+                          filteredData.totalPaid.toFixed(2)}
+                        {filterType === "payments" &&
+                        filteredData.payments.length > 0
+                          ? (
+                              filteredData.payments.reduce(
+                                (sum, p) => sum + (p.amount || 0),
+                                0
+                              ) / filteredData.payments.length
+                            ).toFixed(2)
+                          : "0.00"}{" "}
                         ₺
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-600 dark:text-gray-400">
-                        Kalan:
+                        {filterType === "all" && "Kalan:"}
+                        {filterType === "debts" && "Kalan:"}
+                        {filterType === "payments" && "Kayıt Sayısı:"}
                       </span>
                       <span className="ml-2 font-semibold text-orange-600">
-                        {(
-                          debts.reduce((sum, d) => sum + (d.amount || 0), 0) -
-                          payments.reduce((sum, p) => sum + (p.amount || 0), 0)
-                        ).toFixed(2)}{" "}
-                        ₺
+                        {filterType === "all" &&
+                          (
+                            filteredData.totalDebt - filteredData.totalPaid
+                          ).toFixed(2)}
+                        {filterType === "debts" &&
+                          (
+                            filteredData.totalDebt - filteredData.totalPaid
+                          ).toFixed(2)}
+                        {filterType === "payments" &&
+                          filteredData.payments.length}{" "}
+                        {filterType === "all" && "₺"}
+                        {filterType === "debts" && "₺"}
+                        {filterType === "payments" && "kayıt"}
                       </span>
                     </div>
                   </div>
@@ -338,11 +483,45 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
           ) : (
             // Sadece ödeme detayları (type === "payment" için)
             <div>
+              {/* Filtre Butonları */}
+              <div className="mb-4 flex gap-2">
+                <button
+                  onClick={() => handleFilterChange("all")}
+                  disabled={loading}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    filterType === "all"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  Tümü ({filteredData.payments.length})
+                </button>
+                <button
+                  onClick={() => handleFilterChange("payments")}
+                  disabled={loading}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    filterType === "payments"
+                      ? "bg-green-600 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  Ödemeler ({filteredData.payments.length})
+                </button>
+              </div>
+
               <div className="mb-4">
                 <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
-                  Ödeme Kayıtları
+                  {filterType === "all" && "Tüm Ödeme Kayıtları"}
+                  {filterType === "payments" && "Ödeme Kayıtları"}
                 </h4>
-                {payments.length === 0 ? (
+                {loading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-2 text-gray-600 dark:text-gray-400">
+                      Veriler yükleniyor...
+                    </span>
+                  </div>
+                ) : filteredData.payments.length === 0 ? (
                   <p className="text-gray-500 dark:text-gray-400">
                     Ödeme kaydı bulunamadı.
                   </p>
@@ -365,39 +544,45 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {payments.map((payment) => (
-                        <tr
-                          key={payment._id}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-800"
-                        >
-                          <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400">
-                            {format(
-                              parseISO(payment.paymentDate),
-                              "dd.MM.yy HH:mm",
-                              { locale: tr }
-                            )}
-                          </td>
-                          <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-green-600 font-semibold">
-                            {payment.amount.toFixed(2)} ₺
-                          </td>
-                          <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                            {payment.paymentType === "nakit"
-                              ? "Nakit"
-                              : payment.paymentType === "kredi_karti"
-                              ? "Kredi Kartı"
-                              : payment.paymentType === "havale"
-                              ? "Havale"
-                              : payment.paymentType === "cek"
-                              ? "Çek"
-                              : payment.paymentType === "diger"
-                              ? "Diğer"
-                              : payment.paymentType}
-                          </td>
-                          <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                            {payment.description || "-"}
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredData.payments
+                        .filter((payment) => {
+                          if (filterType === "all") return true;
+                          if (filterType === "payments") return true;
+                          return false;
+                        })
+                        .map((payment) => (
+                          <tr
+                            key={payment._id}
+                            className="hover:bg-gray-50 dark:hover:bg-gray-800"
+                          >
+                            <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400">
+                              {format(
+                                parseISO(payment.paymentDate),
+                                "dd.MM.yy HH:mm",
+                                { locale: tr }
+                              )}
+                            </td>
+                            <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-green-600 font-semibold">
+                              {payment.amount.toFixed(2)} ₺
+                            </td>
+                            <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                              {payment.paymentType === "nakit"
+                                ? "Nakit"
+                                : payment.paymentType === "kredi_karti"
+                                ? "Kredi Kartı"
+                                : payment.paymentType === "havale"
+                                ? "Havale"
+                                : payment.paymentType === "cek"
+                                ? "Çek"
+                                : payment.paymentType === "diger"
+                                ? "Diğer"
+                                : payment.paymentType}
+                            </td>
+                            <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                              {payment.description || "-"}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 )}
@@ -405,7 +590,8 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
 
               <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
                 <h5 className="font-semibold text-green-900 dark:text-green-100 mb-2">
-                  Ödeme Özeti
+                  {filterType === "all" && "Ödeme Özeti"}
+                  {filterType === "payments" && "Ödeme Özeti"}
                 </h5>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
@@ -413,10 +599,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                       Toplam Ödeme:
                     </span>
                     <span className="ml-2 font-semibold text-green-600">
-                      {payments
-                        .reduce((sum, p) => sum + (p.amount || 0), 0)
-                        .toFixed(2)}{" "}
-                      ₺
+                      {filteredData.totalPaid.toFixed(2)} ₺
                     </span>
                   </div>
                   <div>
@@ -424,12 +607,12 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                       Ortalama:
                     </span>
                     <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                      {payments.length > 0
+                      {filteredData.payments.length > 0
                         ? (
-                            payments.reduce(
+                            filteredData.payments.reduce(
                               (sum, p) => sum + (p.amount || 0),
                               0
-                            ) / payments.length
+                            ) / filteredData.payments.length
                           ).toFixed(2)
                         : "0.00"}{" "}
                       ₺
