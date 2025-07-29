@@ -23,15 +23,17 @@ export async function GET(request, { params }) {
 }
 
 // Borç güncelle
-export async function PUT(request, { params }) {
+export async function PATCH(request, { params }) {
   try {
     await connectDB();
     const { id } = await params;
-    const body = await request.json();
+    const updateData = await request.json();
 
-    const debt = await Debt.findByIdAndUpdate(id, body, { new: true })
-      .populate("customerId", "name phone")
-      .populate("saleId", "totalAmount createdAt");
+    const debt = await Debt.findByIdAndUpdate(
+      id,
+      { ...updateData, updatedAt: new Date() },
+      { new: true }
+    );
 
     if (!debt) {
       return NextResponse.json({ error: "Borç bulunamadı" }, { status: 404 });
@@ -61,4 +63,3 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: "Borç silinemedi" }, { status: 500 });
   }
 }
- 

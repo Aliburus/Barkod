@@ -1,7 +1,14 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { Sale, Product, SaleItem } from "../../types";
-import { Download, Search, Edit3 } from "lucide-react";
+import {
+  Download,
+  Search,
+  Edit3,
+  Receipt,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { parseISO, format } from "date-fns";
 import { tr } from "date-fns/locale";
 import ExcelJS from "exceljs";
@@ -92,6 +99,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
     new Date().toISOString().split("T")[0]
   );
   const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
@@ -444,7 +452,9 @@ const SalesPage: React.FC<SalesPageProps> = ({
   );
 
   // subCustomerId gösterimi için yardımcı fonksiyon ekle
-  function getSubCustomerText(subCustomerId: any) {
+  function getSubCustomerText(
+    subCustomerId: string | { name: string; phone?: string } | undefined
+  ) {
     if (subCustomerId && typeof subCustomerId === "object") {
       if (subCustomerId.name) {
         return (
@@ -483,145 +493,251 @@ const SalesPage: React.FC<SalesPageProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 mt-4">
-      {/* ÜSTTE ARAMA VE FİLTRELER */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-[5px] mb-4 flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Ürün, barkod veya müşteri adı ara..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-2 py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Search and Filters Section */}
+      <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-gray-800 dark:to-gray-700 rounded-xl shadow-lg border border-purple-200 dark:border-gray-600 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+              <Search className="w-4 h-4 text-white" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Satış Arama ve Filtreleme
+            </h2>
+          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Filtreler
+            </span>
+            {showFilters ? (
+              <ChevronUp className="w-4 h-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
         </div>
-        <select
-          value={selectedPeriod}
-          onChange={(e) =>
-            setSelectedPeriod(
-              e.target.value as "all" | "today" | "week" | "month" | "custom"
-            )
-          }
-          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[120px]"
-        >
-          <option value="all">Tümü</option>
-          <option value="today">Bugün</option>
-          <option value="week">Bu Hafta</option>
-          <option value="month">Bu Ay</option>
-          <option value="custom">Özel</option>
-        </select>
-        {selectedPeriod === "custom" && (
-          <>
+
+        {/* Search Input - Always Visible */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Arama
+          </label>
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              type="text"
+              placeholder="Ürün, barkod veya müşteri adı ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
             />
-            <span className="text-gray-500 dark:text-gray-400">-</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </>
+          </div>
+        </div>
+
+        {/* Filters - Collapsible */}
+        {showFilters && (
+          <div className="space-y-4 border-t border-gray-200 dark:border-gray-600 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Period Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Dönem
+                </label>
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) =>
+                    setSelectedPeriod(
+                      e.target.value as
+                        | "all"
+                        | "today"
+                        | "week"
+                        | "month"
+                        | "custom"
+                    )
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                >
+                  <option value="all">Tümü</option>
+                  <option value="today">Bugün</option>
+                  <option value="week">Bu Hafta</option>
+                  <option value="month">Bu Ay</option>
+                  <option value="custom">Özel</option>
+                </select>
+              </div>
+
+              {/* Sort Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sıralama
+                </label>
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split("-");
+                    setSortBy(
+                      field as "date" | "amount" | "customer" | "product"
+                    );
+                    setSortOrder(order as "asc" | "desc");
+                  }}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                >
+                  <option value="date-desc">Tarih (Yeni {">"} Eski)</option>
+                  <option value="date-asc">Tarih (Eski {">"} Yeni)</option>
+                  <option value="amount-desc">
+                    Tutar (Yüksek {">"} Düşük)
+                  </option>
+                  <option value="amount-asc">Tutar (Düşük {">"} Yüksek)</option>
+                  <option value="customer-asc">Müşteri A-Z</option>
+                  <option value="customer-desc">Müşteri Z-A</option>
+                  <option value="product-asc">Ürün A-Z</option>
+                  <option value="product-desc">Ürün Z-A</option>
+                </select>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-end gap-2">
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedPeriod("all");
+                    setStartDate(new Date().toISOString().split("T")[0]);
+                    setEndDate(new Date().toISOString().split("T")[0]);
+                    setSortBy("date");
+                    setSortOrder("desc");
+                    setCurrentPage(1);
+                  }}
+                  className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-6 py-3 rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+                >
+                  Filtreleri Temizle
+                </button>
+                <button
+                  onClick={exportToExcel}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Excel İndir
+                </button>
+              </div>
+            </div>
+
+            {/* Custom Date Range - Only show when custom is selected */}
+            {selectedPeriod === "custom" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Başlangıç Tarihi
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Bitiş Tarihi
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         )}
-        <select
-          value={`${sortBy}-${sortOrder}`}
-          onChange={(e) => {
-            const [field, order] = e.target.value.split("-");
-            setSortBy(field as "date" | "amount" | "customer" | "product");
-            setSortOrder(order as "asc" | "desc");
-          }}
-          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[140px]"
-        >
-          <option value="date-desc">Tarih (Yeni {">"} Eski)</option>
-          <option value="date-asc">Tarih (Eski {">"} Yeni)</option>
-          <option value="amount-desc">Tutar (Yüksek {">"} Düşük)</option>
-          <option value="amount-asc">Tutar (Düşük {">"} Yüksek)</option>
-          <option value="customer-asc">Müşteri A-Z</option>
-          <option value="customer-desc">Müşteri Z-A</option>
-          <option value="product-asc">Ürün A-Z</option>
-          <option value="product-desc">Ürün Z-A</option>
-        </select>
-        <button
-          onClick={() => {
-            setSearchTerm("");
-            setSelectedPeriod("all");
-            setStartDate(new Date().toISOString().split("T")[0]);
-            setEndDate(new Date().toISOString().split("T")[0]);
-            setSortBy("date");
-            setSortOrder("desc");
-            setCurrentPage(1);
-          }}
-          className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
-        >
-          Filtreleri Temizle
-        </button>
-        <button
-          onClick={exportToExcel}
-          className="bg-success-600 hover:bg-success-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-medium"
-        >
-          <Download className="w-4 h-4" />
-          Excel İndir
-        </button>
       </div>
 
-      {/* YATAY SATIŞ TABLOSU */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-[5px] w-full">
-        <div className="overflow-x-auto w-full">
-          <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm align-middle">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-800">
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+      {/* Sales Table Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <Receipt className="w-4 h-4 text-white" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Satış Listesi
+              </h2>
+            </div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {paginatedSales.length} satış
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Ürün
                 </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Barkod
                 </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Müşteri
                 </th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Adet
                 </th>
-
-                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Toplam
                 </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Ödeme
                 </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Tarih
                 </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Alt Müşteri
                 </th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   İşlemler
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {isLoading ? (
                 <tr>
                   <td
                     colSpan={9}
-                    className="text-center py-8 text-gray-500 dark:text-gray-400"
+                    className="text-center py-12 text-gray-500 dark:text-gray-400"
                   >
-                    Yükleniyor...
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Yükleniyor...
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : paginatedSales.length === 0 ? (
                 <tr>
                   <td
                     colSpan={9}
-                    className="text-center py-8 text-gray-500 dark:text-gray-400"
+                    className="text-center py-12 text-gray-500 dark:text-gray-400"
                   >
-                    Satış bulunamadı
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                        <div className="w-6 h-6 bg-gray-400 rounded-full"></div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          Satış bulunamadı
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Arama kriterlerinizi değiştirmeyi deneyin
+                        </p>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -633,14 +749,14 @@ const SalesPage: React.FC<SalesPageProps> = ({
                           key={`${sale._id}-${idx}`}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
-                          <td className="px-3 py-2 text-sm text-gray-900 dark:text-white font-semibold">
+                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-semibold">
                             {item.productName || "-"}
                           </td>
-                          <td className="px-3 py-2 text-sm text-primary-700 dark:text-primary-300 font-mono">
+                          <td className="px-6 py-4 text-sm text-primary-700 dark:text-primary-300 font-mono">
                             {item.barcode || "-"}
                           </td>
                           <td
-                            className="px-3 py-2 text-sm text-primary-600 underline cursor-pointer font-semibold"
+                            className="px-6 py-4 text-sm text-primary-600 underline cursor-pointer font-semibold hover:text-primary-700 transition-colors"
                             onClick={() => {
                               const customerId =
                                 sale.customerId || sale.customer;
@@ -651,41 +767,41 @@ const SalesPage: React.FC<SalesPageProps> = ({
                           >
                             {getCustomerName(sale.customerId || sale.customer)}
                           </td>
-                          <td className="px-3 py-2 text-sm text-center">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          <td className="px-6 py-4 text-sm text-center">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                               {item.quantity} adet
                             </span>
                           </td>
 
-                          <td className="px-3 py-2 text-sm text-right font-mono font-semibold">
-                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          <td className="px-6 py-4 text-sm text-right font-mono font-semibold">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                               {formatPrice(item.price * item.quantity)}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-sm">
-                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                          <td className="px-6 py-4 text-sm">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                               {sale.paymentType || "nakit"}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-sm">
-                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                          <td className="px-6 py-4 text-sm">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                               {formatDateTime(sale.soldAt || sale.createdAt)}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
-                            {getSubCustomerText((sale as any).subCustomerId)}
+                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                            {getSubCustomerText(sale.subCustomerId)}
                           </td>
-                          <td className="px-3 py-2 text-sm text-center">
-                            <div className="flex justify-center gap-1">
+                          <td className="px-6 py-4 text-sm text-center">
+                            <div className="flex justify-center gap-2">
                               <button
                                 onClick={() => handleEditClick(sale)}
-                                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                                className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
                               >
                                 Düzenle
                               </button>
                               <button
                                 onClick={() => handleDeleteSale(sale._id)}
-                                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+                                className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm hover:shadow-md"
                               >
                                 Sil
                               </button>
@@ -700,14 +816,14 @@ const SalesPage: React.FC<SalesPageProps> = ({
                         key={sale._id}
                         className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       >
-                        <td className="px-1 py-1 text-xs text-gray-900 dark:text-white font-semibold">
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-semibold">
                           {sale.productName || "-"}
                         </td>
-                        <td className="px-1 py-1 text-xs text-primary-700 dark:text-primary-300 font-mono">
+                        <td className="px-6 py-4 text-sm text-primary-700 dark:text-primary-300 font-mono">
                           {sale.barcode || "-"}
                         </td>
                         <td
-                          className="px-1 py-1 text-xs text-primary-600 underline cursor-pointer font-semibold"
+                          className="px-6 py-4 text-sm text-primary-600 underline cursor-pointer font-semibold hover:text-primary-700 transition-colors"
                           onClick={() => {
                             const customerId = sale.customerId || sale.customer;
                             if (customerId) {
@@ -717,12 +833,12 @@ const SalesPage: React.FC<SalesPageProps> = ({
                         >
                           {getCustomerName(sale.customerId || sale.customer)}
                         </td>
-                        <td className="px-1 py-1 text-xs text-center">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        <td className="px-6 py-4 text-sm text-center">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                             {(sale as { quantity?: number }).quantity || 0} adet
                           </span>
                         </td>
-                        <td className="px-1 py-1 text-xs text-right font-mono">
+                        <td className="px-6 py-4 text-sm text-right font-mono">
                           <EditablePrice
                             value={sale.price || 0}
                             onSave={(newPrice) =>
@@ -730,35 +846,35 @@ const SalesPage: React.FC<SalesPageProps> = ({
                             }
                           />
                         </td>
-                        <td className="px-1 py-1 text-xs text-right font-mono font-semibold">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        <td className="px-6 py-4 text-sm text-right font-mono font-semibold">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                             {formatPrice(sale.total || 0)}
                           </span>
                         </td>
-                        <td className="px-1 py-1 text-xs">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                        <td className="px-6 py-4 text-sm">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                             {sale.paymentType || "nakit"}
                           </span>
                         </td>
-                        <td className="px-1 py-1 text-xs">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                        <td className="px-6 py-4 text-sm">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                             {formatDateTime(sale.soldAt || sale.createdAt)}
                           </span>
                         </td>
-                        <td className="px-1 py-1 text-xs text-gray-900 dark:text-white">
-                          {getSubCustomerText((sale as any).subCustomerId)}
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                          {getSubCustomerText(sale.subCustomerId)}
                         </td>
-                        <td className="px-1 py-1 text-xs text-center">
-                          <div className="flex justify-center gap-1">
+                        <td className="px-6 py-4 text-sm text-center">
+                          <div className="flex justify-center gap-2">
                             <button
                               onClick={() => handleEditClick(sale)}
-                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                              className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
                             >
                               Düzenle
                             </button>
                             <button
                               onClick={() => handleDeleteSale(sale._id)}
-                              className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+                              className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors shadow-sm hover:shadow-md"
                             >
                               Sil
                             </button>
@@ -774,26 +890,34 @@ const SalesPage: React.FC<SalesPageProps> = ({
         </div>
       </div>
 
-      {/* PAGINATION */}
+      {/* Pagination Section */}
       {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-4 mt-4">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Önceki
-          </button>
-          <span className="text-gray-700 dark:text-gray-300">
-            Sayfa {currentPage} / {totalPages}
-          </span>
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Sonraki
-          </button>
+        <div className="mt-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex justify-center items-center gap-4">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-6 py-3 rounded-lg hover:from-gray-600 hover:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+              >
+                ← Önceki
+              </button>
+              <div className="bg-gray-100 dark:bg-gray-700 px-6 py-3 rounded-lg">
+                <span className="text-gray-700 dark:text-gray-300 font-semibold">
+                  Sayfa {currentPage} / {totalPages}
+                </span>
+              </div>
+              <button
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
+                disabled={currentPage === totalPages}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+              >
+                Sonraki →
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

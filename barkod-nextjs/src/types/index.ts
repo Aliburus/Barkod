@@ -8,6 +8,7 @@ export interface Product {
   stock: number;
   category: string;
   brand: string;
+  shelf?: string;
   createdAt: string;
   updatedAt: string;
   supplier?: string[];
@@ -21,6 +22,7 @@ export interface Sale {
   _id: string;
   customer: string;
   customerId?: string;
+  subCustomerId?: string | { name: string; phone?: string };
   items?: SaleItem[];
   totalAmount: number;
   paymentType: string;
@@ -130,4 +132,68 @@ export interface Debt {
     barcode?: string;
     createdAt?: string;
   };
+}
+
+// Vendor Management Types
+export interface Vendor {
+  _id?: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  taxNumber?: string;
+  contactPerson?: string;
+  notes?: string;
+  status: "active" | "inactive" | "deleted";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchaseOrder {
+  _id?: string;
+  vendorId: string | { _id: string; name: string };
+  orderNumber: string;
+  orderDate: string;
+  expectedDeliveryDate?: string;
+  items: PurchaseOrderItem[];
+  totalAmount: number;
+  status: "pending" | "confirmed" | "received" | "cancelled";
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchaseOrderItem {
+  productId: string | { _id: string; name: string; barcode: string };
+  productName: string;
+  barcode: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface VendorDebt {
+  _id?: string;
+  vendorId: string | { _id: string; name: string };
+  amount: number;
+  description?: string;
+  dueDate?: string;
+  isPaid: boolean;
+  purchaseOrderId?: string | { _id: string; orderNumber: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VendorPayment {
+  _id?: string;
+  vendorId: string | { _id: string; name: string };
+  amount: number;
+  paymentDate: string;
+  paymentType: "nakit" | "havale" | "cek" | "diger";
+  description?: string;
+  debtId?: string | { _id: string; amount: number; description: string };
+  receiptNumber?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -8,7 +8,7 @@ export async function GET(request) {
   const barcode = searchParams.get("barcode");
   const search = searchParams.get("search");
   const category = searchParams.get("category");
-  const company = searchParams.get("company");
+  const vendor = searchParams.get("vendor");
   const brand = searchParams.get("brand");
   const tool = searchParams.get("tool");
   const stockFilter = searchParams.get("stockFilter");
@@ -37,9 +37,9 @@ export async function GET(request) {
       query.category = category;
     }
 
-    // Firma filtresi
-    if (company) {
-      query.supplier = { $in: [company] };
+    // Tedarikçi filtresi
+    if (vendor) {
+      query.supplier = { $in: [vendor] };
     }
 
     // Marka filtresi
@@ -66,6 +66,37 @@ export async function GET(request) {
     const products = await Product.find(query).sort(sortQuery);
     return NextResponse.json(products);
   } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request) {
+  await connectDB();
+  try {
+    const body = await request.json();
+    const { id, stock } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Ürün ID'si gerekli" },
+        { status: 400 }
+      );
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      return NextResponse.json({ error: "Ürün bulunamadı" }, { status: 404 });
+    }
+
+    // Stok güncelleme
+    if (stock !== undefined) {
+      product.stock = stock;
+    }
+
+    await product.save();
+    return NextResponse.json(product);
+  } catch (error) {
+    console.error("Product PATCH error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

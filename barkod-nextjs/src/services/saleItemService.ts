@@ -93,26 +93,29 @@ export const saleItemService = {
       const saleItems = await response.json();
 
       // Ürün bazında grupla ve son fiyatları getir
-      const priceHistory = saleItems.reduce((acc: any, item: any) => {
-        const key = item.productId._id || item.productId;
-        if (!acc[key]) {
-          acc[key] = {
-            productId: key,
-            productName: item.productName,
-            barcode: item.barcode,
-            lastCustomPrice: item.customPrice,
-            lastFinalPrice: item.finalPrice,
-            lastSaleDate: item.createdAt,
-            totalSales: 0,
-            totalQuantity: 0,
-          };
-        }
+      const priceHistory = saleItems.reduce(
+        (acc: Record<string, any>, item: any) => {
+          const key = item.productId._id || item.productId;
+          if (!acc[key]) {
+            acc[key] = {
+              productId: key,
+              productName: item.productName,
+              barcode: item.barcode,
+              lastCustomPrice: item.customPrice,
+              lastFinalPrice: item.finalPrice,
+              lastSaleDate: item.createdAt,
+              totalSales: 0,
+              totalQuantity: 0,
+            };
+          }
 
-        acc[key].totalSales += item.totalAmount;
-        acc[key].totalQuantity += item.quantity;
+          acc[key].totalSales += item.totalAmount;
+          acc[key].totalQuantity += item.quantity;
 
-        return acc;
-      }, {});
+          return acc;
+        },
+        {}
+      );
 
       return Object.values(priceHistory);
     } catch (error) {

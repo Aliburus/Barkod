@@ -27,9 +27,9 @@ const CartSaleSchema = new mongoose.Schema({
     ref: "Customer",
     required: true,
   },
-  company: {
+  vendor: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Company",
+    ref: "Vendor",
   },
   items: [CartSaleItemSchema],
   totalAmount: {

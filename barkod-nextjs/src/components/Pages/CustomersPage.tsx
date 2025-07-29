@@ -4,7 +4,16 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Customer } from "../../types";
 import { customerService } from "../../services/customerService";
 
-import { Trash2, Search } from "lucide-react";
+import {
+  Trash2,
+  Search,
+  Plus,
+  Phone,
+  MapPin,
+  Users,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 
 // Debounce utility function
 const debounce = (func: (search: string) => void, wait: number) => {
@@ -29,6 +38,7 @@ const CustomersPage: React.FC = () => {
     null
   );
   const [searchTerm, setSearchTerm] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const fetchCustomers = async (search?: string, page: number = 1) => {
     setLoading(true);
@@ -72,11 +82,6 @@ const CustomersPage: React.FC = () => {
     []
   );
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchCustomers(searchTerm);
-  };
-
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchTerm(value);
@@ -93,122 +98,165 @@ const CustomersPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-2 sm:px-4 lg:px-8 mt-4">
-      {/* Üstte yatay ekleme alanı */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-2 mb-4 flex flex-wrap gap-4 items-center">
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-wrap gap-2 items-end w-full"
-        >
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Müşteri Adı
-            </label>
-            <input
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              placeholder="Müşteri Adı"
-              className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-              required
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Telefon
-            </label>
-            <input
-              name="phone"
-              value={form.phone}
-              onChange={handleChange}
-              placeholder="Telefon"
-              className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            />
-          </div>
-          <div className="flex flex-col flex-1 min-w-[120px]">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Adres
-            </label>
-            <input
-              name="address"
-              value={form.address}
-              onChange={handleChange}
-              placeholder="Adres"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Quick Add Form */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-xl shadow-lg border border-blue-200 dark:border-gray-600 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Plus className="w-4 h-4 text-white" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Hızlı Müşteri Ekleme
+            </h2>
           </div>
           <button
-            type="submit"
-            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors font-semibold text-sm flex items-center gap-2"
-            disabled={loading}
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
           >
-            {loading ? "Ekleniyor..." : "Müşteri Ekle"}
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Form
+            </span>
+            {showAddForm ? (
+              <ChevronUp className="w-4 h-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            )}
           </button>
-        </form>
-      </div>
-      {/* Search alanı */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4">
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              placeholder="Müşteri adı, telefon veya adres ara..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            />
-          </div>
-          <button
-            type="submit"
-            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors font-semibold text-sm flex items-center gap-2"
-            disabled={loading}
+        </div>
+
+        {showAddForm && (
+          <form
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 border-t border-gray-200 dark:border-gray-600 pt-4"
           >
-            {loading ? "Aranıyor..." : "Ara"}
-          </button>
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm("");
-                fetchCustomers();
-              }}
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors font-semibold text-sm"
-            >
-              Temizle
-            </button>
-          )}
-        </form>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Müşteri Adı *
+              </label>
+              <input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                placeholder="Müşteri adını girin"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Telefon
+              </label>
+              <input
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="Telefon numarası"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+              />
+            </div>
+            <div className="space-y-2 lg:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Adres
+              </label>
+              <input
+                name="address"
+                value={form.address}
+                onChange={handleChange}
+                placeholder="Müşteri adresi"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+              />
+            </div>
+            <div className="lg:col-span-4 flex justify-end">
+              <button
+                type="submit"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-semibold text-sm flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Ekleniyor...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Müşteri Ekle
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
-      {/* Altta yatay müşteri listesi */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0 w-full">
-        <div className="overflow-x-auto w-full">
-          <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm align-middle">
-            <thead>
+      {/* Customer List Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+                <Users className="w-4 h-4 text-white" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Müşteri Listesi
+              </h2>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  placeholder="Müşteri ara..."
+                  className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm w-64"
+                />
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {customers.length} müşteri
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                  Adı
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  Müşteri Adı
                 </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Telefon
                 </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Adres
                 </th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   İşlemler
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {customers.length === 0 ? (
                 <tr>
                   <td
                     colSpan={4}
-                    className="text-center py-8 text-gray-500 dark:text-gray-400"
+                    className="text-center py-12 text-gray-500 dark:text-gray-400"
                   >
-                    Kayıtlı müşteri yok
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                        <div className="w-6 h-6 bg-gray-400 rounded-full"></div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          Henüz müşteri eklenmemiş
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          İlk müşterinizi eklemek için yukarıdaki formu kullanın
+                        </p>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -217,27 +265,51 @@ const CustomersPage: React.FC = () => {
                 customers.map((c) => (
                   <tr
                     key={c.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200"
                   >
-                    <td
-                      className="px-4 py-2 text-sm text-primary-600 underline cursor-pointer font-semibold"
-                      onClick={() => openCustomerDetail(c)}
-                    >
-                      {c.name}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="ml-4">
+                          <button
+                            onClick={() => openCustomerDetail(c)}
+                            className="text-sm font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          >
+                            {c.name}
+                          </button>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-300">
-                      {c.phone || "-"}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mr-3">
+                          <Phone className="w-4 h-4 text-green-600" />
+                        </div>
+                        <span className="text-sm text-gray-900 dark:text-white font-medium">
+                          {c.phone || "-"}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-300">
-                      {c.address || "-"}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mr-3">
+                          <MapPin className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <span className="text-sm text-gray-900 dark:text-white">
+                          {c.address || "-"}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-2 text-sm">
+                    <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => handleDeleteCustomer(c.id)}
-                        className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors flex items-center gap-1"
-                        title="Sil"
+                        className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-4 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-200 font-medium text-sm flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                        title="Müşteriyi Sil"
                       >
-                        <Trash2 className="w-4 h-4" /> Sil
+                        <Trash2 className="w-4 h-4" />
+                        Sil
                       </button>
                     </td>
                   </tr>

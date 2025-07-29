@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useMemo, memo } from "react";
 import { Product } from "../../types";
-import { Search, Plus, Check } from "lucide-react";
+import { Search, Plus, Check, ChevronDown, ChevronUp } from "lucide-react";
 
-import { companyService } from "../../services/companyService";
+import { vendorService } from "../../services/vendorService";
 import { cartService } from "../../services/cartService";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
@@ -111,11 +111,7 @@ const ProductCard = memo(
                 : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200"
             }`}
           >
-            {product.stock === 0
-              ? "Tükendi"
-              : product.stock <= lowStockThreshold
-              ? "Az Stok"
-              : product.stock + " adet"}
+            {product.stock === 0 ? "Tükendi" : product.stock + " adet"}
           </span>
           {product.category && (
             <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 font-medium">
@@ -125,6 +121,11 @@ const ProductCard = memo(
           {product.brand && (
             <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 font-medium">
               {product.brand}
+            </span>
+          )}
+          {product.shelf && (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200 font-medium">
+              {product.shelf}
             </span>
           )}
         </div>
@@ -162,8 +163,8 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedCompany, setSelectedCompany] = useState("");
   const [selectedBrand, setSelectedBrand] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState("");
   const [selectedTool, setSelectedTool] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
   const [sortBy, setSortBy] = useState<"name" | "price" | "stock" | "created">(
@@ -171,6 +172,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
 
   const [cartItems, setCartItems] = useState<{ [key: string]: number }>({});
 
@@ -238,17 +240,20 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     }
   };
 
-  const { data: companies = [] } = useSWR("/api/companies", () =>
-    companyService.getAll()
+  const { data: vendorsData = { vendors: [] } } = useSWR("/api/vendors", () =>
+    vendorService.getAll()
   );
-  const router = useRouter();
-  const getCompanyName = (id: string | undefined) => {
-    if (!id) return "-";
-    const found = companies.find(
-      (c: { _id: string; name: string }) => c._id === id
+
+  const vendors = vendorsData.vendors || [];
+
+  const getVendorName = (id: string | undefined) => {
+    if (!id) return "";
+    const found = vendors.find(
+      (vendor: any) => vendor._id === id || vendor.id === id
     );
-    return found ? found.name : id;
+    return found ? found.name : "";
   };
+  const router = useRouter();
 
   const filteredProducts = products
     .filter((product) => {
@@ -258,24 +263,26 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
         product.brand.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory =
         !selectedCategory || product.category === selectedCategory;
-      const matchesCompany =
-        !selectedCompany ||
+      const matchesVendor =
+        !selectedVendor ||
         (() => {
           const supplier = Array.isArray(product.supplier)
             ? product.supplier[0]
             : product.supplier;
-          return getCompanyName(supplier) === selectedCompany;
+          return getVendorName(supplier) === selectedVendor;
         })();
       const matchesBrand = !selectedBrand || product.brand === selectedBrand;
       const matchesTool =
         !selectedTool ||
         (() => {
-          const usedCars = Array.isArray(product.usedCars)
-            ? product.usedCars.join(", ")
-            : product.usedCars;
-          return usedCars === selectedTool;
+          if (!product.usedCars || !Array.isArray(product.usedCars)) {
+            return false;
+          }
+          return product.usedCars.some((car) =>
+            car.toLowerCase().includes(selectedTool.toLowerCase())
+          );
         })();
-      const matchesStock =
+      const matchesStockFilter =
         stockFilter === "all" ||
         (stockFilter === "low" &&
           product.stock <= lowStockThreshold &&
@@ -284,10 +291,10 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
       return (
         matchesSearch &&
         matchesCategory &&
-        matchesCompany &&
+        matchesVendor &&
         matchesBrand &&
         matchesTool &&
-        matchesStock
+        matchesStockFilter
       );
     })
     .sort((a, b) => {
@@ -344,126 +351,211 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
     ),
   ];
 
-  const companiesList = [
+  const vendorsList = [
     ...new Set(
       products
         .map((p) => {
           const supplier = Array.isArray(p.supplier)
             ? p.supplier[0]
             : p.supplier;
-          return getCompanyName(supplier);
+          return getVendorName(supplier);
         })
-        .filter((name) => name !== "-")
+        .filter((name) => name !== "")
     ),
   ];
 
   return (
-    <div className="w-full px-[10px] mt-[10px]">
-      {/* YATAY FİLTRELER */}
-      <div className="flex flex-wrap gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-[5px] mb-[10px] items-center">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Ürün ara (isim, barkod, marka)..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-80 pl-10 pr-2 py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Search and Filters Section */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-xl shadow-lg border border-blue-200 dark:border-gray-600 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Search className="w-4 h-4 text-white" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Ürün Arama ve Filtreleme
+            </h2>
+          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Filtreler
+            </span>
+            {showFilters ? (
+              <ChevronUp className="w-4 h-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
         </div>
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[100px]"
-        >
-          <option value="">Tüm Kategoriler</option>
-          {categories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-        <select
-          value={selectedCompany}
-          onChange={(e) => setSelectedCompany(e.target.value)}
-          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[120px]"
-        >
-          <option value="">Tüm Firmalar</option>
-          {companiesList.map((company) => (
-            <option key={company} value={company}>
-              {company}
-            </option>
-          ))}
-        </select>
-        <select
-          value={selectedBrand}
-          onChange={(e) => setSelectedBrand(e.target.value)}
-          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[100px]"
-        >
-          <option value="">Tüm Markalar</option>
-          {brands.map((brand) => (
-            <option key={brand} value={brand}>
-              {brand}
-            </option>
-          ))}
-        </select>
-        <select
-          value={selectedTool}
-          onChange={(e) => setSelectedTool(e.target.value)}
-          className="px-[5px] py-[5px] border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[120px]"
-        >
-          <option value="">Tüm Araçlar</option>
-          {tools.map((tool) => (
-            <option key={tool} value={tool}>
-              {tool}
-            </option>
-          ))}
-        </select>
-        <select
-          value={stockFilter}
-          onChange={(e) =>
-            setStockFilter(e.target.value as "all" | "low" | "out")
-          }
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-        >
-          <option value="all">Tüm Stoklar</option>
-          <option value="low">Az Stok</option>
-          <option value="out">Tükenen</option>
-        </select>
-        <select
-          value={`${sortBy}-${sortOrder}`}
-          onChange={(e) => {
-            const [field, order] = e.target.value.split("-");
-            setSortBy(field as "name" | "price" | "stock" | "created");
-            setSortOrder(order as "asc" | "desc");
-          }}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-        >
-          <option value="name-asc">İsim A-Z</option>
-          <option value="name-desc">İsim Z-A</option>
-          <option value="price-asc">Fiyat Düşük-Yüksek</option>
-          <option value="price-desc">Fiyat Yüksek-Düşük</option>
-          <option value="stock-asc">Stok Az-Çok</option>
-          <option value="stock-desc">Stok Çok-Az</option>
-          <option value="created-desc">Yeni Eklenen</option>
-          <option value="created-asc">Eski Eklenen</option>
-        </select>
-        <button
-          onClick={() => {
-            setSearchTerm("");
-            setSelectedCategory("");
-            setSelectedCompany("");
-            setSelectedBrand("");
-            setSelectedTool("");
-            setStockFilter("all");
-            setSortBy("name");
-            setSortOrder("asc");
-            setCurrentPage(1);
-          }}
-          className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
-        >
-          Filtreleri Temizle
-        </button>
+
+        {/* Search Input - Always Visible */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Arama
+          </label>
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Ürün ara (isim, barkod, marka)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+            />
+          </div>
+        </div>
+
+        {/* Filters - Collapsible */}
+        {showFilters && (
+          <div className="space-y-4 border-t border-gray-200 dark:border-gray-600 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Category Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Kategori
+                </label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                >
+                  <option value="">Tüm Kategoriler</option>
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Vendor Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Tedarikçi
+                </label>
+                <select
+                  value={selectedVendor}
+                  onChange={(e) => setSelectedVendor(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                >
+                  <option value="">Tüm Tedarikçiler</option>
+                  {vendorsList.map((vendor) => (
+                    <option key={vendor} value={vendor}>
+                      {vendor}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Brand Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Marka
+                </label>
+                <select
+                  value={selectedBrand}
+                  onChange={(e) => setSelectedBrand(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                >
+                  <option value="">Tüm Markalar</option>
+                  {brands.map((brand) => (
+                    <option key={brand} value={brand}>
+                      {brand}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tool Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Araç
+                </label>
+                <select
+                  value={selectedTool}
+                  onChange={(e) => setSelectedTool(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                >
+                  <option value="">Tüm Araçlar</option>
+                  {tools.map((tool) => (
+                    <option key={tool} value={tool}>
+                      {tool}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Stock Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Stok Durumu
+                </label>
+                <select
+                  value={stockFilter}
+                  onChange={(e) =>
+                    setStockFilter(e.target.value as "all" | "low" | "out")
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                >
+                  <option value="all">Tüm Ürünler</option>
+                  <option value="low">Düşük Stok</option>
+                  <option value="out">Stokta Yok</option>
+                </select>
+              </div>
+
+              {/* Sort By */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sıralama
+                </label>
+                <select
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split("-");
+                    setSortBy(field as "name" | "price" | "stock" | "created");
+                    setSortOrder(order as "asc" | "desc");
+                  }}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                >
+                  <option value="name-asc">İsim A-Z</option>
+                  <option value="name-desc">İsim Z-A</option>
+                  <option value="price-asc">Fiyat Düşük-Yüksek</option>
+                  <option value="price-desc">Fiyat Yüksek-Düşük</option>
+                  <option value="stock-asc">Stok Az-Çok</option>
+                  <option value="stock-desc">Stok Çok-Az</option>
+                  <option value="created-desc">Yeni Eklenen</option>
+                  <option value="created-asc">Eski Eklenen</option>
+                </select>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedCategory("");
+                    setSelectedVendor("");
+                    setSelectedBrand("");
+                    setSelectedTool("");
+                    setStockFilter("all");
+                    setSortBy("name");
+                    setSortOrder("asc");
+                    setCurrentPage(1);
+                  }}
+                  className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-6 py-3 rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200 font-semibold text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+                >
+                  Filtreleri Temizle
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {/* YATAY ÜRÜN LİSTESİ */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-[5px] w-full">
@@ -485,6 +577,9 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                 </th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   Marka
+                </th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                  Raf
                 </th>
                 <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   Fiyat
@@ -516,7 +611,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
               {paginatedProducts.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={12}
+                    colSpan={13}
                     className="text-center py-8 text-gray-500 dark:text-gray-400"
                   >
                     Ürün bulunamadı
@@ -547,9 +642,9 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                             <span
                               key={id}
                               className="underline text-primary-600 cursor-pointer hover:text-primary-800"
-                              onClick={() => router.push(`/companies/${id}`)}
+                              onClick={() => router.push(`/vendors/${id}`)}
                             >
-                              {getCompanyName(id)}
+                              {getVendorName(id)}
                               {i < arr.length - 1 ? ", " : ""}
                             </span>
                           ))
@@ -569,6 +664,13 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                         </span>
                       </Tooltip>
                     </td>
+                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-300 text-center min-w-[60px] max-w-[60px] truncate">
+                      <Tooltip content={product.shelf || "-"}>
+                        <span className="block truncate">
+                          {product.shelf || "-"}
+                        </span>
+                      </Tooltip>
+                    </td>
                     <td className="px-3 py-2 text-xs font-semibold text-gray-900 dark:text-white text-right min-w-[70px] max-w-[70px]">
                       ₺{product.price?.toLocaleString()}
                     </td>
@@ -584,8 +686,6 @@ const ProductsPage: React.FC<ProductsPageProps> = ({
                       >
                         {product.stock === 0
                           ? "Tükendi"
-                          : product.stock <= lowStockThreshold
-                          ? "Az Stok"
                           : product.stock + " adet"}
                       </span>
                     </td>

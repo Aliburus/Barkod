@@ -8,14 +8,16 @@ const ProductSchema = new mongoose.Schema({
   stock: { type: Number, required: true },
   category: { type: String },
   brand: { type: String },
+  shelf: { type: String },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   supplier: {
-    type: [String],
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: "Vendor",
     required: true,
     validate: [
       (v) => Array.isArray(v) && v.length > 0,
-      "En az bir firma seçmelisiniz.",
+      "En az bir tedarikçi seçmelisiniz.",
     ],
   },
   oem: { type: String },

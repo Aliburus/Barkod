@@ -49,7 +49,6 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       color: "text-yellow-600",
       route: "/customers",
     },
-
     {
       id: "kasa" as Tab,
       label: "Kasa",
@@ -65,11 +64,11 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       route: "/giderler",
     },
     {
-      id: "companies" as Tab,
-      label: "Firmalar",
-      icon: User,
-      color: "text-cyan-600",
-      route: "/companies",
+      id: "vendors" as Tab,
+      label: "Tedarikçiler",
+      icon: Package,
+      color: "text-indigo-600",
+      route: "/vendors",
     },
     {
       id: "analytics" as Tab,

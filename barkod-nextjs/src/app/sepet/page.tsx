@@ -8,25 +8,27 @@ import { productService } from "../../services/productService";
 import { customerService } from "../../services/customerService";
 import { subCustomerService } from "../../services/subCustomerService";
 import { saleItemService } from "../../services/saleItemService";
+import { vendorService } from "../../services/vendorService";
 
 interface CartItem {
   product: Product;
   quantity: number;
   customPrice?: number; // Düzenlenebilir fiyat
+  uniqueId: string; // Benzersiz ID
 }
 
 // Düzenlenebilir fiyat bileşeni
 const EditablePrice: React.FC<{
   value: number;
-  onSave: (newPrice: number) => void;
+  onSave: (newPrice: number) => Promise<void>;
 }> = ({ value, onSave }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value.toString());
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const newPrice = parseFloat(editValue);
     if (!isNaN(newPrice) && newPrice >= 0) {
-      onSave(newPrice);
+      await onSave(newPrice);
       setIsEditing(false);
     }
   };
@@ -40,8 +42,8 @@ const EditablePrice: React.FC<{
     }
   };
 
-  const handleBlur = () => {
-    handleSave();
+  const handleBlur = async () => {
+    await handleSave();
   };
 
   if (isEditing) {
@@ -102,12 +104,30 @@ const SepetPage: React.FC = () => {
     name: "",
     phone: "",
   });
+  const [vendors, setVendors] = useState<
+    { _id?: string; name: string; phone?: string; email?: string }[]
+  >([]);
+  const [selectedVendor, setSelectedVendor] = useState<string>("");
+  const [isPurchaseMode, setIsPurchaseMode] = useState(false);
 
   // Sepetten localStorage'dan yükle ve müşterileri yükle
   useEffect(() => {
     const savedCart = localStorage.getItem("cart");
     if (savedCart) {
-      setCartItems(JSON.parse(savedCart));
+      try {
+        const parsedCart = JSON.parse(savedCart);
+        // Eski verilerde uniqueId yoksa, yeni uniqueId ekle
+        const updatedCart = parsedCart.map((item: CartItem, index: number) => ({
+          ...item,
+          uniqueId:
+            item.uniqueId ||
+            `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
+        }));
+        setCartItems(updatedCart);
+      } catch (error) {
+        console.error("Sepet verilerini yüklerken hata:", error);
+        setCartItems([]);
+      }
     }
     customerService
       .getAll()
@@ -122,6 +142,22 @@ const SepetPage: React.FC = () => {
         console.error("Müşteriler yüklenirken hata:", error);
         setCustomers([]);
       });
+
+    // Vendor'ları yükle
+    vendorService
+      .getAll()
+      .then((data) => {
+        if (data && data.vendors) {
+          setVendors(data.vendors);
+        } else {
+          setVendors([]);
+        }
+      })
+      .catch((error) => {
+        console.error("Tedarikçiler yüklenirken hata:", error);
+        setVendors([]);
+      });
+
     setLoading(false);
   }, []);
 
@@ -151,18 +187,26 @@ const SepetPage: React.FC = () => {
     }
   }, [selectedCustomer]);
 
-  const updateQuantity = (productId: string, newQuantity: number) => {
+  // Tedarikçi seçildiğinde alış moduna geç
+  useEffect(() => {
+    if (selectedVendor) {
+      setIsPurchaseMode(true);
+      setSelectedCustomer(""); // Müşteri seçimini temizle
+      setSelectedSubCustomer(""); // Alt müşteri seçimini temizle
+    } else {
+      setIsPurchaseMode(false);
+    }
+  }, [selectedVendor]);
+
+  const updateQuantity = (uniqueId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(uniqueId);
       return;
     }
 
     setCartItems((prev) =>
       prev.map((item) => {
-        if (
-          item.product.id === productId ||
-          item.product.barcode === productId
-        ) {
+        if (item.uniqueId === uniqueId) {
           // Stok kontrolü
           if (newQuantity > item.product.stock) {
             setNotification({
@@ -179,31 +223,80 @@ const SepetPage: React.FC = () => {
     );
   };
 
-  const removeFromCart = (productId: string) => {
-    setCartItems((prev) =>
-      prev.filter(
-        (item) =>
-          item.product.id !== productId && item.product.barcode !== productId
-      )
-    );
+  const removeFromCart = (uniqueId: string) => {
+    setCartItems((prev) => prev.filter((item) => item.uniqueId !== uniqueId));
   };
 
   const clearCart = () => {
     setCartItems([]);
+    // Eski verileri temizlemek için localStorage'ı da temizle
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("cartItems");
+      sessionStorage.removeItem("cartItems");
+    }
   };
 
-  const updateItemPrice = (productId: string, newPrice: number) => {
+  const updateItemPrice = async (uniqueId: string, newPrice: number) => {
+    // Sepet state'ini güncelle
     setCartItems((prev) =>
       prev.map((item) => {
-        if (
-          item.product.id === productId ||
-          item.product.barcode === productId
-        ) {
+        if (item.uniqueId === uniqueId) {
           return { ...item, customPrice: newPrice };
         }
         return item;
       })
     );
+
+    // Alış modunda ise ürünün veritabanındaki purchasePrice'ını da güncelle
+    if (isPurchaseMode) {
+      const cartItem = cartItems.find((item) => item.uniqueId === uniqueId);
+      if (cartItem) {
+        try {
+          const response = await fetch("/api/products", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              id: cartItem.product.id || cartItem.product._id,
+              purchasePrice: newPrice,
+            }),
+          });
+
+          if (!response.ok) {
+            console.error("Ürün alış fiyatı güncellenirken hata oluştu");
+            setNotification({
+              message: "Ürün alış fiyatı güncellenirken hata oluştu",
+              type: "error",
+              show: true,
+            });
+          } else {
+            // Başarılı güncelleme sonrası ürün bilgisini de güncelle
+            setCartItems((prev) =>
+              prev.map((item) => {
+                if (item.uniqueId === uniqueId) {
+                  return {
+                    ...item,
+                    product: {
+                      ...item.product,
+                      purchasePrice: newPrice,
+                    },
+                  };
+                }
+                return item;
+              })
+            );
+          }
+        } catch (error) {
+          console.error("Ürün alış fiyatı güncelleme hatası:", error);
+          setNotification({
+            message: "Ürün alış fiyatı güncellenirken hata oluştu",
+            type: "error",
+            show: true,
+          });
+        }
+      }
+    }
   };
 
   const addToCart = async (barcode: string) => {
@@ -221,45 +314,29 @@ const SepetPage: React.FC = () => {
         }
 
         setCartItems((prev) => {
-          const existingItem = prev.find(
-            (item) =>
-              item.product.id === product.id ||
-              item.product.barcode === product.barcode
-          );
-
-          if (existingItem) {
-            // Mevcut ürünün yeni miktarı
-            const newQuantity = existingItem.quantity + 1;
-
-            // Stok kontrolü
-            if (newQuantity > product.stock) {
-              setNotification({
-                message: `Yeterli stok yok: ${product.name} (Mevcut: ${product.stock})`,
-                type: "warning",
-                show: true,
-              });
-              return prev; // Sepeti değiştirme
-            }
-
-            return prev.map((item) =>
-              item.product.id === product.id ||
-              item.product.barcode === product.barcode
-                ? { ...item, quantity: newQuantity }
-                : item
-            );
-          } else {
-            // Yeni ürün ekleme
-            if (product.stock < 1) {
-              setNotification({
-                message: `Ürün stokta yok: ${product.name}`,
-                type: "warning",
-                show: true,
-              });
-              return prev; // Sepeti değiştirme
-            }
-
-            return [...prev, { product, quantity: 1 }];
+          // Her seferinde yeni bir satır ekle (birleştirme yapma)
+          if (product.stock < 1) {
+            setNotification({
+              message: `Ürün stokta yok: ${product.name}`,
+              type: "warning",
+              show: true,
+            });
+            return prev; // Sepeti değiştirme
           }
+
+          // Benzersiz ID oluştur (timestamp + random)
+          const uniqueId = `${Date.now()}-${Math.random()
+            .toString(36)
+            .substr(2, 9)}`;
+
+          return [
+            ...prev,
+            {
+              product,
+              quantity: 1,
+              uniqueId: uniqueId, // Benzersiz ID ekle
+            },
+          ];
         });
         return true; // Başarılı
       }
@@ -326,7 +403,10 @@ const SepetPage: React.FC = () => {
   );
 
   const totalPurchaseAmount = cartItems.reduce(
-    (sum, item) => sum + (item.product.purchasePrice || 0) * item.quantity,
+    (sum, item) =>
+      sum +
+      (item.customPrice || item.product.purchasePrice || item.product.price) *
+        item.quantity,
     0
   );
 
@@ -413,7 +493,7 @@ const SepetPage: React.FC = () => {
                           Adet
                         </th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-                          Fiyat
+                          {isPurchaseMode ? "Alış Fiyatı" : "Fiyat"}
                         </th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
                           İşlem
@@ -421,9 +501,11 @@ const SepetPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredItems.map((item) => (
+                      {filteredItems.map((item, index) => (
                         <tr
-                          key={item.product.id || item.product.barcode}
+                          key={
+                            item.uniqueId || `${item.product.barcode}-${index}`
+                          }
                           className="border-b border-gray-100 dark:border-gray-700"
                         >
                           <td className="px-4 py-3">
@@ -441,7 +523,7 @@ const SepetPage: React.FC = () => {
                               <button
                                 onClick={() =>
                                   updateQuantity(
-                                    item.product.id || item.product.barcode,
+                                    item.uniqueId,
                                     item.quantity - 1
                                   )
                                 }
@@ -455,7 +537,7 @@ const SepetPage: React.FC = () => {
                               <button
                                 onClick={() =>
                                   updateQuantity(
-                                    item.product.id || item.product.barcode,
+                                    item.uniqueId,
                                     item.quantity + 1
                                   )
                                 }
@@ -467,22 +549,21 @@ const SepetPage: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-right">
                             <EditablePrice
-                              value={item.customPrice || item.product.price}
-                              onSave={(newPrice) =>
-                                updateItemPrice(
-                                  item.product.id || item.product.barcode,
-                                  newPrice
-                                )
+                              value={
+                                isPurchaseMode
+                                  ? item.customPrice ||
+                                    item.product.purchasePrice ||
+                                    item.product.price
+                                  : item.customPrice || item.product.price
+                              }
+                              onSave={async (newPrice) =>
+                                await updateItemPrice(item.uniqueId, newPrice)
                               }
                             />
                           </td>
                           <td className="px-4 py-3 text-center">
                             <button
-                              onClick={() =>
-                                removeFromCart(
-                                  item.product.id || item.product.barcode
-                                )
-                              }
+                              onClick={() => removeFromCart(item.uniqueId)}
                               className="text-red-600 hover:text-red-800 transition-colors"
                             >
                               <Trash2 className="w-5 h-5" />
@@ -513,47 +594,77 @@ const SepetPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Toplam Tutar:
+                    {isPurchaseMode ? "Toplam Alış Tutarı:" : "Toplam Tutar:"}
                   </span>
                   <span className="font-bold text-xl">
-                    ₺{totalAmount.toLocaleString()}
+                    ₺
+                    {(isPurchaseMode
+                      ? totalPurchaseAmount
+                      : totalAmount
+                    ).toLocaleString()}
                   </span>
                 </div>
               </div>
 
               {cartItems.length > 0 && (
                 <>
+                  {/* Tedarikçi Seçimi */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Müşteri
+                      Tedarikçi (Alış için)
                     </label>
                     <div className="flex gap-2">
                       <select
-                        value={selectedCustomer}
-                        onChange={(e) => setSelectedCustomer(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        value={selectedVendor}
+                        onChange={(e) => setSelectedVendor(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
-                        <option value="">Müşteri seçin</option>
-                        {customers &&
-                          Array.isArray(customers) &&
-                          customers.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
+                        <option value="">Tedarikçi seçin (Alış modu)</option>
+                        {vendors &&
+                          Array.isArray(vendors) &&
+                          vendors.map((v) => (
+                            <option key={v._id} value={v._id}>
+                              {v.name}
                             </option>
                           ))}
                       </select>
-                      <button
-                        type="button"
-                        onClick={() => setShowAddCustomer(true)}
-                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
-                      >
-                        + Yeni
-                      </button>
                     </div>
                   </div>
 
-                  {/* SubCustomer Seçimi */}
-                  {selectedCustomer && (
+                  {/* Müşteri Seçimi - Sadece alış modu değilse göster */}
+                  {!isPurchaseMode && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Müşteri
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          value={selectedCustomer}
+                          onChange={(e) => setSelectedCustomer(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                          <option value="">Müşteri seçin</option>
+                          {customers &&
+                            Array.isArray(customers) &&
+                            customers.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddCustomer(true)}
+                          className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                        >
+                          + Yeni
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SubCustomer Seçimi - Sadece satış modunda göster */}
+                  {!isPurchaseMode && selectedCustomer && (
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Müşterinin Müşterisi
@@ -586,145 +697,301 @@ const SepetPage: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Ödeme Yöntemi
-                    </label>
-                    <select
-                      value={selectedPaymentType}
-                      onChange={(e) => setSelectedPaymentType(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                      <option value="nakit">Nakit</option>
-                      <option value="kredi kartı">Kredi Kartı</option>
-                      <option value="havale">Havale/EFT</option>
-                      <option value="diğer">Diğer</option>
-                    </select>
-                  </div>
+                  {/* Ödeme Yöntemi ve Borçlu Satış - Sadece satış modunda göster */}
+                  {!isPurchaseMode && (
+                    <>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Ödeme Yöntemi
+                        </label>
+                        <select
+                          value={selectedPaymentType}
+                          onChange={(e) =>
+                            setSelectedPaymentType(e.target.value)
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                          <option value="nakit">Nakit</option>
+                          <option value="kredi kartı">Kredi Kartı</option>
+                          <option value="havale">Havale/EFT</option>
+                          <option value="diğer">Diğer</option>
+                        </select>
+                      </div>
 
-                  <div className="mb-4">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={isDebt}
-                        onChange={(e) => setIsDebt(e.target.checked)}
-                        className="mr-2"
-                      />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Borçlu Satış
-                      </span>
-                    </label>
-                  </div>
+                      <div className="mb-4">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={isDebt}
+                            onChange={(e) => setIsDebt(e.target.checked)}
+                            className="mr-2"
+                          />
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Borçlu Satış
+                          </span>
+                        </label>
+                      </div>
+                    </>
+                  )}
 
                   <button
                     onClick={async () => {
-                      if (!selectedCustomer) {
-                        setNotification({
-                          message: "Müşteri seçmelisiniz!",
-                          type: "warning",
-                          show: true,
-                        });
-                        return;
-                      }
-
-                      if (cartItems.length === 0) {
-                        setNotification({
-                          message: "Sepette ürün bulunmuyor!",
-                          type: "warning",
-                          show: true,
-                        });
-                        return;
-                      }
-
-                      try {
-                        // Satış işlemi için API çağrısı
-                        const saleData = {
-                          items: cartItems.map((item) => ({
-                            barcode: item.product.barcode,
-                            quantity: item.quantity,
-                            price: item.customPrice || item.product.price, // Özel fiyat kullan
-                            productName: item.product.name,
-                          })),
-                          customerId: selectedCustomer,
-                          subCustomerId: selectedSubCustomer || undefined,
-                          paymentType: selectedPaymentType,
-                          totalAmount: totalAmount,
-                          isDebt: isDebt,
-                        };
-
-                        const response = await fetch("/api/sales", {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                          },
-                          body: JSON.stringify(saleData),
-                        });
-
-                        if (response.ok) {
-                          const saleResult = await response.json();
-
-                          // Sale items oluştur
-                          const saleItemsData = {
-                            saleId: saleResult._id,
-                            customerId: selectedCustomer,
-                            subCustomerId: selectedSubCustomer || undefined,
-                            items: cartItems.map((item) => ({
-                              productId: (item.product.id ||
-                                item.product._id) as string,
-                              barcode: item.product.barcode,
-                              productName: item.product.name,
-                              quantity: item.quantity,
-                              originalPrice: item.product.price,
-                              customPrice: item.customPrice,
-                              finalPrice:
-                                item.customPrice || item.product.price,
-                              totalAmount:
-                                (item.customPrice || item.product.price) *
-                                item.quantity,
-                            })),
-                          };
-
-                          await saleItemService.create(saleItemsData);
-
-                          // Başarılı satış sonrası sepeti temizle
-                          clearCart();
-                          setSelectedCustomer("");
-                          setSelectedSubCustomer("");
-                          setSelectedPaymentType("nakit");
-                          setIsDebt(false);
+                      if (isPurchaseMode) {
+                        // ALIŞ MODU - Tedarikçiden alış
+                        if (!selectedVendor) {
                           setNotification({
-                            message: "Satış başarıyla tamamlandı!",
-                            type: "success",
+                            message: "Tedarikçi seçmelisiniz!",
+                            type: "warning",
                             show: true,
                           });
-                        } else {
-                          const errorData = await response.json();
+                          return;
+                        }
+
+                        if (cartItems.length === 0) {
                           setNotification({
-                            message: `Satış işlemi sırasında hata: ${errorData.error}`,
+                            message: "Sepette ürün bulunmuyor!",
+                            type: "warning",
+                            show: true,
+                          });
+                          return;
+                        }
+
+                        try {
+                          // Purchase Order oluştur
+                          const purchaseOrderData = {
+                            vendorId: selectedVendor,
+                            orderNumber: `PO-${Date.now()}-${Math.random()
+                              .toString(36)
+                              .substr(2, 9)}`,
+                            orderDate: new Date().toISOString(),
+                            items: cartItems.map((item) => ({
+                              productId: item.product.id || item.product._id,
+                              productName: item.product.name,
+                              barcode: item.product.barcode,
+                              quantity: item.quantity,
+                              unitPrice:
+                                item.customPrice ||
+                                item.product.purchasePrice ||
+                                item.product.price,
+                              totalPrice:
+                                (item.customPrice ||
+                                  item.product.purchasePrice ||
+                                  item.product.price) * item.quantity,
+                            })),
+                            totalAmount: cartItems.reduce(
+                              (sum, item) =>
+                                sum +
+                                (item.customPrice ||
+                                  item.product.purchasePrice ||
+                                  item.product.price) *
+                                  item.quantity,
+                              0
+                            ),
+                            status: "received",
+                            notes: `Sepet üzerinden alış - ${selectedVendor}`,
+                          };
+
+                          const purchaseResponse = await fetch(
+                            "/api/purchase-orders",
+                            {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                              },
+                              body: JSON.stringify(purchaseOrderData),
+                            }
+                          );
+
+                          if (purchaseResponse.ok) {
+                            const purchaseResult =
+                              await purchaseResponse.json();
+
+                            // Stok sayısını güncelle
+                            for (const item of cartItems) {
+                              const newStock =
+                                (item.product.stock || 0) + item.quantity;
+                              await fetch("/api/products", {
+                                method: "PATCH",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                  id: item.product.id || item.product._id,
+                                  stock: newStock,
+                                }),
+                              });
+                            }
+
+                            // MyDebt oluştur
+                            const selectedVendorData = vendors.find(
+                              (v) => v._id === selectedVendor
+                            );
+                            const myDebtData = {
+                              vendorId: selectedVendor,
+                              vendorName:
+                                selectedVendorData?.name ||
+                                "Bilinmeyen Tedarikçi",
+                              amount: cartItems.reduce(
+                                (sum, item) =>
+                                  sum +
+                                  (item.customPrice ||
+                                    item.product.purchasePrice ||
+                                    item.product.price) *
+                                    item.quantity,
+                                0
+                              ),
+                              description: `Sepet üzerinden alış borcu`,
+                              purchaseOrderId: purchaseResult._id,
+                              notes: `Otomatik oluşturulan borç - Sepet alışı`,
+                            };
+
+                            const myDebtResponse = await fetch(
+                              "/api/my-debts",
+                              {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify(myDebtData),
+                              }
+                            );
+
+                            if (!myDebtResponse.ok) {
+                              console.error("My debt creation failed");
+                            }
+
+                            // Başarılı alış sonrası sepeti temizle
+                            clearCart();
+                            setSelectedVendor("");
+                            setIsPurchaseMode(false);
+                            setNotification({
+                              message: "Alış başarıyla tamamlandı!",
+                              type: "success",
+                              show: true,
+                            });
+                          } else {
+                            const errorData = await purchaseResponse.json();
+                            setNotification({
+                              message: `Alış işlemi sırasında hata: ${errorData.error}`,
+                              type: "error",
+                              show: true,
+                            });
+                          }
+                        } catch (error) {
+                          console.error("Alış işlemi hatası:", error);
+                          setNotification({
+                            message: "Alış işlemi sırasında hata oluştu!",
                             type: "error",
                             show: true,
                           });
                         }
-                      } catch (error) {
-                        console.error("Satış işlemi hatası:", error);
-                        setNotification({
-                          message: "Satış işlemi sırasında hata oluştu!",
-                          type: "error",
-                          show: true,
-                        });
+                      } else {
+                        // SATIŞ MODU - Müşteriye satış
+                        if (!selectedCustomer) {
+                          setNotification({
+                            message: "Müşteri seçmelisiniz!",
+                            type: "warning",
+                            show: true,
+                          });
+                          return;
+                        }
+
+                        if (cartItems.length === 0) {
+                          setNotification({
+                            message: "Sepette ürün bulunmuyor!",
+                            type: "warning",
+                            show: true,
+                          });
+                          return;
+                        }
+
+                        try {
+                          // Satış işlemi için API çağrısı
+                          const saleData = {
+                            items: cartItems.map((item) => ({
+                              barcode: item.product.barcode,
+                              quantity: item.quantity,
+                              price: item.customPrice || item.product.price, // Özel fiyat kullan
+                              productName: item.product.name,
+                            })),
+                            customerId: selectedCustomer,
+                            subCustomerId: selectedSubCustomer || undefined,
+                            paymentType: selectedPaymentType,
+                            totalAmount: totalAmount,
+                            isDebt: isDebt,
+                          };
+
+                          const response = await fetch("/api/sales", {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(saleData),
+                          });
+
+                          if (response.ok) {
+                            const saleResult = await response.json();
+
+                            // Sale items oluştur
+                            const saleItemsData = {
+                              saleId: saleResult._id,
+                              customerId: selectedCustomer,
+                              subCustomerId: selectedSubCustomer || undefined,
+                              items: cartItems.map((item) => ({
+                                productId: (item.product.id ||
+                                  item.product._id) as string,
+                                barcode: item.product.barcode,
+                                productName: item.product.name,
+                                quantity: item.quantity,
+                                originalPrice: item.product.price,
+                                customPrice: item.customPrice,
+                                finalPrice:
+                                  item.customPrice || item.product.price,
+                                totalAmount:
+                                  (item.customPrice || item.product.price) *
+                                  item.quantity,
+                              })),
+                            };
+
+                            await saleItemService.create(saleItemsData);
+
+                            // Başarılı satış sonrası sepeti temizle
+                            clearCart();
+                            setSelectedCustomer("");
+                            setSelectedSubCustomer("");
+                            setSelectedPaymentType("nakit");
+                            setIsDebt(false);
+                            setNotification({
+                              message: "Satış başarıyla tamamlandı!",
+                              type: "success",
+                              show: true,
+                            });
+                          } else {
+                            const errorData = await response.json();
+                            setNotification({
+                              message: `Satış işlemi sırasında hata: ${errorData.error}`,
+                              type: "error",
+                              show: true,
+                            });
+                          }
+                        } catch (error) {
+                          console.error("Satış işlemi hatası:", error);
+                          setNotification({
+                            message: "Satış işlemi sırasında hata oluştu!",
+                            type: "error",
+                            show: true,
+                          });
+                        }
                       }
                     }}
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                    className={`w-full py-3 px-4 rounded-lg transition-colors font-semibold ${
+                      isPurchaseMode
+                        ? "bg-green-600 hover:bg-green-700 text-white"
+                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                    }`}
                   >
-                    Satışı Tamamla
+                    {isPurchaseMode ? "Alışı Tamamla" : "Satışı Tamamla"}
                   </button>
-                  <div className="mt-3 text-center">
-                    <div className="mt-1">
-                      <span className="text-xs text-gray-400 dark:text-gray-500">
-                        ₺{totalPurchaseAmount.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
                 </>
               )}
             </div>

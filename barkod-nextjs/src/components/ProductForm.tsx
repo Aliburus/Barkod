@@ -3,7 +3,8 @@ import React, { useState, useEffect } from "react";
 import { Product } from "../types";
 import { Save, Plus } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import { companyService } from "../services/companyService";
+import { vendorService } from "../services/vendorService";
+import { Vendor } from "../types";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -26,31 +27,30 @@ const ProductForm: React.FC<ProductFormProps> = ({
     stock: "",
     category: "",
     brand: "",
+    shelf: "",
     oem: "",
     kod1: "",
     kod2: "",
     usedCars: "",
   });
   const [loading, setLoading] = useState(false);
-  const [companies, setCompanies] = useState<{ _id: string; name: string }[]>(
-    []
-  );
-  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
-  const [showCompanyModal, setShowCompanyModal] = useState(false);
-  const [newCompany, setNewCompany] = useState({
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
+  const [showVendorModal, setShowVendorModal] = useState(false);
+  const [newVendor, setNewVendor] = useState({
     name: "",
     phone: "",
     address: "",
   });
-  const [companySearch, setCompanySearch] = useState("");
+  const [vendorSearch, setVendorSearch] = useState("");
 
   useEffect(() => {
-    companyService.getAll().then(setCompanies);
+    vendorService.getAll().then((data) => setVendors(data.vendors || []));
   }, []);
 
   useEffect(() => {
     if (product && product.supplier) {
-      setSelectedCompanies(
+      setSelectedVendors(
         Array.isArray(product.supplier) ? product.supplier : [product.supplier]
       );
     }
@@ -72,6 +72,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
             : "",
         category: product.category,
         brand: product.brand,
+        shelf: product.shelf || "",
         oem: product.oem || "",
         kod1: product.kod1 || "",
         kod2: product.kod2 || "",
@@ -84,21 +85,19 @@ const ProductForm: React.FC<ProductFormProps> = ({
     }
   }, [product, prefilledBarcode]);
 
-  const handleAddCompany = async (e: React.FormEvent) => {
+  const handleAddVendor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompany.name.trim()) return;
-    await companyService.create(newCompany);
-    setShowCompanyModal(false);
-    setNewCompany({ name: "", phone: "", address: "" });
-    companyService.getAll().then(setCompanies);
+    if (!newVendor.name.trim()) return;
+    await vendorService.create({ ...newVendor, status: "active" });
+    setShowVendorModal(false);
+    setNewVendor({ name: "", phone: "", address: "" });
+    vendorService.getAll().then((data) => setVendors(data.vendors || []));
   };
-
-  // Kullanılmayan fonksiyon kaldırıldı
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCompanies.length) {
-      alert("Lütfen en az bir firma seçiniz!");
+    if (!selectedVendors.length) {
+      alert("Lütfen en az bir tedarikçi seçiniz!");
       return;
     }
     setLoading(true);
@@ -113,7 +112,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
       stock: parseInt(formData.stock),
       category: formData.category,
       brand: formData.brand,
-      supplier: selectedCompanies,
+      shelf: formData.shelf,
+      supplier: selectedVendors,
       oem: formData.oem,
       kod1: formData.kod1,
       kod2: formData.kod2,
@@ -126,6 +126,89 @@ const ProductForm: React.FC<ProductFormProps> = ({
     };
     console.log("productData submit:", productData);
     await onSave(productData);
+
+    // Seçilen tedarikçiler için purchase order oluştur
+    try {
+      for (const vendorId of selectedVendors) {
+        const purchaseOrderData = {
+          vendorId: vendorId,
+          orderNumber: `PO-${Date.now()}-${Math.random()
+            .toString(36)
+            .substr(2, 9)}`,
+          orderDate: new Date().toISOString(),
+          items: [
+            {
+              productId: productData.id,
+              productName: productData.name,
+              barcode: productData.barcode,
+              quantity: parseInt(formData.stock),
+              unitPrice: formData.purchasePrice
+                ? parseFloat(formData.purchasePrice)
+                : 0,
+              totalPrice:
+                (formData.purchasePrice
+                  ? parseFloat(formData.purchasePrice)
+                  : 0) * parseInt(formData.stock),
+            },
+          ],
+          totalAmount:
+            (formData.purchasePrice ? parseFloat(formData.purchasePrice) : 0) *
+            parseInt(formData.stock),
+          status: "received",
+          notes: `Otomatik oluşturulan sipariş - ${productData.name}`,
+        };
+
+        console.log("Sending purchase order data:", purchaseOrderData);
+
+        const response = await fetch("/api/purchase-orders", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(purchaseOrderData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Purchase order creation failed:", errorData);
+        } else {
+          console.log("Purchase order created successfully");
+
+          // MyDebt oluştur
+          const purchaseOrderResponse = await response.json();
+          const vendor = vendors.find((v) => v._id === vendorId);
+
+          const myDebtData = {
+            vendorId: vendorId,
+            vendorName: vendor?.name || "Bilinmeyen Tedarikçi",
+            amount:
+              (formData.purchasePrice
+                ? parseFloat(formData.purchasePrice)
+                : 0) * parseInt(formData.stock),
+            description: `${productData.name} ürünü için borç`,
+            purchaseOrderId: purchaseOrderResponse._id,
+            notes: `Otomatik oluşturulan borç - ${productData.name}`,
+          };
+
+          const myDebtResponse = await fetch("/api/my-debts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(myDebtData),
+          });
+
+          if (!myDebtResponse.ok) {
+            console.error("My debt creation failed");
+          } else {
+            console.log("My debt created successfully");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Purchase order oluşturulurken hata:", error);
+    }
+
     setLoading(false);
   };
 
@@ -145,8 +228,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
     }
   };
 
-  const filteredCompanies = companies.filter((c) =>
-    c.name.toLowerCase().includes(companySearch.toLowerCase())
+  const filteredVendors = vendors.filter((c) =>
+    c.name.toLowerCase().includes(vendorSearch.toLowerCase())
   );
 
   return (
@@ -322,39 +405,53 @@ const ProductForm: React.FC<ProductFormProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Firma
+                Raf
+              </label>
+              <input
+                type="text"
+                name="shelf"
+                value={formData.shelf}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-700 placeholder:font-medium bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                placeholder="Raf konumu (örn: A1, B2)"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tedarikçi
               </label>
               <div className="text-xs text-gray-500 mb-1">
-                Firma ara ve birden fazla seç
+                Tedarikçi ara ve birden fazla seç
               </div>
               <input
                 type="text"
-                placeholder="Firma ara..."
-                value={companySearch}
-                onChange={(e) => setCompanySearch(e.target.value)}
+                placeholder="Tedarikçi ara..."
+                value={vendorSearch}
+                onChange={(e) => setVendorSearch(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white mb-1"
               />
               <div className="border border-gray-300 rounded-md bg-white dark:bg-gray-800 max-h-32 overflow-y-auto">
-                {filteredCompanies.length === 0 && (
+                {filteredVendors.length === 0 && (
                   <span className="p-2 text-gray-400 text-sm">
-                    Firma bulunamadı
+                    Tedarikçi bulunamadı
                   </span>
                 )}
-                {filteredCompanies.map((c) => (
+                {filteredVendors.map((c) => (
                   <label
-                    key={c._id}
+                    key={c._id || `vendor-${c.name}`}
                     className="flex items-center px-2 py-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <input
                       type="checkbox"
-                      checked={selectedCompanies.includes(c._id)}
+                      checked={selectedVendors.includes(c._id || "")}
                       onChange={() => {
-                        if (selectedCompanies.includes(c._id)) {
-                          setSelectedCompanies(
-                            selectedCompanies.filter((id) => id !== c._id)
+                        const vendorId = c._id || "";
+                        if (selectedVendors.includes(vendorId)) {
+                          setSelectedVendors(
+                            selectedVendors.filter((id) => id !== vendorId)
                           );
                         } else {
-                          setSelectedCompanies([...selectedCompanies, c._id]);
+                          setSelectedVendors([...selectedVendors, vendorId]);
                         }
                       }}
                       className="mr-2"
@@ -365,9 +462,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowCompanyModal(true)}
+                onClick={() => setShowVendorModal(true)}
                 className="bg-primary-600 text-white px-2 py-2 rounded hover:bg-primary-700 flex items-center mt-2"
-                title="Firma Ekle"
+                title="Tedarikçi Ekle"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -394,47 +491,47 @@ const ProductForm: React.FC<ProductFormProps> = ({
           </div>
         </form>
       </div>
-      {showCompanyModal && (
+      {showVendorModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl p-8 relative flex flex-col sm:flex-row gap-8">
             <button
-              onClick={() => setShowCompanyModal(false)}
+              onClick={() => setShowVendorModal(false)}
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               Kapat
             </button>
             <div className="flex-1 flex flex-col justify-center">
               <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white text-center sm:text-left">
-                Firma Ekle
+                Tedarikçi Ekle
               </h2>
               <form
-                onSubmit={handleAddCompany}
+                onSubmit={handleAddVendor}
                 className="grid grid-cols-1 sm:grid-cols-2 gap-4"
               >
                 <input
                   name="name"
-                  value={newCompany.name}
+                  value={newVendor.name}
                   onChange={(e) =>
-                    setNewCompany({ ...newCompany, name: e.target.value })
+                    setNewVendor({ ...newVendor, name: e.target.value })
                   }
-                  placeholder="Firma Adı"
+                  placeholder="Tedarikçi Adı"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   required
                 />
                 <input
                   name="phone"
-                  value={newCompany.phone}
+                  value={newVendor.phone}
                   onChange={(e) =>
-                    setNewCompany({ ...newCompany, phone: e.target.value })
+                    setNewVendor({ ...newVendor, phone: e.target.value })
                   }
                   placeholder="Telefon"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
                 <input
                   name="address"
-                  value={newCompany.address}
+                  value={newVendor.address}
                   onChange={(e) =>
-                    setNewCompany({ ...newCompany, address: e.target.value })
+                    setNewVendor({ ...newVendor, address: e.target.value })
                   }
                   placeholder="Adres"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white col-span-1 sm:col-span-2"
