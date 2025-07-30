@@ -12,6 +12,7 @@ interface DebtDetailsModalProps {
   debts: Debt[];
   payments: CustomerPayment[];
   type: "debt" | "payment";
+  subCustomerId?: string; // <-- eklendi
 }
 
 const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
@@ -22,6 +23,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   debts,
   payments,
   type,
+  subCustomerId, // <-- eklendi
 }) => {
   const [filterType, setFilterType] = useState<"all" | "debts" | "payments">(
     "all"
@@ -65,6 +67,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
       }
 
       let url = `/api/debts/customer/${customerId}?filter=${newFilterType}`;
+      if (subCustomerId) url += `&subCustomerId=${subCustomerId}`; // <-- eklendi
       if (search) url += `&search=${encodeURIComponent(search)}`;
       if (extraFilter) url += `&type=${encodeURIComponent(extraFilter)}`;
       if (productName) url += `&productName=${encodeURIComponent(productName)}`;
@@ -111,7 +114,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
     setProductSearch(term);
     if (productTimeout.current) clearTimeout(productTimeout.current);
     productTimeout.current = setTimeout(() => {
-      fetchFilteredData(filterType, searchTerm, selectedExtraFilter, term);
+      fetchFilteredData(filterType, undefined, undefined, term);
     }, 500);
   };
   const handleExtraFilterChange = (val: string) => {
@@ -244,33 +247,12 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                 <div className="flex gap-2 items-center ml-4">
                   <input
                     type="text"
-                    placeholder="Açıklama, tutar, tip..."
-                    value={searchTerm}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="px-2 py-1 rounded border border-gray-400 text-sm bg-gray-900 text-white w-48"
-                    disabled={loading}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Ürün adına göre ara..."
+                    placeholder="Ürün adı veya kodu ile ara..."
                     value={productSearch}
                     onChange={(e) => handleProductSearchChange(e.target.value)}
-                    className="px-2 py-1 rounded border border-gray-400 text-sm bg-gray-900 text-white w-48"
+                    className="px-2 py-1 rounded border border-gray-400 text-sm bg-gray-900 text-white w-64"
                     disabled={loading}
                   />
-                  <select
-                    value={selectedExtraFilter}
-                    onChange={(e) => handleExtraFilterChange(e.target.value)}
-                    className="px-2 py-1 rounded border border-gray-400 text-sm bg-gray-900 text-white"
-                    disabled={loading}
-                  >
-                    <option value="">Tümü</option>
-                    <option value="nakit">Nakit</option>
-                    <option value="havale">Havale</option>
-                    <option value="kredi_karti">Kredi Kartı</option>
-                    <option value="cek">Çek</option>
-                    <option value="diger">Diğer</option>
-                  </select>
                 </div>
               </div>
 

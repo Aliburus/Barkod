@@ -34,6 +34,18 @@ export async function GET(request) {
     .limit(limit)
     .lean();
 
+  // createdAt boş olan subcustomer'ları güncelle
+  for (const subCustomer of subCustomers) {
+    if (!subCustomer.createdAt) {
+      await SubCustomer.findByIdAndUpdate(subCustomer._id, {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      subCustomer.createdAt = new Date();
+      subCustomer.updatedAt = new Date();
+    }
+  }
+
   // Daha fazla alt müşteri var mı kontrol et
   const hasMore = subCustomers.length === limit;
 

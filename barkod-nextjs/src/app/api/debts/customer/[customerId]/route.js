@@ -13,6 +13,8 @@ export async function GET(request, { params }) {
     // URL parametrelerini al
     const { searchParams } = new URL(request.url);
     const filterType = searchParams.get("filter") || "all"; // all, debts, payments
+    const productName = searchParams.get("productName")?.trim();
+    const subCustomerId = searchParams.get("subCustomerId")?.trim();
 
     // customerId'nin geçerli olup olmadığını kontrol et
     if (!customerId || !mongoose.Types.ObjectId.isValid(customerId)) {
@@ -25,9 +27,48 @@ export async function GET(request, { params }) {
     // Borçları getir (filtreye göre)
     let debts = [];
     if (filterType === "all" || filterType === "debts") {
-      debts = await Debt.find({ customerId })
-        .populate("saleId", "totalAmount createdAt items barcode productName")
-        .sort({ createdAt: -1 });
+      // Eğer productName varsa, ürün adı veya barkodunda arama yap
+      const debtQuery = { customerId };
+      if (subCustomerId) {
+        debtQuery.subCustomerId = subCustomerId;
+      }
+      let populateOptions = {
+        path: "saleId",
+        select: "totalAmount createdAt items barcode productName",
+      };
+      if (productName) {
+        // saleId.productName veya saleId.items.productName/barcode içinde arama
+        // Not: saleId bir referans olduğu için, populate sonrası filtreleme yapılabilir
+        debts = await Debt.find(debtQuery)
+          .populate(populateOptions)
+          .sort({ createdAt: -1 });
+        debts = debts.filter((debt) => {
+          if (!debt.saleId) return false;
+          // saleId.productName veya saleId.barcode
+          const mainName = debt.saleId.productName?.toLowerCase() || "";
+          const mainBarcode = debt.saleId.barcode?.toLowerCase() || "";
+          const search = productName.toLowerCase();
+          let found = false;
+          if (mainName.includes(search) || mainBarcode.includes(search))
+            found = true;
+          // saleId.items (array) içinde arama
+          if (Array.isArray(debt.saleId.items)) {
+            for (const item of debt.saleId.items) {
+              const itemName = item.productName?.toLowerCase() || "";
+              const itemBarcode = item.barcode?.toLowerCase() || "";
+              if (itemName.includes(search) || itemBarcode.includes(search)) {
+                found = true;
+                break;
+              }
+            }
+          }
+          return found;
+        });
+      } else {
+        debts = await Debt.find(debtQuery)
+          .populate(populateOptions)
+          .sort({ createdAt: -1 });
+      }
     }
 
     // Toplam borç hesaplama (tüm borçlar)
@@ -41,25 +82,30 @@ export async function GET(request, { params }) {
 
     if (filterType === "all" || filterType === "payments") {
       try {
-        payments = await CustomerPayment.find({
+        const paymentQuery = {
           customerId,
           status: "active",
-        }).sort({ paymentDate: -1 });
+        };
+        if (subCustomerId) {
+          paymentQuery.subCustomerId = subCustomerId;
+        }
+        payments = await CustomerPayment.find(paymentQuery).sort({
+          paymentDate: -1,
+        });
 
         // Toplam ödeme hesaplama
+        const aggregateMatch = {
+          customerId: new mongoose.Types.ObjectId(customerId),
+          status: "active",
+        };
+        if (subCustomerId) {
+          aggregateMatch.subCustomerId = new mongoose.Types.ObjectId(
+            subCustomerId
+          );
+        }
         const totalPayments = await CustomerPayment.aggregate([
-          {
-            $match: {
-              customerId: new mongoose.Types.ObjectId(customerId),
-              status: "active",
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              total: { $sum: "$amount" },
-            },
-          },
+          { $match: aggregateMatch },
+          { $group: { _id: null, total: { $sum: "$amount" } } },
         ]);
 
         totalPaid = totalPayments.length > 0 ? totalPayments[0].total : 0;

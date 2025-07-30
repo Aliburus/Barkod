@@ -385,7 +385,13 @@ const CustomerDetailModal = ({
               />
             )}
 
-            {activeTab === "sales" && <SalesTab saleItems={saleItems} />}
+            {activeTab === "sales" && (
+              <SalesTab
+                saleItems={saleItems}
+                customerId={customer?.id}
+                subCustomerId={undefined}
+              />
+            )}
 
             {activeTab === "closed_accounts" && (
               <ClosedAccountsTab

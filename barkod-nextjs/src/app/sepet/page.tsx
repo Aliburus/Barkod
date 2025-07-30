@@ -175,17 +175,35 @@ const SepetPage: React.FC = () => {
         .getByCustomerId(selectedCustomer)
         .then((data) => {
           setSubCustomers(data);
-          setSelectedSubCustomer(""); // Müşteri değiştiğinde SubCustomer seçimini sıfırla
+
+          // Müşterinin kendi adıyla oluşturulan subcustomer'ı bul ve varsayılan olarak seç
+          const selectedCustomerData = customers.find(
+            (c) => c.id === selectedCustomer
+          );
+          if (selectedCustomerData) {
+            const autoCreatedSubCustomer = data.find(
+              (sc) =>
+                sc.name === selectedCustomerData.name && sc.status === "active"
+            );
+            if (autoCreatedSubCustomer) {
+              setSelectedSubCustomer(autoCreatedSubCustomer.id);
+            } else {
+              setSelectedSubCustomer(""); // Otomatik oluşturulan yoksa boş bırak
+            }
+          } else {
+            setSelectedSubCustomer(""); // Müşteri bulunamazsa boş bırak
+          }
         })
         .catch((error) => {
           console.error("SubCustomer'lar yüklenirken hata:", error);
           setSubCustomers([]);
+          setSelectedSubCustomer("");
         });
     } else {
       setSubCustomers([]);
       setSelectedSubCustomer("");
     }
-  }, [selectedCustomer]);
+  }, [selectedCustomer, customers]);
 
   // Tedarikçi seçildiğinde alış moduna geç
   useEffect(() => {
@@ -375,6 +393,15 @@ const SepetPage: React.FC = () => {
     const created = await customerService.create(newCustomer);
     setCustomers((prev) => [...prev, created]);
     setSelectedCustomer(created.id);
+    // Yeni müşteri için aynı isimde subcustomer oluştur
+    const createdSubCustomer = await subCustomerService.create({
+      name: created.name,
+      phone: created.phone,
+      customerId: created.id,
+      status: "active",
+    });
+    setSubCustomers((prev) => [...prev, createdSubCustomer]);
+    setSelectedSubCustomer(createdSubCustomer.id);
     setShowAddCustomer(false);
     setNewCustomer({ name: "", phone: "", address: "" });
   };
@@ -675,6 +702,7 @@ const SepetPage: React.FC = () => {
                           onChange={(e) =>
                             setSelectedSubCustomer(e.target.value)
                           }
+                          required // <-- zorunlu
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         >
                           <option value="">Müşterinin müşterisini seçin</option>
@@ -890,6 +918,15 @@ const SepetPage: React.FC = () => {
                         if (!selectedCustomer) {
                           setNotification({
                             message: "Müşteri seçmelisiniz!",
+                            type: "warning",
+                            show: true,
+                          });
+                          return;
+                        }
+                        if (!selectedSubCustomer) {
+                          setNotification({
+                            message:
+                              "Müşterinin müşterisini (alt müşteri) seçmelisiniz!",
                             type: "warning",
                             show: true,
                           });

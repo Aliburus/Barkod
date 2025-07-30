@@ -43,15 +43,15 @@ const CustomersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
 
-  const fetchCustomers = async (search?: string, page: number = 1) => {
+  const fetchCustomers = async (search = "", skip = 0) => {
     setLoading(true);
-    const data = await customerService.getAll(search, page);
+    const data = await customerService.getAll(search, skip, 100); // 100 limit
     setCustomers(data.customers);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchCustomers("", 1);
+    fetchCustomers("", 0);
   }, []);
   // Müşteri renklerini db'den çek
   useEffect(() => {
@@ -70,7 +70,7 @@ const CustomersPage: React.FC = () => {
     if (!form.name.trim()) return;
     await customerService.create(form);
     setForm({ name: "", phone: "", address: "" });
-    fetchCustomers(searchTerm);
+    fetchCustomers("", 0); // Her zaman güncel ve tam listeyi çek
   };
 
   // Debounced search

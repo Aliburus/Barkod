@@ -38,6 +38,21 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       | "diger",
     subCustomerId: "",
   });
+
+  // Müşterinin kendi adıyla oluşturulan subcustomer'ı bul ve varsayılan olarak seç
+  React.useEffect(() => {
+    if (subCustomers.length > 0 && customer) {
+      const autoCreatedSubCustomer = subCustomers.find(
+        (sc) => sc.name === customer.name && sc.status === "active"
+      );
+      if (autoCreatedSubCustomer) {
+        setTrxForm((prev) => ({
+          ...prev,
+          subCustomerId: autoCreatedSubCustomer.id,
+        }));
+      }
+    }
+  }, [subCustomers, customer]);
   const [trxLoading, setTrxLoading] = useState(false);
 
   const { remainingDebt } = debtSummary;

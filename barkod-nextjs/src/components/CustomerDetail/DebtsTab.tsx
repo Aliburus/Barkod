@@ -35,6 +35,7 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
     debts: Debt[];
     payments: CustomerPayment[];
     type: "debt" | "payment";
+    subCustomerId?: string; // <-- eklendi
   }>({
     isOpen: false,
     customerName: "",
@@ -42,6 +43,7 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
     debts: [],
     payments: [],
     type: "debt",
+    subCustomerId: undefined, // <-- eklendi
   });
   const [notification, setNotification] = useState<{
     message: string;
@@ -49,12 +51,12 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
   } | null>(null);
 
   // Ana müşteri borçları ve ödemeleri
-  const mainCustomerDebts = (debts || []).filter(
-    (d) => !d.subCustomerId || d.subCustomerId === ""
-  );
-  const mainCustomerPayments = (payments || []).filter(
-    (p) => !p.subCustomerId || p.subCustomerId === ""
-  );
+  // const mainCustomerDebts = (debts || []).filter(
+  //   (d) => !d.subCustomerId || d.subCustomerId === ""
+  // );
+  // const mainCustomerPayments = (payments || []).filter(
+  //   (p) => !p.subCustomerId || p.subCustomerId === ""
+  // );
 
   // Arama input değişikliği
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,45 +95,41 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
       : "-";
   };
 
-  // Tüm müşterileri (ana + alt müşteriler) tablo için hazırla
-  const allCustomers = [
-    // Ana müşteri
-    {
-      id: customer.id,
-      name: customer.name,
-      phone: customer.phone || "-",
-      totalDebt: mainCustomerDebts
-        .filter((d) => !d.isPaid) // Sadece ödenmemiş borçları hesapla
-        .reduce((sum, d) => sum + (d.amount || 0), 0),
-      totalPaid: mainCustomerPayments.reduce(
-        (sum, p) => sum + (p.amount || 0),
-        0
-      ),
-      remaining:
-        mainCustomerDebts
-          .filter((d) => !d.isPaid) // Sadece ödenmemiş borçları hesapla
-          .reduce((sum, d) => sum + (d.amount || 0), 0) -
-        mainCustomerPayments.reduce((sum, p) => sum + (p.amount || 0), 0),
-      status: "Açık",
-      type: "Ana Müşteri",
-      customerId: customer.id,
-      // Ürün bilgilerini al
-      productInfo: (() => {
-        const customerDebts = debts.filter(
-          (d) =>
-            (d.customerId === customer.id && !d.subCustomerId) ||
-            d.subCustomerId === customer.id ||
-            (typeof d.subCustomerId === "object" &&
-              d.subCustomerId?._id === customer.id)
-        );
-
+  // Tüm müşterileri (sadece subcustomerlar) tablo için hazırla
+  const allCustomers = subCustomers
+    .filter((sc) => sc.status !== "inactive")
+    .filter((sc) => {
+      if (!searchTerm.trim()) return true;
+      return (
+        sc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (sc.phone && sc.phone.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    })
+    .map((sc) => {
+      const scDebts = debts.filter(
+        (d) =>
+          d.subCustomerId === sc.id ||
+          (typeof d.subCustomerId === "object" &&
+            d.subCustomerId?._id === sc.id)
+      );
+      const scPayments = payments.filter(
+        (p) =>
+          p.subCustomerId === sc.id ||
+          (typeof p.subCustomerId === "object" &&
+            p.subCustomerId?._id === sc.id)
+      );
+      const totalDebt = scDebts
+        .filter((d) => !d.isPaid)
+        .reduce((sum, d) => sum + (d.amount || 0), 0);
+      const totalPaid = scPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const remaining = totalDebt - totalPaid;
+      const productInfo = (() => {
         const allItems: Array<{
           barcode?: string;
           productName?: string;
           quantity?: number;
         }> = [];
-
-        customerDebts.forEach((debt) => {
+        scDebts.forEach((debt) => {
           if (
             debt.saleId &&
             typeof debt.saleId === "object" &&
@@ -151,7 +149,6 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
             });
           }
         });
-
         return {
           barcodes: allItems.map((item) => item.barcode || "-").join(", "),
           productNames: allItems
@@ -162,97 +159,21 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
             0
           ),
         };
-      })(),
-    },
-    // Alt müşteriler
-    ...subCustomers
-      .filter((sc) => sc.status !== "inactive")
-      .filter((sc) => {
-        if (!searchTerm.trim()) return true;
-        return (
-          sc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (sc.phone &&
-            sc.phone.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-      })
-      .map((sc) => {
-        const scDebts = debts.filter(
-          (d) =>
-            d.subCustomerId === sc.id ||
-            (typeof d.subCustomerId === "object" &&
-              d.subCustomerId?._id === sc.id)
-        );
-        const scPayments = payments.filter(
-          (p) =>
-            p.subCustomerId === sc.id ||
-            (typeof p.subCustomerId === "object" &&
-              p.subCustomerId?._id === sc.id)
-        );
-
-        const totalDebt = scDebts
-          .filter((d) => !d.isPaid) // Sadece ödenmemiş borçları hesapla
-          .reduce((sum: number, d: Debt) => sum + (d.amount || 0), 0);
-        const totalPaid = scPayments.reduce(
-          (sum: number, p: CustomerPayment) => sum + (p.amount || 0),
-          0
-        );
-
-        return {
-          id: sc.id,
-          name: sc.name,
-          phone: sc.phone || "-",
-          totalDebt,
-          totalPaid,
-          remaining: totalDebt - totalPaid,
-          status: sc.status === "active" ? "Açık" : "Kapalı",
-          type: "Alt Müşteri",
-          customerId:
-            typeof sc.customerId === "object"
-              ? sc.customerId._id
-              : sc.customerId,
-          // Ürün bilgilerini al
-          productInfo: (() => {
-            const allItems: Array<{
-              barcode?: string;
-              productName?: string;
-              quantity?: number;
-            }> = [];
-
-            scDebts.forEach((debt) => {
-              if (
-                debt.saleId &&
-                typeof debt.saleId === "object" &&
-                debt.saleId.items &&
-                Array.isArray(debt.saleId.items)
-              ) {
-                allItems.push(...debt.saleId.items);
-              } else if (
-                debt.saleId &&
-                typeof debt.saleId === "object" &&
-                debt.saleId.barcode
-              ) {
-                allItems.push({
-                  barcode: debt.saleId.barcode,
-                  productName: debt.saleId.productName || "-",
-                  quantity: debt.saleId.quantity || 1,
-                });
-              }
-            });
-
-            return {
-              barcodes: allItems.map((item) => item.barcode || "-").join(", "),
-              productNames: allItems
-                .map((item) => item.productName || "-")
-                .join(", "),
-              totalQuantity: allItems.reduce(
-                (sum, item) => sum + (item.quantity || 1),
-                0
-              ),
-            };
-          })(),
-        };
-      }),
-  ];
+      })();
+      return {
+        id: sc.id,
+        name: sc.name,
+        phone: sc.phone || "-",
+        totalDebt,
+        totalPaid,
+        remaining,
+        status: "Açık",
+        type: "sub",
+        productInfo,
+        customerId: sc.customerId,
+        createdAt: sc.createdAt,
+      };
+    });
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -321,14 +242,12 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
                 onClick={() => {
                   const customerDebts = debts.filter(
                     (d) =>
-                      (d.customerId === customer.id && !d.subCustomerId) ||
                       d.subCustomerId === customer.id ||
                       (typeof d.subCustomerId === "object" &&
                         d.subCustomerId?._id === customer.id)
                   );
                   const customerPayments = payments.filter(
                     (p) =>
-                      (p.customerId === customer.id && !p.subCustomerId) ||
                       p.subCustomerId === customer.id ||
                       (typeof p.subCustomerId === "object" &&
                         p.subCustomerId?._id === customer.id)
@@ -340,17 +259,23 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
                     debts: customerDebts,
                     payments: customerPayments,
                     type: "debt",
+                    subCustomerId: customer.id, // <-- eklendi
                   });
                 }}
               >
                 <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300 text-xs">
-                  {getLatestDate(customer.id)}
+                  {customer.createdAt
+                    ? new Date(customer.createdAt).toLocaleString("tr-TR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "-"}
                 </td>
                 <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-900 dark:text-white font-medium">
                   {customer.name}
-                  {customer.type === "Ana Müşteri" && (
-                    <span className="ml-2 text-xs text-gray-500">(Ana)</span>
-                  )}
                 </td>
                 <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-semibold">
                   {customer.totalDebt.toFixed(2)} ₺
@@ -387,8 +312,6 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
                           // Borçları güncelle
                           const customerDebts = debts.filter(
                             (d) =>
-                              (d.customerId === customer.id &&
-                                !d.subCustomerId) ||
                               d.subCustomerId === customer.id ||
                               (typeof d.subCustomerId === "object" &&
                                 d.subCustomerId?._id === customer.id)
@@ -449,6 +372,7 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
         debts={detailsModal.debts}
         payments={detailsModal.payments}
         type={detailsModal.type}
+        subCustomerId={detailsModal.subCustomerId} // <-- eklendi
       />
     </div>
   );
