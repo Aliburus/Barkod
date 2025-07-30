@@ -13,6 +13,7 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  Edit,
 } from "lucide-react";
 
 // Debounce utility function
@@ -29,6 +30,7 @@ const debounce = (func: (search: string) => void, wait: number) => {
 };
 
 import CustomerDetailModal from "../../components/CustomerDetailModal";
+import CustomerEditModal from "../../components/CustomerEditModal";
 
 const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = React.useState<Customer[]>([]);
@@ -37,6 +39,7 @@ const CustomersPage: React.FC = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -95,6 +98,10 @@ const CustomersPage: React.FC = () => {
   const handleDeleteCustomer = async (id: string) => {
     await customerService.delete(id);
     fetchCustomers(searchTerm);
+  };
+
+  const openEditCustomer = (customer: Customer) => {
+    setEditingCustomer(customer);
   };
 
   return (
@@ -303,14 +310,24 @@ const CustomersPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleDeleteCustomer(c.id)}
-                        className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-4 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-200 font-medium text-sm flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                        title="Müşteriyi Sil"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Sil
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEditCustomer(c)}
+                          className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-3 py-2 rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium text-sm flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                          title="Müşteriyi Düzenle"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Düzenle
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCustomer(c.id)}
+                          className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-3 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all duration-200 font-medium text-sm flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                          title="Müşteriyi Sil"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Sil
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -325,6 +342,14 @@ const CustomersPage: React.FC = () => {
           onClose={() => setSelectedCustomer(null)}
           customer={selectedCustomer}
           fetchCustomers={fetchCustomers}
+        />
+      )}
+      {editingCustomer && (
+        <CustomerEditModal
+          open={!!editingCustomer}
+          onClose={() => setEditingCustomer(null)}
+          customer={editingCustomer}
+          onUpdate={fetchCustomers}
         />
       )}
     </div>

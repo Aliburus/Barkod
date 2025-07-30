@@ -193,32 +193,32 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse border border-gray-300 dark:border-gray-600">
             <thead>
-              <tr className="bg-gray-100 dark:bg-gray-700">
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+              <tr className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Tarih
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Ad
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Ürün Kodu
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Ürün Adı
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Adet
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Toplam Borç
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Ödenen
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Kalan
                 </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   İşlem
                 </th>
               </tr>
@@ -281,34 +281,7 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
                     className="border border-gray-300 dark:border-gray-600 px-2 py-1"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <button
-                      className="px-3 py-1 bg-green-600 text-white text-xs hover:bg-green-700 transition-colors cursor-pointer rounded"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-
-                        try {
-                          // Hesap açma işlemi
-                          await subCustomerService.openAccount(account.id);
-                          console.log("Hesap açıldı:", account.id);
-
-                          // Sayfayı yenile
-                          if (onDataRefresh) {
-                            // Kısa bir gecikme ekle ki veriler güncellensin
-                            setTimeout(() => {
-                              onDataRefresh();
-                            }, 500);
-                          }
-
-                          alert("Hesap başarıyla açıldı!");
-                        } catch (error) {
-                          console.error("Hesap açma hatası:", error);
-                          alert("Hesap açılırken bir hata oluştu!");
-                        }
-                      }}
-                    >
-                      Hesabı Aç
-                    </button>
+                    {/* Hesabı Aç butonu kaldırıldı */}
                   </td>
                 </tr>
               ))}

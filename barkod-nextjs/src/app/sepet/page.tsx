@@ -840,7 +840,7 @@ const SepetPage: React.FC = () => {
                                     item.quantity,
                                 0
                               ),
-                              description: `Sepet üzerinden alış borcu`,
+                              description: "",
                               purchaseOrderId: purchaseResult._id,
                               notes: `Otomatik oluşturulan borç - Sepet alışı`,
                             };

@@ -89,20 +89,6 @@ export interface Expense {
   createdAt?: string;
 }
 
-export interface KasaRow {
-  date: string;
-  nakit: number;
-  krediKarti: number;
-  havale: number;
-  diger: number;
-  pos: number;
-  tahsilat: number;
-  harcama: number;
-  banka: number;
-  oncekiKasa: number;
-  gunSonuKasa: number;
-}
-
 export interface SaleItem {
   productName: string;
   barcode: string;

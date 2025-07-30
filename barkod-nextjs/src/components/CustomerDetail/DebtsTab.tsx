@@ -292,32 +292,23 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
       <div className="flex-1 overflow-y-auto pr-2">
         <table className="w-full text-xs border-collapse border border-gray-300 dark:border-gray-600">
           <thead>
-            <tr className="bg-gray-100 dark:bg-gray-700">
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+            <tr className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
+              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                 Tarih
               </th>
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                 Ad
               </th>
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
-                Ürün Kodu
-              </th>
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
-                Ürün Adı
-              </th>
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
-                Adet
-              </th>
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                 Toplam Borç
               </th>
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                 Ödenen
               </th>
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                 Kalan
               </th>
-              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                 İşlem
               </th>
             </tr>
@@ -361,16 +352,6 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
                     <span className="ml-2 text-xs text-gray-500">(Ana)</span>
                   )}
                 </td>
-
-                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                  {customer.productInfo?.barcodes || "-"}
-                </td>
-                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                  {customer.productInfo?.productNames || "-"}
-                </td>
-                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                  {customer.productInfo?.totalQuantity || 0}
-                </td>
                 <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-semibold">
                   {customer.totalDebt.toFixed(2)} ₺
                 </td>
@@ -378,13 +359,11 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
                   {customer.totalPaid.toFixed(2)} ₺
                 </td>
                 <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-orange-600 font-semibold">
-                  {customer.remaining.toFixed(2)} ₺
+                  {customer.remaining <= 0
+                    ? "0.00 ₺"
+                    : `${customer.remaining.toFixed(2)} ₺`}
                 </td>
-
-                <td
-                  className="border border-gray-300 dark:border-gray-600 px-2 py-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
+                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1">
                   {customer.status === "Açık" && (
                     <button
                       className={`px-3 py-1 text-xs transition-colors cursor-pointer rounded ${
@@ -421,9 +400,7 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
                                 headers: {
                                   "Content-Type": "application/json",
                                 },
-                                body: JSON.stringify({
-                                  isPaid: true,
-                                }),
+                                body: JSON.stringify({ isPaid: true }),
                               });
                             } catch (error) {
                               console.error("Borç güncelleme hatası:", error);

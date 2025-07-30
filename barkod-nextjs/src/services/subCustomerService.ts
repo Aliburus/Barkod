@@ -75,13 +75,4 @@ export const subCustomerService = {
     const sc = res.data;
     return { ...sc, id: sc._id };
   },
-
-  openAccount: async (id: string): Promise<SubCustomer> => {
-    const res = await axios.patch(`${API_URL}/api/sub-customers`, {
-      id,
-      status: "active",
-    });
-    const sc = res.data;
-    return { ...sc, id: sc._id };
-  },
 };

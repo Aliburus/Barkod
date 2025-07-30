@@ -15,7 +15,7 @@ import { Loader2, Search } from "lucide-react";
 const ProductsPage = lazy(() => import("../components/Pages/ProductsPage"));
 const SalesPage = lazy(() => import("../components/Pages/SalesPage"));
 const AnalyticsPage = lazy(() => import("../components/Pages/AnalyticsPage"));
-const KasaPage = lazy(() => import("./kasa/page"));
+
 const GiderlerPage = lazy(() => import("./giderler/page"));
 
 export type Tab =
@@ -24,7 +24,6 @@ export type Tab =
   | "sales"
   | "customers"
   | "analytics"
-  | "kasa"
   | "giderler"
   | "sepet"
   | "vendors";
@@ -193,7 +192,7 @@ export default function Home() {
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab as Tab)}
       />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="">
         <Suspense fallback={<PageLoader />}>
           {activeTab === "products" && (
             <ProductsPage
@@ -220,7 +219,6 @@ export default function Home() {
             </div>
           )}
 
-          {activeTab === "kasa" && <KasaPage />}
           {activeTab === "giderler" && <GiderlerPage />}
         </Suspense>
       </main>

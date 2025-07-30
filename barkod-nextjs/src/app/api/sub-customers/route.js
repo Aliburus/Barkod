@@ -68,15 +68,22 @@ export async function PATCH(request) {
     // Hesabı kapatırken status'u inactive yap
     update.status = "inactive";
   } else if (update.status === "active") {
-    // Hesabı açarken status'u active yap
+    // --- KAPALI HESAP AÇILAMAZ ---
+    const subCustomer = await SubCustomer.findById(id);
+    if (subCustomer && subCustomer.status === "inactive") {
+      return NextResponse.json(
+        { error: "Kapanan hesap tekrar açılamaz." },
+        { status: 400 }
+      );
+    }
     update.status = "active";
   }
 
-  const subCustomer = await SubCustomer.findByIdAndUpdate(id, update, {
+  const updatedSubCustomer = await SubCustomer.findByIdAndUpdate(id, update, {
     new: true,
   }).populate("customerId", "name phone");
 
-  return NextResponse.json(subCustomer);
+  return NextResponse.json(updatedSubCustomer);
 }
 
 export async function DELETE(request) {

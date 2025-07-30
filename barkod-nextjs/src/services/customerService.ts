@@ -39,8 +39,12 @@ export const customerService = {
     return { ...c, id: c._id || c.id };
   },
   update: async (id: string, update: Partial<Customer>) => {
-    const res = await axios.patch("/api/customers", { id, ...update });
-    return res.data;
+    const res = await axios.patch(`${API_URL}/api/customers`, {
+      id,
+      ...update,
+    });
+    const c = res.data;
+    return { ...c, id: c._id || c.id };
   },
   delete: async (id: string): Promise<void> => {
     await axios.delete(`/api/customers/${id}`);

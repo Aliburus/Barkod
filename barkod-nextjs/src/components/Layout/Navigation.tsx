@@ -7,7 +7,6 @@ import {
   BarChart3,
   User,
   Loader2,
-  Wallet,
   ShoppingCart,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -49,13 +48,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       color: "text-yellow-600",
       route: "/customers",
     },
-    {
-      id: "kasa" as Tab,
-      label: "Kasa",
-      icon: Wallet,
-      color: "text-yellow-600",
-      route: "/kasa",
-    },
+
     {
       id: "giderler" as Tab,
       label: "Giderler",

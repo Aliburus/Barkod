@@ -185,7 +185,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               (formData.purchasePrice
                 ? parseFloat(formData.purchasePrice)
                 : 0) * parseInt(formData.stock),
-            description: `${productData.name} ürünü için borç`,
+            description: "",
             purchaseOrderId: purchaseOrderResponse._id,
             notes: `Otomatik oluşturulan borç - ${productData.name}`,
           };
