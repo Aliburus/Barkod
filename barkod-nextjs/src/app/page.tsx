@@ -17,6 +17,7 @@ const SalesPage = lazy(() => import("../components/Pages/SalesPage"));
 const AnalyticsPage = lazy(() => import("../components/Pages/AnalyticsPage"));
 
 const GiderlerPage = lazy(() => import("./giderler/page"));
+const RefundsPage = lazy(() => import("./refunds/page"));
 
 export type Tab =
   | "scanner"
@@ -26,7 +27,8 @@ export type Tab =
   | "analytics"
   | "giderler"
   | "sepet"
-  | "vendors";
+  | "vendors"
+  | "refunds";
 
 // Loading component for lazy loaded components
 const PageLoader = () => (
@@ -220,6 +222,7 @@ export default function Home() {
           )}
 
           {activeTab === "giderler" && <GiderlerPage />}
+          {activeTab === "refunds" && <RefundsPage />}
         </Suspense>
       </main>
       {showProductForm && (

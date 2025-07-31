@@ -8,6 +8,7 @@ import {
   User,
   Loader2,
   ShoppingCart,
+  RotateCcw,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Tab } from "../../app/page";
@@ -76,6 +77,13 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
       icon: ShoppingCart,
       color: "text-purple-600",
       route: "/sepet",
+    },
+    {
+      id: "refunds" as Tab,
+      label: "İadeler",
+      icon: RotateCcw,
+      color: "text-red-600",
+      route: "/refunds",
     },
   ];
 

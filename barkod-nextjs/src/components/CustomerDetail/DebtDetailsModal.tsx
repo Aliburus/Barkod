@@ -82,7 +82,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
             ? debt.subCustomerId
             : debt.subCustomerId._id
           : undefined,
-        reason: "Müşteri iadesi",
+        reason: "",
       };
 
       await refundService.createRefund(refundData);

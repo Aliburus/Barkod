@@ -14,6 +14,11 @@ export async function GET(request) {
     const customerId = searchParams.get("customerId");
     const subCustomerId = searchParams.get("subCustomerId");
     const status = searchParams.get("status");
+    const filterType = searchParams.get("filterType");
+    const filterValue = searchParams.get("filterValue");
+    const dateFilterType = searchParams.get("dateFilterType");
+    const dateRangeStart = searchParams.get("dateRangeStart");
+    const dateRangeEnd = searchParams.get("dateRangeEnd");
 
     let query = {};
 
@@ -33,13 +38,88 @@ export async function GET(request) {
       query.status = status;
     }
 
-    const refunds = await Refund.find(query)
+    let refunds = await Refund.find(query)
       .populate({ path: "debtId", select: "amount description" })
       .populate({ path: "customerId", select: "name phone" })
       .populate({ path: "subCustomerId", select: "name phone" })
       .sort({ createdAt: -1 });
 
-    return NextResponse.json(refunds);
+    // Müşteri ve alt müşteri bilgilerini ekle
+    let refundsWithCustomerInfo = refunds.map((refund) => {
+      const refundObj = refund.toObject();
+      if (refundObj.customerId && typeof refundObj.customerId === "object") {
+        refundObj.customerName = refundObj.customerId.name;
+        refundObj.customerPhone = refundObj.customerId.phone;
+      }
+      if (
+        refundObj.subCustomerId &&
+        typeof refundObj.subCustomerId === "object"
+      ) {
+        refundObj.subCustomerName = refundObj.subCustomerId.name;
+        refundObj.subCustomerPhone = refundObj.subCustomerId.phone;
+      }
+      return refundObj;
+    });
+
+    // Filter filtreleme
+    if (filterType) {
+      switch (filterType) {
+        case "customer":
+          if (filterValue) {
+            refundsWithCustomerInfo = refundsWithCustomerInfo.filter(
+              (refund) => {
+                return refund.customerName
+                  ?.toLowerCase()
+                  .includes(filterValue.toLowerCase());
+              }
+            );
+          }
+          break;
+        case "subcustomer":
+          if (filterValue) {
+            refundsWithCustomerInfo = refundsWithCustomerInfo.filter(
+              (refund) => {
+                return refund.subCustomerName
+                  ?.toLowerCase()
+                  .includes(filterValue.toLowerCase());
+              }
+            );
+          }
+          break;
+        case "date":
+          if (dateFilterType === "single" && filterValue) {
+            const filterDate = new Date(filterValue);
+            refundsWithCustomerInfo = refundsWithCustomerInfo.filter(
+              (refund) => {
+                const refundDate = new Date(refund.createdAt);
+                return refundDate.toDateString() === filterDate.toDateString();
+              }
+            );
+          } else if (dateFilterType === "range") {
+            refundsWithCustomerInfo = refundsWithCustomerInfo.filter(
+              (refund) => {
+                const refundDate = new Date(refund.createdAt);
+                const startDate = dateRangeStart
+                  ? new Date(dateRangeStart)
+                  : null;
+                const endDate = dateRangeEnd ? new Date(dateRangeEnd) : null;
+
+                if (startDate && endDate) {
+                  return refundDate >= startDate && refundDate <= endDate;
+                } else if (startDate) {
+                  return refundDate >= startDate;
+                } else if (endDate) {
+                  return refundDate <= endDate;
+                }
+                return true;
+              }
+            );
+          }
+          break;
+      }
+    }
+
+    return NextResponse.json(refundsWithCustomerInfo);
   } catch (error) {
     console.error("İadeler getirme hatası:", error);
     return NextResponse.json(
