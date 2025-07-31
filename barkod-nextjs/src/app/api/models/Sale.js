@@ -5,6 +5,7 @@ const SaleItemSchema = new mongoose.Schema({
   quantity: { type: Number, required: true },
   price: { type: Number, required: true },
   productName: { type: String, required: false },
+  description: { type: String, required: false },
 });
 
 const SaleSchema = new mongoose.Schema({
@@ -18,6 +19,7 @@ const SaleSchema = new mongoose.Schema({
   items: [SaleItemSchema],
   totalAmount: { type: Number, required: true },
   paymentType: { type: String, required: true },
+  description: { type: String, required: false },
   isDebt: { type: Boolean, default: false },
   dueDate: { type: Date },
 

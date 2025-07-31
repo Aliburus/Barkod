@@ -130,6 +130,10 @@ export interface Debt {
     barcode?: string;
     createdAt?: string;
   };
+  // İade bilgileri (API'den gelen)
+  refundedAmount?: number;
+  remainingAmount?: number;
+  hasRefunds?: boolean;
 }
 
 // Vendor Management Types
@@ -206,6 +210,23 @@ export interface VendorPayment {
   debtId?: string | { _id: string; amount: number; description: string };
   receiptNumber?: string;
   notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Refund {
+  _id?: string;
+  debtId: string | { _id: string; amount: number; description: string };
+  productId: string;
+  productName: string;
+  barcode: string;
+  quantity: number;
+  refundAmount: number;
+  customerId: string | { _id: string; name: string; phone?: string };
+  subCustomerId?: string | { _id: string; name: string; phone?: string };
+  refundDate: string;
+  reason?: string;
+  status: "completed" | "pending" | "cancelled";
   createdAt: string;
   updatedAt: string;
 }

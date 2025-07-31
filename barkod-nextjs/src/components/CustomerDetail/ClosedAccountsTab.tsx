@@ -299,6 +299,7 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
         debts={detailsModal.debts}
         payments={detailsModal.payments}
         type={detailsModal.type}
+        onDataRefresh={onDataRefresh} // İade işleminden sonra veri yenileme için
       />
     </div>
   );

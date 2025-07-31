@@ -373,6 +373,7 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
         payments={detailsModal.payments}
         type={detailsModal.type}
         subCustomerId={detailsModal.subCustomerId} // <-- eklendi
+        onDataRefresh={onDataRefresh} // İade işleminden sonra veri yenileme için
       />
     </div>
   );

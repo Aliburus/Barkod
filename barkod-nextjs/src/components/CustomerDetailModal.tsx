@@ -198,7 +198,41 @@ const CustomerDetailModal = ({
   const handleDataRefresh = () => {
     // Verileri yenile
     if (customer) {
-      handlePaymentSuccess();
+      // Borç verilerini tamamen yeniden yükle
+      debtService
+        .getByCustomerId(customer.id)
+        .then((data) => {
+          const debtsArray = Array.isArray(data) ? data : data.debts || [];
+          setDebts(
+            debtsArray.map((d) => ({
+              ...d,
+              createdAt: d.createdAt?.toString() ?? "",
+              updatedAt: d.updatedAt?.toString() ?? undefined,
+              dueDate: d.dueDate?.toString() ?? undefined,
+            })) as Debt[]
+          );
+
+          if (!Array.isArray(data)) {
+            setDebtSummary({
+              totalDebt: data.totalDebt || 0,
+              totalPaid: data.totalPaid || 0,
+              remainingDebt: data.remainingDebt || 0,
+            });
+          }
+        })
+        .catch((error) => {
+          console.error("Borç bilgileri yenilenirken hata:", error);
+        });
+
+      // Ödeme verilerini de yenile
+      customerPaymentService
+        .getByCustomerId(customer.id)
+        .then((data) => {
+          setPayments(data);
+        })
+        .catch((error) => {
+          console.error("Ödeme bilgileri yenilenirken hata:", error);
+        });
     }
     if (fetchCustomers) {
       fetchCustomers();

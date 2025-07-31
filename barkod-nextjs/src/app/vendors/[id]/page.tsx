@@ -537,7 +537,7 @@ const VendorDetailPage: React.FC = () => {
             const itemDate = item.createdAt || order.createdAt;
 
             allItems.push({
-              id: `${order._id}-${item.productId || item.barcode}`,
+              id: `${order._id || ""}-${item.productId || item.barcode}`,
               date: itemDate
                 ? format(parseISO(itemDate.toString()), "dd.MM.yyyy", {
                     locale: tr,
@@ -558,7 +558,7 @@ const VendorDetailPage: React.FC = () => {
     } else if (activeTab === "debts" && showDebtsAndPayments) {
       // Debts ve Payments'i birlikte göster
       const debtsData = debts.map((debt) => ({
-        id: debt._id,
+        id: debt._id || "",
         date: debt.createdAt
           ? format(parseISO(debt.createdAt.toString()), "dd.MM.yyyy", {
               locale: tr,
@@ -576,7 +576,7 @@ const VendorDetailPage: React.FC = () => {
       }));
 
       const paymentsData = payments.map((payment) => ({
-        id: payment._id,
+        id: payment._id || "",
         date: payment.createdAt
           ? format(parseISO(payment.createdAt.toString()), "dd.MM.yyyy", {
               locale: tr,
@@ -617,7 +617,7 @@ const VendorDetailPage: React.FC = () => {
         if (debt.productDetails && debt.productDetails.length > 0) {
           debt.productDetails.forEach((product, index) => {
             allDebtItems.push({
-              id: `${debt._id}-${index}`,
+              id: `${debt._id || ""}-${index}`,
               date: debt.createdAt
                 ? format(parseISO(debt.createdAt.toString()), "dd.MM.yyyy", {
                     locale: tr,
@@ -641,7 +641,7 @@ const VendorDetailPage: React.FC = () => {
         } else {
           // Ürün detayı yoksa eski format
           allDebtItems.push({
-            id: debt._id,
+            id: debt._id || "",
             date: debt.createdAt
               ? format(parseISO(debt.createdAt.toString()), "dd.MM.yyyy", {
                   locale: tr,
@@ -663,7 +663,7 @@ const VendorDetailPage: React.FC = () => {
       return allDebtItems;
     } else {
       return payments.map((payment) => ({
-        id: payment._id,
+        id: payment._id || "",
         date: payment.createdAt
           ? format(parseISO(payment.createdAt.toString()), "dd.MM.yyyy", {
               locale: tr,

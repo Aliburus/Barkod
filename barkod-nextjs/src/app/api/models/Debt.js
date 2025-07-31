@@ -18,7 +18,7 @@ const debtSchema = new mongoose.Schema({
   },
   description: {
     type: String,
-    required: true,
+    required: false,
   },
   type: {
     type: String,
@@ -41,26 +41,28 @@ const debtSchema = new mongoose.Schema({
     default: [],
   },
   productDetails: {
-    type: [{
-      barcode: String,
-      productId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Product",
+    type: [
+      {
+        barcode: String,
+        productId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Product",
+        },
+        productName: String,
+        quantity: {
+          type: Number,
+          default: 1,
+        },
+        unitPrice: {
+          type: Number,
+          default: 0,
+        },
+        totalPrice: {
+          type: Number,
+          default: 0,
+        },
       },
-      productName: String,
-      quantity: {
-        type: Number,
-        default: 1,
-      },
-      unitPrice: {
-        type: Number,
-        default: 0,
-      },
-      totalPrice: {
-        type: Number,
-        default: 0,
-      },
-    }],
+    ],
     default: [],
   },
   isPaid: {

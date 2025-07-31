@@ -154,6 +154,7 @@ export async function POST(request) {
         items,
         totalAmount,
         paymentType,
+        description: "",
         isDebt,
         dueDate,
       });
@@ -235,6 +236,7 @@ export async function POST(request) {
         productName,
         customer,
         paymentType,
+        description: "",
         customerId,
         subCustomerId,
         isDebt,

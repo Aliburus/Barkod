@@ -3,6 +3,8 @@ import { Debt, CustomerPayment } from "../../types";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Pencil } from "lucide-react";
+import { refundService } from "../../services/refundService";
+import { Refund } from "../../types";
 
 interface DebtDetailsModalProps {
   isOpen: boolean;
@@ -13,6 +15,7 @@ interface DebtDetailsModalProps {
   payments: CustomerPayment[];
   type: "debt" | "payment";
   subCustomerId?: string; // <-- eklendi
+  onDataRefresh?: () => void; // İade işleminden sonra veri yenileme için
 }
 
 const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
@@ -24,6 +27,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   payments,
   type,
   subCustomerId, // <-- eklendi
+  onDataRefresh, // İade işleminden sonra veri yenileme için
 }) => {
   const [filterType, setFilterType] = useState<"all" | "debts" | "payments">(
     "all"
@@ -43,6 +47,120 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   const [productSearch, setProductSearch] = useState("");
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
   const productTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [refundedItems, setRefundedItems] = useState<Set<string>>(new Set());
+  const [refundLoading, setRefundLoading] = useState<string | null>(null);
+  const [refunds, setRefunds] = useState<Refund[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // İade işlemi
+  const handleRefund = async (
+    debt: Debt,
+    productDetail: any,
+    index: number
+  ) => {
+    const refundKey = `${debt._id}-${index}`;
+    setRefundLoading(refundKey);
+
+    try {
+      // Toplam fiyatı hesapla
+      const totalPrice =
+        (productDetail.price || 0) * (productDetail.quantity || 1);
+
+      const refundData = {
+        debtId: debt._id!,
+        productId: productDetail.productId || productDetail.barcode || "",
+        productName: productDetail.productName || "Bilinmeyen Ürün",
+        barcode: productDetail.barcode || "",
+        quantity: productDetail.quantity || 1,
+        refundAmount: totalPrice,
+        customerId:
+          typeof debt.customerId === "string"
+            ? debt.customerId
+            : debt.customerId._id,
+        subCustomerId: debt.subCustomerId
+          ? typeof debt.subCustomerId === "string"
+            ? debt.subCustomerId
+            : debt.subCustomerId._id
+          : undefined,
+        reason: "Müşteri iadesi",
+      };
+
+      await refundService.createRefund(refundData);
+
+      // İade edilen ürünü hemen görsel olarak güncelle
+      setRefundedItems((prev) =>
+        new Set(prev).add(`${debt._id}-${productDetail.barcode}`)
+      );
+
+      // Refunds listesini güncelle
+      const newRefunds = await refundService.getRefundsByDebtId(debt._id!);
+      setRefunds(newRefunds);
+
+      // Veri yenileme callback'ini çağır
+      if (onDataRefresh) {
+        onDataRefresh();
+      }
+
+      // Modal içindeki verileri hemen yenile (delay olmadan)
+      await fetchFilteredData(
+        filterType,
+        searchTerm,
+        selectedExtraFilter,
+        productSearch
+      );
+
+      // Force refresh to ensure all data is updated
+      setTimeout(() => {
+        fetchFilteredData(
+          filterType,
+          searchTerm,
+          selectedExtraFilter,
+          productSearch
+        );
+      }, 500);
+
+      // Additional refresh after a longer delay to ensure database updates are reflected
+      setTimeout(() => {
+        fetchFilteredData(
+          filterType,
+          searchTerm,
+          selectedExtraFilter,
+          productSearch
+        );
+      }, 2000);
+
+      // Trigger refresh
+      setRefreshTrigger((prev) => prev + 1);
+
+      alert("İade işlemi başarıyla tamamlandı!");
+    } catch (error) {
+      console.error("İade işlemi hatası:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "İade işlemi sırasında bir hata oluştu."
+      );
+    } finally {
+      setRefundLoading(null);
+    }
+  };
+
+  // İade durumunu kontrol et
+  const isProductRefunded = (debt: Debt, item: any) => {
+    // Önce local state'ten kontrol et
+    const refundKey = `${debt._id}-${item.barcode}`;
+    if (refundedItems.has(refundKey)) {
+      return true;
+    }
+
+    // Sonra API'den gelen refunds listesinden kontrol et
+    return refunds.some(
+      (refund) =>
+        (typeof refund.debtId === "string"
+          ? refund.debtId
+          : refund.debtId._id) === debt._id && refund.barcode === item.barcode
+    );
+  };
 
   // Filter değiştiğinde backend'den veri çek
   const fetchFilteredData = async (
@@ -96,6 +214,99 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
       fetchFilteredData("all");
     }
   }, [isOpen]);
+
+  // İade işleminden sonra verileri yenile
+  React.useEffect(() => {
+    if (isOpen && debts.length > 0) {
+      // Borç verilerini tamamen yeniden yükle
+      fetchFilteredData(
+        filterType,
+        searchTerm,
+        selectedExtraFilter,
+        productSearch
+      );
+    }
+  }, [debts]); // debts değiştiğinde yeniden yükle
+
+  // İlk yüklemede mevcut iadeleri getir
+  React.useEffect(() => {
+    const fetchRefunds = async () => {
+      if (debts.length > 0) {
+        try {
+          const customerId =
+            typeof debts[0].customerId === "string"
+              ? debts[0].customerId
+              : debts[0].customerId._id;
+          const refundsData = await refundService.getRefundsByCustomerId(
+            customerId
+          );
+          setRefunds(refundsData);
+        } catch (error) {
+          console.error("İadeler getirilemedi:", error);
+        }
+      }
+    };
+
+    fetchRefunds();
+  }, [debts]);
+
+  // Refresh trigger değiştiğinde verileri yenile
+  React.useEffect(() => {
+    if (refreshTrigger > 0 && isOpen) {
+      fetchFilteredData(
+        filterType,
+        searchTerm,
+        selectedExtraFilter,
+        productSearch
+      );
+    }
+  }, [refreshTrigger]);
+
+  // Refunds listesi değiştiğinde local state'i güncelle
+  React.useEffect(() => {
+    if (refunds.length > 0 && debts.length > 0) {
+      const refundedSet = new Set<string>();
+      refunds.forEach((refund) => {
+        const refundDebtId =
+          typeof refund.debtId === "string" ? refund.debtId : refund.debtId._id;
+        debts.forEach((debt) => {
+          if (debt._id === refundDebtId) {
+            // productDetails varsa onu kullan
+            if (debt.productDetails && Array.isArray(debt.productDetails)) {
+              debt.productDetails.forEach((product) => {
+                if (product.barcode === refund.barcode) {
+                  refundedSet.add(`${debt._id}-${product.barcode}`);
+                }
+              });
+            }
+            // Eski saleId.items yapısı için
+            else if (
+              debt.saleId &&
+              typeof debt.saleId === "object" &&
+              debt.saleId.items
+            ) {
+              debt.saleId.items.forEach((item) => {
+                if (item.barcode === refund.barcode) {
+                  refundedSet.add(`${debt._id}-${item.barcode}`);
+                }
+              });
+            }
+            // Tek ürün satışı için
+            else if (
+              debt.saleId &&
+              typeof debt.saleId === "object" &&
+              debt.saleId.barcode
+            ) {
+              if (debt.saleId.barcode === refund.barcode) {
+                refundedSet.add(`${debt._id}-${debt.saleId.barcode}`);
+              }
+            }
+          }
+        });
+      });
+      setRefundedItems(refundedSet);
+    }
+  }, [refunds, debts]);
 
   // Filter değiştiğinde veri çek
   const handleFilterChange = (newFilterType: "all" | "debts" | "payments") => {
@@ -201,6 +412,13 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                 {filteredData.remainingDebt.toFixed(2)} ₺
               </span>
             </div>
+            {loading && (
+              <div className="flex-1 min-w-[120px]">
+                <span className="text-yellow-400 text-sm">
+                  🔄 Veriler güncelleniyor...
+                </span>
+              </div>
+            )}
           </div>
         </div>
         <div className="p-6">
@@ -317,6 +535,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                               price?: number;
                             };
                             isFirstItem?: boolean;
+                            isRefunded?: boolean;
                           }> = [];
 
                           // Borç kayıtlarını ekle (filtreye göre)
@@ -330,8 +549,12 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                               }> = [];
 
                               // Önce yeni productDetails alanını kontrol et
-                              if (debt.productDetails && Array.isArray(debt.productDetails) && debt.productDetails.length > 0) {
-                                items = debt.productDetails.map(detail => ({
+                              if (
+                                debt.productDetails &&
+                                Array.isArray(debt.productDetails) &&
+                                debt.productDetails.length > 0
+                              ) {
+                                items = debt.productDetails.map((detail) => ({
                                   barcode: detail.barcode,
                                   productName: detail.productName,
                                   quantity: detail.quantity,
@@ -361,12 +584,18 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
 
                               if (items.length > 0) {
                                 items.forEach((item, index) => {
+                                  // İade edilmiş ürünleri de göster (filtreleme kaldırıldı)
+                                  const isRefunded = isProductRefunded(
+                                    debt,
+                                    item
+                                  );
                                   allRecords.push({
                                     type: "debt",
                                     date: debt.createdAt,
                                     debt,
                                     item,
                                     isFirstItem: index === 0,
+                                    isRefunded: isRefunded,
                                   });
                                 });
                               } else {
@@ -402,13 +631,18 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
 
                           return allRecords.map((record, index) => {
                             if (record.type === "debt") {
-                              const { debt, item, isFirstItem } = record;
+                              const { debt, item, isFirstItem, isRefunded } =
+                                record;
 
                               if (item) {
                                 return (
                                   <tr
                                     key={`debt-${debt!._id}-${index}`}
-                                    className="hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    className={`hover:bg-red-50 dark:hover:bg-red-900/20 ${
+                                      isRefunded
+                                        ? "bg-gray-100 dark:bg-gray-800 opacity-60"
+                                        : ""
+                                    }`}
                                   >
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400">
                                       {isFirstItem &&
@@ -419,19 +653,66 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                         )}
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                                      {item.barcode || "-"}
+                                      <div className="flex items-center gap-1">
+                                        <span
+                                          className={
+                                            isRefunded
+                                              ? "line-through text-gray-500"
+                                              : ""
+                                          }
+                                        >
+                                          {item.barcode || "-"}
+                                        </span>
+                                        {isRefunded && (
+                                          <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-1 rounded">
+                                            İade
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                                      {item.productName || "-"}
+                                      <div className="flex items-center gap-1">
+                                        <span
+                                          className={
+                                            isRefunded
+                                              ? "line-through text-gray-500"
+                                              : ""
+                                          }
+                                        >
+                                          {item.productName || "-"}
+                                        </span>
+                                        {isRefunded && (
+                                          <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-1 rounded">
+                                            İade
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                                      {item.quantity || 1}
+                                      <span
+                                        className={
+                                          isRefunded
+                                            ? "line-through text-gray-500"
+                                            : ""
+                                        }
+                                      >
+                                        {item.quantity || 1}
+                                      </span>
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-semibold">
-                                      {(
-                                        (item.price || 0) * (item.quantity || 1)
-                                      ).toFixed(2)}{" "}
-                                      ₺
+                                      <span
+                                        className={
+                                          isRefunded
+                                            ? "line-through text-gray-500"
+                                            : ""
+                                        }
+                                      >
+                                        {(
+                                          (item.price || 0) *
+                                          (item.quantity || 1)
+                                        ).toFixed(2)}{" "}
+                                        ₺
+                                      </span>
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
                                       -
@@ -482,6 +763,35 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                           </span>
                                         )}
                                       </div>
+
+                                      {/* İade Butonu - Sabit Pozisyon */}
+                                      <div className="mt-2 flex justify-end">
+                                        <button
+                                          onClick={() =>
+                                            handleRefund(debt!, item, index)
+                                          }
+                                          disabled={
+                                            refundLoading ===
+                                              `${debt!._id}-${index}` ||
+                                            isRefunded
+                                          }
+                                          className={`px-3 py-1 text-xs rounded transition-colors ${
+                                            isRefunded
+                                              ? "bg-green-400 text-white cursor-not-allowed"
+                                              : refundLoading ===
+                                                `${debt!._id}-${index}`
+                                              ? "bg-gray-400 cursor-not-allowed"
+                                              : "bg-red-500 hover:bg-red-600 text-white"
+                                          }`}
+                                        >
+                                          {isRefunded
+                                            ? "İade Edildi"
+                                            : refundLoading ===
+                                              `${debt!._id}-${index}`
+                                            ? "İşleniyor..."
+                                            : "İade Et"}
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 );
@@ -508,7 +818,12 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                       -
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-semibold">
-                                      {debt!.amount.toFixed(2)} ₺
+                                      {(
+                                        debt!.remainingAmount ||
+                                        debt!.amount ||
+                                        0
+                                      ).toFixed(2)}{" "}
+                                      ₺
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
                                       -

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectDB from "../../../utils/db.js";
 import Debt from "../../../models/Debt";
 import CustomerPayment from "../../../models/CustomerPayment";
+import Refund from "../../../models/Refund";
 import mongoose from "mongoose";
 
 // Müşterinin borçlarını getir
@@ -91,8 +92,26 @@ export async function GET(request, { params }) {
       }
     }
 
-    // Toplam borç hesaplama (tüm borçlar)
+    // Refunds tablosundan iade edilen ürünleri getir
+    const refunds = await Refund.find({ customerId }).select(
+      "debtId barcode refundAmount"
+    );
+
+    // Her borç için iade edilen miktarları hesapla (ürün bazında)
+    const debtRefunds = {};
+    refunds.forEach((refund) => {
+      if (!debtRefunds[refund.debtId]) {
+        debtRefunds[refund.debtId] = {};
+      }
+      if (!debtRefunds[refund.debtId][refund.barcode]) {
+        debtRefunds[refund.debtId][refund.barcode] = 0;
+      }
+      debtRefunds[refund.debtId][refund.barcode] += refund.refundAmount;
+    });
+
+    // Toplam borç hesaplama (debt.amount zaten refund'lardan düşürülmüş halde geliyor)
     const totalDebt = debts.reduce((sum, debt) => {
+      // debt.amount zaten refund'lardan düşürülmüş halde geliyor, tekrar düşürmeye gerek yok
       return sum + (debt.amount || 0);
     }, 0);
 
@@ -141,8 +160,26 @@ export async function GET(request, { params }) {
 
     const remainingDebt = Math.max(0, totalDebt - totalPaid);
 
+    // Borç verilerine iade bilgilerini ekle
+    const debtsWithRefunds = debts.map((debt) => {
+      const debtRefundsForDebt = debtRefunds[debt._id] || {};
+      const totalRefundedAmount = Object.values(debtRefundsForDebt).reduce(
+        (sum, amount) => sum + amount,
+        0
+      );
+      // debt.amount zaten refund'lardan düşürülmüş halde geliyor
+      const remainingAmount = debt.amount || 0;
+      return {
+        ...debt.toObject(),
+        refundedAmount: totalRefundedAmount,
+        remainingAmount,
+        hasRefunds: totalRefundedAmount > 0,
+        refundsByProduct: debtRefundsForDebt, // Ürün bazında iade bilgileri
+      };
+    });
+
     return NextResponse.json({
-      debts,
+      debts: debtsWithRefunds,
       payments,
       totalDebt,
       totalPaid,
@@ -150,6 +187,7 @@ export async function GET(request, { params }) {
       totalDebts: debts.length,
       totalPayments: payments.length,
       filterType,
+      debtRefunds, // İade bilgilerini de gönder
     });
   } catch (error) {
     console.error("Müşteri borç getirme hatası:", error);
