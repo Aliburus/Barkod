@@ -161,8 +161,25 @@ export async function POST(request) {
 
       // Eğer borçlu satış ise, borç kaydı oluştur
       if (isDebt && customerId) {
+        // Ürün bilgilerini hazırla
+        const productBarcodes = items.map((item) => item.barcode);
+        const productIds = items
+          .map((item) => item.productId || null)
+          .filter((id) => id);
+
+        // Detaylı ürün bilgileri
+        const productDetails = items.map((item) => ({
+          barcode: item.barcode,
+          productId: item.productId || null,
+          productName: item.productName || item.name || "Bilinmeyen Ürün",
+          quantity: item.quantity || 1,
+          unitPrice: item.price || item.unitPrice || 0,
+          totalPrice:
+            (item.price || item.unitPrice || 0) * (item.quantity || 1),
+        }));
+
         // Detaylı ürün açıklaması oluştur
-        const productDetails = items
+        const productDescription = items
           .map((item) => {
             const quantity = item.quantity || 1;
             const productName =
@@ -175,10 +192,13 @@ export async function POST(request) {
           customerId,
           subCustomerId,
           amount: totalAmount,
-          description: `Satış borcu - ${productDetails}`,
+          description: "", // Otomatik açıklama kaldırıldı
           type: "sale",
           saleId: sale._id,
           dueDate: dueDate || null,
+          productBarcodes,
+          productIds,
+          productDetails,
         });
         await debt.save();
       }
@@ -215,8 +235,40 @@ export async function POST(request) {
         productName,
         customer,
         paymentType,
+        customerId,
+        subCustomerId,
+        isDebt,
+        totalAmount: price * quantity,
+        dueDate,
       });
       await sale.save();
+
+      // Eğer borçlu satış ise, borç kaydı oluştur
+      if (isDebt && customerId) {
+        const debt = new Debt({
+          customerId,
+          subCustomerId,
+          amount: price * quantity,
+          description: "", // Otomatik açıklama kaldırıldı
+          type: "sale",
+          saleId: sale._id,
+          dueDate: dueDate || null,
+          productBarcodes: [barcode],
+          productIds: [product._id],
+          productDetails: [
+            {
+              barcode: barcode,
+              productId: product._id,
+              productName: productName,
+              quantity: quantity,
+              unitPrice: price,
+              totalPrice: price * quantity,
+            },
+          ],
+        });
+        await debt.save();
+      }
+
       return NextResponse.json(sale, { status: 201 });
     }
   } catch (error) {

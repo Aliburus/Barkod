@@ -37,6 +37,9 @@ export async function GET(request) {
         { description: { $regex: search, $options: "i" } },
         { vendorName: { $regex: search, $options: "i" } },
         { notes: { $regex: search, $options: "i" } },
+        { productBarcodes: { $in: [new RegExp(search, "i")] } },
+        { "productDetails.productName": { $regex: search, $options: "i" } },
+        { "productDetails.barcode": { $regex: search, $options: "i" } },
       ];
     }
 

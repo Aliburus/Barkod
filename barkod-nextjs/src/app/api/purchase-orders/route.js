@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "../utils/db.js";
 import PurchaseOrder from "../models/PurchaseOrder.js";
+import MyDebt from "../models/MyDebt.js";
 
 export async function GET(request) {
   try {
@@ -148,6 +149,45 @@ export async function POST(request) {
 
     const purchaseOrder = new PurchaseOrder(purchaseOrderData);
     await purchaseOrder.save();
+
+    // Eğer borçlu alış ise, borç kaydı oluştur
+    if (body.isDebt && body.vendorId) {
+      // Ürün bilgilerini hazırla
+      const productBarcodes = body.items.map((item) => item.barcode);
+      const productIds = body.items.map((item) => item.productId);
+
+      // Detaylı ürün bilgileri
+      const productDetails = body.items.map((item) => ({
+        barcode: item.barcode,
+        productId: item.productId,
+        productName: item.productName,
+        quantity: parseInt(item.quantity),
+        unitPrice: parseFloat(item.unitPrice),
+        totalPrice: parseFloat(item.totalPrice),
+      }));
+
+      // Detaylı ürün açıklaması oluştur
+      const productDescription = body.items
+        .map((item) => {
+          const quantity = parseInt(item.quantity);
+          const productName = item.productName;
+          return `${quantity} adet ${productName}`;
+        })
+        .join(", ");
+
+      const myDebt = new MyDebt({
+        vendorId: body.vendorId,
+        vendorName: body.vendorName || "Bilinmeyen Tedarikçi",
+        amount: parseFloat(body.totalAmount),
+        description: "", // Otomatik açıklama kaldırıldı
+        purchaseOrderId: purchaseOrder._id,
+        dueDate: body.dueDate || null,
+        productBarcodes,
+        productIds,
+        productDetails,
+      });
+      await myDebt.save();
+    }
 
     return NextResponse.json(purchaseOrder);
   } catch (error) {

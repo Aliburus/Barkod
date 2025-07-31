@@ -30,6 +30,39 @@ const debtSchema = new mongoose.Schema({
     ref: "Sale",
     required: false,
   },
+  // Satıştan gelen ürün bilgileri
+  productBarcodes: {
+    type: [String],
+    default: [],
+  },
+  productIds: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: "Product",
+    default: [],
+  },
+  productDetails: {
+    type: [{
+      barcode: String,
+      productId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+      productName: String,
+      quantity: {
+        type: Number,
+        default: 1,
+      },
+      unitPrice: {
+        type: Number,
+        default: 0,
+      },
+      totalPrice: {
+        type: Number,
+        default: 0,
+      },
+    }],
+    default: [],
+  },
   isPaid: {
     type: Boolean,
     default: false,

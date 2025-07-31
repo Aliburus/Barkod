@@ -329,7 +329,15 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                 price?: number;
                               }> = [];
 
-                              if (
+                              // Önce yeni productDetails alanını kontrol et
+                              if (debt.productDetails && Array.isArray(debt.productDetails) && debt.productDetails.length > 0) {
+                                items = debt.productDetails.map(detail => ({
+                                  barcode: detail.barcode,
+                                  productName: detail.productName,
+                                  quantity: detail.quantity,
+                                  price: detail.unitPrice,
+                                }));
+                              } else if (
                                 debt.saleId &&
                                 typeof debt.saleId === "object" &&
                                 debt.saleId.items &&

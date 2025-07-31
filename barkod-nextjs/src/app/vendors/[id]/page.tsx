@@ -598,23 +598,69 @@ const VendorDetailPage: React.FC = () => {
         return dateB.getTime() - dateA.getTime(); // En yeni en başta
       });
     } else if (activeTab === "debts") {
-      return debts.map((debt) => ({
-        id: debt._id,
-        date: debt.createdAt
-          ? format(parseISO(debt.createdAt.toString()), "dd.MM.yyyy", {
-              locale: tr,
-            })
-          : "-",
-        description: debt.description || "-",
-        amount: debt.amount || 0,
-        dueDate: debt.dueDate
-          ? format(parseISO(debt.dueDate.toString()), "dd.MM.yyyy", {
-              locale: tr,
-            })
-          : "-",
-        status: debt.isPaid ? "Ödendi" : "Beklemede",
-        notes: debt.description || "-",
-      }));
+      const allDebtItems: Array<{
+        id: string;
+        date: string;
+        description: string;
+        amount: number;
+        dueDate: string;
+        status: string;
+        notes: string;
+        productName?: string;
+        barcode?: string;
+        quantity?: number;
+        unitPrice?: number;
+      }> = [];
+
+      debts.forEach((debt) => {
+        // Eğer ürün detayları varsa, her ürün için ayrı satır oluştur
+        if (debt.productDetails && debt.productDetails.length > 0) {
+          debt.productDetails.forEach((product, index) => {
+            allDebtItems.push({
+              id: `${debt._id}-${index}`,
+              date: debt.createdAt
+                ? format(parseISO(debt.createdAt.toString()), "dd.MM.yyyy", {
+                    locale: tr,
+                  })
+                : "-",
+              description: index === 0 ? debt.description || "-" : "",
+              amount: product.totalPrice || 0,
+              dueDate: debt.dueDate
+                ? format(parseISO(debt.dueDate.toString()), "dd.MM.yyyy", {
+                    locale: tr,
+                  })
+                : "-",
+              status: debt.isPaid ? "Ödendi" : "Beklemede",
+              notes: index === 0 ? debt.description || "-" : "",
+              productName: product.productName,
+              barcode: product.barcode,
+              quantity: product.quantity,
+              unitPrice: product.unitPrice,
+            });
+          });
+        } else {
+          // Ürün detayı yoksa eski format
+          allDebtItems.push({
+            id: debt._id,
+            date: debt.createdAt
+              ? format(parseISO(debt.createdAt.toString()), "dd.MM.yyyy", {
+                  locale: tr,
+                })
+              : "-",
+            description: debt.description || "-",
+            amount: debt.amount || 0,
+            dueDate: debt.dueDate
+              ? format(parseISO(debt.dueDate.toString()), "dd.MM.yyyy", {
+                  locale: tr,
+                })
+              : "-",
+            status: debt.isPaid ? "Ödendi" : "Beklemede",
+            notes: debt.description || "-",
+          });
+        }
+      });
+
+      return allDebtItems;
     } else {
       return payments.map((payment) => ({
         id: payment._id,
@@ -655,7 +701,10 @@ const VendorDetailPage: React.FC = () => {
     } else if (activeTab === "debts") {
       return [
         { key: "date", label: "Tarih" },
-        { key: "description", label: "Açıklama" },
+        { key: "productName", label: "Ürün Adı" },
+        { key: "barcode", label: "Barkod" },
+        { key: "quantity", label: "Adet" },
+        { key: "unitPrice", label: "Birim Fiyat" },
         { key: "amount", label: "Tutar" },
         { key: "dueDate", label: "Vade Tarihi" },
         { key: "status", label: "Durum" },

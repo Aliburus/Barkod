@@ -96,6 +96,15 @@ export interface SaleItem {
   price: number;
 }
 
+export interface DebtProductDetail {
+  barcode: string;
+  productId?: string | { _id: string; name: string; barcode: string };
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
 export interface Debt {
   _id?: string;
   customerId: string | { _id: string; name: string; phone?: string };
@@ -107,6 +116,10 @@ export interface Debt {
   updatedAt?: string;
   dueDate?: string;
   type?: string;
+  // Satıştan gelen ürün bilgileri
+  productBarcodes?: string[];
+  productIds?: string[] | { _id: string; name: string; barcode: string }[];
+  productDetails?: DebtProductDetail[];
   saleId?: {
     _id?: string;
     items?: SaleItem[];
@@ -158,6 +171,15 @@ export interface PurchaseOrderItem {
   createdAt?: string;
 }
 
+export interface MyDebtProductDetail {
+  barcode: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
 export interface VendorDebt {
   _id?: string;
   vendorId: string | { _id: string; name: string };
@@ -166,6 +188,10 @@ export interface VendorDebt {
   dueDate?: string;
   isPaid: boolean;
   purchaseOrderId?: string | { _id: string; orderNumber: string };
+  // Alıştan gelen ürün bilgileri
+  productBarcodes?: string[];
+  productIds?: string[];
+  productDetails?: MyDebtProductDetail[];
   createdAt: string;
   updatedAt: string;
 }

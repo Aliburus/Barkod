@@ -36,6 +36,12 @@ export async function GET(request, { params }) {
         path: "saleId",
         select: "totalAmount createdAt items barcode productName",
       };
+
+      // Yeni ürün bilgilerini de populate et
+      const populateProductIds = {
+        path: "productIds",
+        select: "name barcode",
+      };
       if (productName) {
         // saleId.productName veya saleId.items.productName/barcode içinde arama
         // Not: saleId bir referans olduğu için, populate sonrası filtreleme yapılabilir
@@ -57,6 +63,20 @@ export async function GET(request, { params }) {
               const itemName = item.productName?.toLowerCase() || "";
               const itemBarcode = item.barcode?.toLowerCase() || "";
               if (itemName.includes(search) || itemBarcode.includes(search)) {
+                found = true;
+                break;
+              }
+            }
+          }
+          // Yeni productDetails alanında arama
+          if (debt.productDetails && Array.isArray(debt.productDetails)) {
+            for (const detail of debt.productDetails) {
+              const detailName = detail.productName?.toLowerCase() || "";
+              const detailBarcode = detail.barcode?.toLowerCase() || "";
+              if (
+                detailName.includes(search) ||
+                detailBarcode.includes(search)
+              ) {
                 found = true;
                 break;
               }

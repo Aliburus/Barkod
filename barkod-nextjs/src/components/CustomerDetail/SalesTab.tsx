@@ -45,6 +45,12 @@ const SalesTab: React.FC<SalesTabProps> = ({
   const [endDate, setEndDate] = useState("");
   const [filteredItems, setFilteredItems] = useState<SaleItem[]>(saleItems);
   const [loading, setLoading] = useState(false);
+  const [refundLoading, setRefundLoading] = useState<string | null>(null);
+  const [refundedItems, setRefundedItems] = useState<Set<string>>(new Set());
+  const [showConfirmModal, setShowConfirmModal] = useState<{
+    isOpen: boolean;
+    item: SaleItem | null;
+  }>({ isOpen: false, item: null });
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Arama değiştiğinde backend'den veri çek
@@ -119,6 +125,42 @@ const SalesTab: React.FC<SalesTabProps> = ({
     setFilteredItems(saleItems);
   }, [saleItems]);
 
+  // İade onay modalını aç
+  const handleRefundClick = (item: SaleItem) => {
+    setShowConfirmModal({ isOpen: true, item });
+  };
+
+  // İade işlemi
+  const handleRefund = async (item: SaleItem) => {
+    setRefundLoading(item._id);
+    try {
+      const { refundService } = await import("../../services/refundService");
+
+      await refundService.processRefund({
+        productId: item.productId,
+        quantity: item.quantity,
+        customerId: customerId!,
+        refundAmount: item.finalPrice * item.quantity,
+        isPaid: false, // Satışlar tabında genelde ödenmemiş
+        subCustomerId: subCustomerId,
+      });
+
+      // İade edilen ürünü listeye ekle
+      setRefundedItems((prev) => new Set(prev).add(item._id));
+      alert("İade işlemi başarıyla tamamlandı!");
+    } catch (error) {
+      console.error("İade işlemi hatası:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "İade işlemi sırasında bir hata oluştu."
+      );
+    } finally {
+      setRefundLoading(null);
+      setShowConfirmModal({ isOpen: false, item: null });
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3 flex-shrink-0">
@@ -181,6 +223,9 @@ const SalesTab: React.FC<SalesTabProps> = ({
               <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
                 Tutar
               </th>
+              <th className="text-left font-medium text-gray-500 dark:text-gray-400 py-2">
+                İşlem
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -203,7 +248,11 @@ const SalesTab: React.FC<SalesTabProps> = ({
               filteredItems.map((item) => (
                 <tr
                   key={item._id}
-                  className="border-b border-gray-100 dark:border-gray-700"
+                  className={`border-b border-gray-100 dark:border-gray-700 ${
+                    refundedItems.has(item._id)
+                      ? "bg-gray-200 dark:bg-gray-700"
+                      : ""
+                  }`}
                 >
                   <td className="py-2 text-xs text-gray-400">
                     {format(parseISO(item.createdAt), "dd MMM yyyy HH:mm", {
@@ -232,12 +281,79 @@ const SalesTab: React.FC<SalesTabProps> = ({
                         )}
                     </div>
                   </td>
+                  <td className="py-2">
+                    <button
+                      onClick={() => handleRefundClick(item)}
+                      disabled={
+                        refundLoading === item._id ||
+                        refundedItems.has(item._id)
+                      }
+                      className={`px-3 py-1 text-white text-xs rounded transition-colors ${
+                        refundedItems.has(item._id)
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : refundLoading === item._id
+                          ? "bg-gray-400 cursor-not-allowed"
+                          : "bg-red-500 hover:bg-red-600"
+                      }`}
+                    >
+                      {refundedItems.has(item._id)
+                        ? "İade Edildi"
+                        : refundLoading === item._id
+                        ? "İşleniyor..."
+                        : "İade Et"}
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {/* İade Onay Modalı */}
+      {showConfirmModal.isOpen && showConfirmModal.item && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              İade Onayı
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
+              <strong>{showConfirmModal.item.productName}</strong> ürününü iade
+              etmek istediğinizden emin misiniz?
+              <br />
+              <span className="text-sm text-gray-500">
+                Tutar:{" "}
+                {showConfirmModal.item.finalPrice *
+                  showConfirmModal.item.quantity}{" "}
+                ₺
+              </span>
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() =>
+                  setShowConfirmModal({ isOpen: false, item: null })
+                }
+                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => handleRefund(showConfirmModal.item!)}
+                disabled={refundLoading === showConfirmModal.item!._id}
+                className={`px-4 py-2 rounded transition-colors ${
+                  refundLoading === showConfirmModal.item!._id
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-red-500 hover:bg-red-600 text-white"
+                }`}
+              >
+                {refundLoading === showConfirmModal.item!._id
+                  ? "İşleniyor..."
+                  : "Evet, İade Et"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

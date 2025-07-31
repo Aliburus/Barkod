@@ -29,6 +29,35 @@ const myDebtSchema = new mongoose.Schema(
     purchaseOrderId: {
       type: String,
     },
+    // Alıştan gelen ürün bilgileri
+    productBarcodes: {
+      type: [String],
+      default: [],
+    },
+    productIds: {
+      type: [String],
+      default: [],
+    },
+    productDetails: {
+      type: [{
+        barcode: String,
+        productId: String,
+        productName: String,
+        quantity: {
+          type: Number,
+          default: 1,
+        },
+        unitPrice: {
+          type: Number,
+          default: 0,
+        },
+        totalPrice: {
+          type: Number,
+          default: 0,
+        },
+      }],
+      default: [],
+    },
     notes: {
       type: String,
     },
