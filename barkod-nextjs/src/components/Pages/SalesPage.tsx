@@ -193,6 +193,11 @@ const SalesPage: React.FC<SalesPageProps> = ({
     "date" | "amount" | "customer" | "product"
   >("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: "success" | "error" | "warning";
+    show: boolean;
+  }>({ message: "", type: "success", show: false });
 
   // Create filters object for the hook
   const filters = React.useMemo(
@@ -462,7 +467,11 @@ const SalesPage: React.FC<SalesPageProps> = ({
             window.location.reload();
           }
         } else {
-          alert(result.error || "Silme başarısız");
+          setNotification({
+            message: result.error || "Satış silme işlemi başarısız oldu.",
+            type: "error",
+            show: true,
+          });
         }
       } catch (error) {
         console.error("Satış silme hatası:", error);
@@ -954,6 +963,33 @@ const SalesPage: React.FC<SalesPageProps> = ({
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Notification */}
+      {notification.show && (
+        <div className="fixed top-4 right-4 z-50">
+          <div
+            className={`px-6 py-4 rounded-lg shadow-lg text-white ${
+              notification.type === "success"
+                ? "bg-green-500"
+                : notification.type === "error"
+                ? "bg-red-500"
+                : "bg-yellow-500"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span>{notification.message}</span>
+              <button
+                onClick={() =>
+                  setNotification({ ...notification, show: false })
+                }
+                className="ml-4 text-white hover:text-gray-200"
+              >
+                ✕
               </button>
             </div>
           </div>

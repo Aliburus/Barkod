@@ -16,6 +16,10 @@ interface PaymentFormProps {
   };
   onPaymentSuccess: () => void;
   fetchCustomers?: () => void;
+  onNotification?: (
+    message: string,
+    type: "success" | "error" | "warning"
+  ) => void;
 }
 
 const PaymentForm: React.FC<PaymentFormProps> = ({
@@ -26,6 +30,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   debtSummary,
   onPaymentSuccess,
   fetchCustomers,
+  onNotification,
 }) => {
   const [trxForm, setTrxForm] = useState({
     amount: "",
@@ -43,8 +48,11 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   React.useEffect(() => {
     if (subCustomers.length > 0 && customer) {
       const autoCreatedSubCustomer = subCustomers.find(
-        (sc) => sc.name === customer.name && sc.status === "active"
+        (sc) =>
+          sc.name.toLowerCase() === customer.name.toLowerCase() &&
+          sc.status === "active"
       );
+
       if (autoCreatedSubCustomer) {
         setTrxForm((prev) => ({
           ...prev,
@@ -69,7 +77,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
     const paymentAmount = parseFloat(trxForm.amount);
     if (paymentAmount <= 0) {
-      alert("Ödeme tutarı 0'dan büyük olmalıdır.");
+      onNotification?.("Ödeme tutarı 0'dan büyük olmalıdır.", "warning");
       return;
     }
 
@@ -122,13 +130,13 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             )} ₺`
           : "Bu müşterinin borcu bulunmuyor. Ödeme yapılamaz.";
 
-      alert(errorMessage);
+      onNotification?.(errorMessage, "warning");
       return;
     }
 
     // Borç yoksa ödeme yapılmasını engelle
     if (maxPaymentAmount <= 0) {
-      alert("Bu müşterinin borcu bulunmuyor. Ödeme yapılamaz.");
+      onNotification?.("Bu müşterinin borcu bulunmuyor. Ödeme yapılamaz.", "warning");
       return;
     }
 
@@ -201,7 +209,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       onPaymentSuccess();
     } catch (error) {
       console.error("Ödeme işlemi hatası:", error);
-      alert("Ödeme kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
+      onNotification?.("Ödeme kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.", "error");
     } finally {
       setTrxLoading(false);
     }
@@ -209,36 +217,57 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
   // Maksimum ödeme tutarı hesaplama
   const getMaxPaymentAmount = () => {
-    let maxAmount = remainingDebt;
-    if (trxForm.subCustomerId) {
-      const selectedSubCustomer = subCustomers.find(
-        (sc) => sc.id === trxForm.subCustomerId
-      );
-      if (selectedSubCustomer && selectedSubCustomer.status === "active") {
-        const subCustomerDebts = debts.filter(
-          (d) =>
-            d.subCustomerId === trxForm.subCustomerId ||
-            (typeof d.subCustomerId === "object" &&
-              d.subCustomerId?._id === trxForm.subCustomerId)
-        );
-        const subCustomerPayments = payments.filter(
-          (p) =>
-            p.subCustomerId === trxForm.subCustomerId ||
-            (typeof p.subCustomerId === "object" &&
-              p.subCustomerId?._id === trxForm.subCustomerId)
-        );
-        const subCustomerTotalDebt = subCustomerDebts.reduce(
-          (sum, d) => sum + (d.amount || 0),
-          0
-        );
-        const subCustomerTotalPaid = subCustomerPayments.reduce(
-          (sum, p) => sum + (p.amount || 0),
-          0
-        );
-        maxAmount = Math.max(0, subCustomerTotalDebt - subCustomerTotalPaid);
-      }
+    // Eğer subcustomer seçili değilse, maksimum ödeme tutarı 0 olsun
+    if (!trxForm.subCustomerId) {
+      return 0;
     }
-    return maxAmount;
+
+    const selectedSubCustomer = subCustomers.find(
+      (sc) => sc.id === trxForm.subCustomerId
+    );
+
+    if (!selectedSubCustomer || selectedSubCustomer.status !== "active") {
+      return 0;
+    }
+
+    const subCustomerDebts = debts.filter(
+      (d) =>
+        d.subCustomerId === trxForm.subCustomerId ||
+        (typeof d.subCustomerId === "object" &&
+          d.subCustomerId?._id === trxForm.subCustomerId)
+    );
+    const subCustomerPayments = payments.filter(
+      (p) =>
+        p.subCustomerId === trxForm.subCustomerId ||
+        (typeof p.subCustomerId === "object" &&
+          p.subCustomerId?._id === trxForm.subCustomerId)
+    );
+
+    // Toplam borç hesapla (iade edilmiş ürünler dahil)
+    const subCustomerTotalDebt = subCustomerDebts.reduce(
+      (sum, d) => sum + (d.amount || 0),
+      0
+    );
+
+    // Toplam ödeme hesapla
+    const subCustomerTotalPaid = subCustomerPayments.reduce(
+      (sum, p) => sum + (p.amount || 0),
+      0
+    );
+
+    // İade edilmiş ürünlerin tutarını hesapla
+    const subCustomerTotalRefunded = subCustomerDebts.reduce(
+      (sum, d) => sum + (d.refundedAmount || 0),
+      0
+    );
+
+    // Kalan borç = Toplam Borç - Toplam Ödeme - İade Edilen Tutar
+    const remainingDebt = Math.max(
+      0,
+      subCustomerTotalDebt - subCustomerTotalPaid - subCustomerTotalRefunded
+    );
+
+    return remainingDebt;
   };
 
   const maxPaymentAmount = getMaxPaymentAmount();
@@ -253,14 +282,18 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           Müşteriden ödeme almak için aşağıdaki formu kullanın.
         </p>
         {/* Maksimum ödeme tutarı bilgisi */}
-        {maxPaymentAmount > 0 ? (
+        {!trxForm.subCustomerId ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Lütfen önce bir alt müşteri seçin
+          </p>
+        ) : maxPaymentAmount > 0 ? (
           <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
             Maksimum ödeme tutarı:{" "}
             <strong>{maxPaymentAmount.toFixed(2)} ₺</strong>
           </p>
         ) : (
           <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-            ✅ Tüm borçlar ödendi
+            ✅ Bu alt müşterinin tüm borçları ödendi
           </p>
         )}
       </div>
@@ -272,9 +305,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         <select
           name="subCustomerId"
           value={trxForm.subCustomerId || ""}
-          onChange={(e) =>
-            setTrxForm({ ...trxForm, subCustomerId: e.target.value })
-          }
+          onChange={(e) => {
+            setTrxForm({ ...trxForm, subCustomerId: e.target.value });
+          }}
           className="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
         >
           <option value="">Alt Müşteri Seç (opsiyonel)</option>

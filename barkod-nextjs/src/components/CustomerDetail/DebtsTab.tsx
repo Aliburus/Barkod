@@ -121,8 +121,17 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
       const totalDebt = scDebts
         .filter((d) => !d.isPaid)
         .reduce((sum, d) => sum + (d.amount || 0), 0);
-      const totalPaid = scPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const remaining = totalDebt - totalPaid;
+      const totalPaid = scPayments
+        .filter((p) => p.amount > 0) // Sadece pozitif ödemeler
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      // İade tutarını hesapla (refunds state'inden)
+      const totalRefunded = scDebts.reduce((sum, debt) => {
+        return sum + (debt.refundedAmount || 0);
+      }, 0);
+
+      // Doğru hesaplama: Toplam Borç - Toplam İade - Toplam Ödeme
+      const remaining = Math.max(0, totalDebt - totalRefunded - totalPaid);
       const productInfo = (() => {
         const allItems: Array<{
           barcode?: string;
@@ -221,13 +230,16 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
                 Ad
               </th>
               <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
-                Toplam Borç
+                Borç
               </th>
               <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                 Ödenen
               </th>
               <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
-                Kalan
+                Geri Ödeme
+              </th>
+              <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
+                Satış
               </th>
               <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                 İşlem
@@ -278,15 +290,15 @@ const DebtsTab: React.FC<DebtsTabProps> = ({
                   {customer.name}
                 </td>
                 <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-semibold">
-                  {customer.totalDebt.toFixed(2)} ₺
+                  {customer.remaining <= 0
+                    ? "0.00 ₺"
+                    : `${customer.remaining.toFixed(2)} ₺`}
                 </td>
                 <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-green-600 font-semibold">
                   {customer.totalPaid.toFixed(2)} ₺
                 </td>
-                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-orange-600 font-semibold">
-                  {customer.remaining <= 0
-                    ? "0.00 ₺"
-                    : `${customer.remaining.toFixed(2)} ₺`}
+                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-blue-600 font-semibold">
+                  {customer.totalDebt.toFixed(2)} ₺
                 </td>
                 <td className="border border-gray-300 dark:border-gray-600 px-2 py-1">
                   {customer.status === "Açık" && (

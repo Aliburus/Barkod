@@ -1,9 +1,10 @@
+"use client";
+
 import React, { useState } from "react";
-import { Customer, Debt, CustomerPayment, SubCustomer } from "../../types";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
+import { Debt, CustomerPayment, SubCustomer, Customer } from "../../types";
 import DebtDetailsModal from "./DebtDetailsModal";
-import { subCustomerService } from "../../services/subCustomerService";
 
 interface ClosedAccountsTabProps {
   customer: Customer;
@@ -27,6 +28,7 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
     debts: Debt[];
     payments: CustomerPayment[];
     type: "debt" | "payment";
+    subCustomerId?: string;
   }>({
     isOpen: false,
     customerName: "",
@@ -75,7 +77,6 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
 
   // Kapanmış hesapları hazırla
   const closedAccounts = subCustomers
-    .filter((sc) => sc.status === "inactive")
     .filter((sc) => {
       if (!searchTerm.trim()) return true;
       return (
@@ -101,52 +102,26 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
       );
 
       const totalDebt = scDebts.reduce((sum, d) => sum + (d.amount || 0), 0);
-      const totalPaid = scPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const remaining = Math.max(0, totalDebt - totalPaid);
+      const totalPaid = scPayments
+        .filter((p) => p.amount > 0) // Sadece pozitif ödemeler
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+      const totalRefunded = scPayments.reduce(
+        (sum, p) => sum + (p.refundAmount || 0),
+        0
+      );
+      const remaining = Math.max(0, totalDebt - totalPaid + totalRefunded);
 
-      // Ürün bilgilerini hesapla
-      const productInfo = {
-        barcodes: scDebts
-          .map((debt) => {
-            if (debt.saleId && typeof debt.saleId === "object") {
-              if (debt.saleId.items && Array.isArray(debt.saleId.items)) {
-                return debt.saleId.items.map((item) => item.barcode).join(", ");
-              } else if (debt.saleId.barcode) {
-                return debt.saleId.barcode;
-              }
-            }
-            return "";
-          })
-          .filter(Boolean)
-          .join(", "),
-        productNames: scDebts
-          .map((debt) => {
-            if (debt.saleId && typeof debt.saleId === "object") {
-              if (debt.saleId.items && Array.isArray(debt.saleId.items)) {
-                return debt.saleId.items
-                  .map((item) => item.productName)
-                  .join(", ");
-              }
-            }
-            return "";
-          })
-          .filter(Boolean)
-          .join(", "),
-        totalQuantity: scDebts.reduce((sum, debt) => {
-          if (debt.saleId && typeof debt.saleId === "object") {
-            if (debt.saleId.items && Array.isArray(debt.saleId.items)) {
-              return (
-                sum +
-                debt.saleId.items.reduce(
-                  (itemSum, item) => itemSum + (item.quantity || 1),
-                  0
-                )
-              );
-            }
-          }
-          return sum + 1;
-        }, 0),
-      };
+      // Daha önce yapılan geri ödemeleri hesapla (negatif ödemeler)
+      const previousRefunds = scPayments.reduce(
+        (sum, p) => sum + (p.amount < 0 ? Math.abs(p.amount) : 0),
+        0
+      );
+
+      // Geri ödeme hesapla: (Ödeme + İade Edilen Tutar) - (Satış + Daha Önce Yapılan Geri Ödemeler)
+      // Sadece pozitif değerleri göster (geri ödeme yapılabilir tutar)
+      const excessPayment =
+        totalPaid + totalRefunded - totalDebt - previousRefunds;
+      const refundAmount = Math.max(0, excessPayment);
 
       return {
         id: sc.id,
@@ -154,13 +129,15 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
         phone: sc.phone,
         totalDebt,
         totalPaid,
+        totalRefunded,
         remaining,
+        refundAmount,
         status: "Kapalı",
         type: "sub",
-        productInfo,
         customerId: sc.customerId,
       };
-    });
+    })
+    .filter((account) => account.remaining === 0); // Sadece kapanmış hesapları göster
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -191,9 +168,9 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
 
       <div className="flex-1 overflow-y-auto pr-2">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse border border-gray-300 dark:border-gray-600">
+          <table className="w-full border-collapse border border-gray-300 dark:border-gray-600 text-xs">
             <thead>
-              <tr className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
+              <tr>
                 <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Tarih
                 </th>
@@ -201,22 +178,16 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
                   Ad
                 </th>
                 <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
-                  Ürün Kodu
-                </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
-                  Ürün Adı
-                </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
-                  Adet
-                </th>
-                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
-                  Toplam Borç
+                  Borç
                 </th>
                 <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   Ödenen
                 </th>
                 <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
-                  Kalan
+                  Satış
+                </th>
+                <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
+                  Geri Ödeme
                 </th>
                 <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700">
                   İşlem
@@ -250,6 +221,7 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
                       debts: accountDebts,
                       payments: accountPayments,
                       type: "debt",
+                      subCustomerId: account.id,
                     });
                   }}
                 >
@@ -259,29 +231,22 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
                   <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
                     {account.name}
                   </td>
-                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                    {account.productInfo?.barcodes || "-"}
-                  </td>
-                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                    {account.productInfo?.productNames || "-"}
-                  </td>
-                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                    {account.productInfo?.totalQuantity || 0}
-                  </td>
                   <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-semibold">
-                    {account.totalDebt.toFixed(2)} ₺
+                    {account.remaining.toFixed(2)} ₺
                   </td>
                   <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-green-600 font-semibold">
                     {account.totalPaid.toFixed(2)} ₺
                   </td>
-                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-orange-600 font-semibold">
-                    {account.remaining.toFixed(2)} ₺
+                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-blue-600 font-semibold">
+                    {account.totalDebt.toFixed(2)} ₺
                   </td>
-                  <td
-                    className="border border-gray-300 dark:border-gray-600 px-2 py-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Hesabı Aç butonu kaldırıldı */}
+                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-yellow-600 font-semibold">
+                    {account.refundAmount.toFixed(2)} ₺
+                  </td>
+                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                    <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                      Kapalı
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -299,6 +264,7 @@ const ClosedAccountsTab: React.FC<ClosedAccountsTabProps> = ({
         debts={detailsModal.debts}
         payments={detailsModal.payments}
         type={detailsModal.type}
+        subCustomerId={detailsModal.subCustomerId}
         onDataRefresh={onDataRefresh} // İade işleminden sonra veri yenileme için
       />
     </div>

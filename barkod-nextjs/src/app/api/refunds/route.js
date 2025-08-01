@@ -3,6 +3,7 @@ import connectDB from "../utils/db.js";
 import Refund from "../models/Refund.js";
 import Debt from "../models/Debt.js";
 import Product from "../models/Product.js";
+import CustomerPayment from "../models/CustomerPayment.js";
 
 // Tüm iadeleri getir
 export async function GET(request) {
@@ -221,12 +222,108 @@ export async function POST(request) {
       await product.save();
     }
 
-    // Borç miktarını düşür
-    debt.amount -= refundAmount;
-    if (debt.amount < 0) {
-      debt.amount = 0;
+    // Kapanmış hesap kontrolü - borç ve ödeme toplamlarını kontrol et
+    const totalDebt = debt.amount;
+    const totalPayments = await CustomerPayment.aggregate([
+      {
+        $match: {
+          customerId: customerId,
+          ...(subCustomerId && { subCustomerId: subCustomerId }),
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalPaid: { $sum: "$amount" },
+          totalRefunded: { $sum: { $ifNull: ["$refundAmount", 0] } },
+        },
+      },
+    ]);
+
+    const totalPaid = totalPayments.length > 0 ? totalPayments[0].totalPaid : 0;
+    const totalRefunded =
+      totalPayments.length > 0 ? totalPayments[0].totalRefunded : 0;
+    const netPaid = totalPaid - totalRefunded;
+    const isClosedAccount = netPaid >= totalDebt;
+
+    // Fazladan iade kontrolü (🔴 3.1)
+    const existingRefunds = await Refund.find({ debtId });
+    const totalRefundedFromRefunds = existingRefunds.reduce(
+      (sum, refund) => sum + refund.refundAmount,
+      0
+    );
+    const totalRefundedAfterThis = totalRefundedFromRefunds + refundAmount;
+
+    if (totalRefundedAfterThis > totalDebt) {
+      return NextResponse.json(
+        {
+          error: `İade tutarı satış tutarından fazla olamaz. Toplam iade: ${totalRefundedAfterThis} TL, Satış: ${totalDebt} TL`,
+        },
+        { status: 400 }
+      );
     }
-    await debt.save();
+
+    // Net bakiye hesaplama
+    const netSales = totalDebt - totalRefundedFromRefunds; // İade sonrası net satış
+    const netBalance = netPaid - netSales; // Net bakiye
+
+    console.log(`=== BAKİYE ANALİZİ ===`);
+    console.log(`Toplam Satış: ${totalDebt} TL`);
+    console.log(`Toplam Ödeme: ${totalPaid} TL`);
+    console.log(`Toplam Geri Ödeme: ${totalRefunded} TL`);
+    console.log(`Net Ödeme: ${netPaid} TL`);
+    console.log(`Mevcut İadeler: ${totalRefundedFromRefunds} TL`);
+    console.log(`Bu İade: ${refundAmount} TL`);
+    console.log(`Net Satış (İade Sonrası): ${netSales} TL`);
+    console.log(`Net Bakiye: ${netBalance} TL`);
+    console.log(`Hesap Durumu: ${isClosedAccount ? "KAPANMIŞ" : "AÇIK"}`);
+    console.log(`========================`);
+
+    if (isClosedAccount) {
+      // Kapanmış hesap - geri ödeme işlemi
+      console.log("Kapanmış hesap iadesi - geri ödeme işlemi");
+      console.log(
+        `Toplam Borç: ${totalDebt}, Toplam Ödeme: ${totalPaid}, Toplam Geri Ödeme: ${totalRefunded}, Net Ödeme: ${netPaid}`
+      );
+
+      // Yeni geri ödeme kaydı oluştur
+      const refundPayment = new CustomerPayment({
+        customerId: customerId,
+        subCustomerId: subCustomerId || null,
+        amount: 0, // Geri ödeme olduğu için 0
+        refundAmount: refundAmount,
+        paymentDate: new Date(),
+        paymentType: "diger",
+        description: "Geri Ödeme",
+        notes: reason || "Kapanmış hesap iadesi",
+        status: "active",
+      });
+
+      await refundPayment.save();
+      console.log(`Geri ödeme kaydı oluşturuldu: ${refundAmount} TL`);
+    } else {
+      // Açık hesap - geri ödeme işlemi (kapanmış hesap gibi)
+      console.log("Açık hesap iadesi - geri ödeme işlemi");
+      console.log(
+        `Toplam Borç: ${totalDebt}, Toplam Ödeme: ${totalPaid}, Toplam Geri Ödeme: ${totalRefunded}, Net Ödeme: ${netPaid}`
+      );
+
+      // Yeni geri ödeme kaydı oluştur
+      const refundPayment = new CustomerPayment({
+        customerId: customerId,
+        subCustomerId: subCustomerId || null,
+        amount: 0, // Geri ödeme olduğu için 0
+        refundAmount: refundAmount,
+        paymentDate: new Date(),
+        paymentType: "diger",
+        description: "Geri Ödeme",
+        notes: reason || "Açık hesap iadesi",
+        status: "active",
+      });
+
+      await refundPayment.save();
+      console.log(`Geri ödeme kaydı oluşturuldu: ${refundAmount} TL`);
+    }
 
     // İade kaydı oluştur
     const refundData = {
@@ -260,5 +357,34 @@ export async function POST(request) {
       { error: `İade oluşturulamadı: ${error.message}` },
       { status: 500 }
     );
+  }
+}
+
+// İade açıklamasını güncelle
+export async function PATCH(request) {
+  try {
+    await connectDB();
+    const body = await request.json();
+    const { refundId, reason } = body;
+
+    if (!refundId) {
+      return NextResponse.json({ error: "refundId gerekli" }, { status: 400 });
+    }
+
+    const refund = await Refund.findById(refundId);
+    if (!refund) {
+      return NextResponse.json(
+        { error: "İade kaydı bulunamadı" },
+        { status: 404 }
+      );
+    }
+
+    refund.reason = reason;
+    await refund.save();
+
+    return NextResponse.json({ message: "Açıklama güncellendi" });
+  } catch (error) {
+    console.error("İade güncelleme hatası:", error);
+    return NextResponse.json({ error: "İade güncellenemedi" }, { status: 500 });
   }
 }

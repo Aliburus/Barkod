@@ -66,6 +66,7 @@ export interface CustomerPayment {
   customerId: string | { _id: string; name: string; phone?: string };
   subCustomerId?: string | { _id: string; name: string; phone?: string };
   amount: number;
+  refundAmount?: number; // Geri ödeme miktarı
   paymentDate: string;
   paymentType: "nakit" | "kredi_karti" | "havale" | "cek" | "diger";
   description?: string;

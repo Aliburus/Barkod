@@ -110,6 +110,7 @@ export async function POST(request) {
   await connectDB();
   try {
     const body = await request.json();
+
     const {
       barcode,
       quantity,
@@ -131,18 +132,23 @@ export async function POST(request) {
       // Stok kontrolü ve güncelleme
       for (const item of items) {
         const product = await Product.findOne({ barcode: item.barcode });
+
         if (!product) {
           return NextResponse.json(
             { error: `Ürün bulunamadı: ${item.barcode}` },
             { status: 404 }
           );
         }
+
         if (product.stock < item.quantity) {
           return NextResponse.json(
-            { error: `Yeterli stok yok: ${product.name}` },
+            {
+              error: `Yeterli stok yok: ${product.name} (Mevcut: ${product.stock}, İstenen: ${item.quantity})`,
+            },
             { status: 400 }
           );
         }
+
         product.stock -= item.quantity;
         await product.save();
       }
@@ -213,17 +219,28 @@ export async function POST(request) {
         }
       }
 
-      return NextResponse.json(sale, { status: 201 });
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Satış başarıyla tamamlandı",
+          sale,
+        },
+        { status: 201 }
+      );
     } else {
       // Tek ürün satışı (eski format)
       const product = await Product.findOne({ barcode });
       if (!product)
         return NextResponse.json({ error: "Ürün bulunamadı" }, { status: 404 });
-      if (product.stock < quantity)
+
+      if (product.stock < quantity) {
         return NextResponse.json(
-          { error: "Yeterli stok yok" },
+          {
+            error: `Yeterli stok yok: ${product.name} (Mevcut: ${product.stock}, İstenen: ${quantity})`,
+          },
           { status: 400 }
         );
+      }
 
       product.stock -= quantity;
       await product.save();
@@ -271,10 +288,23 @@ export async function POST(request) {
         await debt.save();
       }
 
-      return NextResponse.json(sale, { status: 201 });
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Satış başarıyla tamamlandı",
+          sale,
+        },
+        { status: 201 }
+      );
     }
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    console.error("Satış işlemi hatası:", error);
+    return NextResponse.json(
+      {
+        error: "Satış işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin.",
+      },
+      { status: 500 }
+    );
   }
 }
 

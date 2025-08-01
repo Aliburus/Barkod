@@ -11,6 +11,7 @@ interface ProductFormProps {
   onSave: (product: Product) => void;
   onCancel: () => void;
   prefilledBarcode?: string;
+  onNotification?: (message: string, type: "success" | "error" | "warning") => void;
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({
@@ -18,6 +19,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   onSave,
   onCancel,
   prefilledBarcode,
+  onNotification,
 }) => {
   const [formData, setFormData] = useState({
     barcode: prefilledBarcode || "",
@@ -97,7 +99,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendors.length) {
-      alert("Lütfen en az bir tedarikçi seçiniz!");
+      onNotification?.("Lütfen en az bir tedarikçi seçiniz!", "warning");
       return;
     }
     setLoading(true);

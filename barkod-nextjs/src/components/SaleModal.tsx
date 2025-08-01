@@ -7,12 +7,14 @@ interface SaleModalProps {
   product: Product;
   onAddToCart: (product: Product, quantity: number) => void;
   onClose: () => void;
+  onNotification?: (message: string, type: "success" | "error" | "warning") => void;
 }
 
 const SaleModal: React.FC<SaleModalProps> = ({
   product,
   onAddToCart,
   onClose,
+  onNotification,
 }) => {
   const [quantity, setQuantity] = useState(1);
   const [currentStock] = useState(product.stock);
@@ -26,7 +28,10 @@ const SaleModal: React.FC<SaleModalProps> = ({
 
   const handleAddToCart = () => {
     if (quantity > product.stock) {
-      alert("Yetersiz stok!");
+      onNotification?.(
+        `${product.name} için yeterli stok yok. (Mevcut: ${product.stock})`,
+        "warning"
+      );
       return;
     }
     onAddToCart(product, quantity);

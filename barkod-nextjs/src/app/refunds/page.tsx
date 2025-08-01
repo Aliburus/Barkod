@@ -6,6 +6,7 @@ import { tr } from "date-fns/locale";
 import { Refund } from "../../types";
 import Header from "../../components/Layout/Header";
 import Navigation from "../../components/Layout/Navigation";
+import { Pencil } from "lucide-react";
 
 interface RefundWithDetails extends Refund {
   customerName?: string;
@@ -27,6 +28,10 @@ const RefundsPage: React.FC = () => {
   const [dateRangeStart, setDateRangeStart] = useState("");
   const [dateRangeEnd, setDateRangeEnd] = useState("");
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Edit state'leri
+  const [editingRefundId, setEditingRefundId] = useState<string | null>(null);
+  const [reasonDraft, setReasonDraft] = useState("");
 
   useEffect(() => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -74,27 +79,42 @@ const RefundsPage: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return (
-          <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-            Tamamlandı
-          </span>
+  // Edit fonksiyonları
+  const handleEditReason = (refund: RefundWithDetails) => {
+    setEditingRefundId(refund._id!);
+    setReasonDraft(refund.reason || "");
+  };
+
+  const handleSaveReason = async (refund: RefundWithDetails) => {
+    try {
+      const response = await fetch(`/api/refunds`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refundId: refund._id, reason: reasonDraft }),
+      });
+
+      if (response.ok) {
+        // Local state'i güncelle
+        setRefunds((prevRefunds) =>
+          prevRefunds.map((r) =>
+            r._id === refund._id ? { ...r, reason: reasonDraft } : r
+          )
         );
-      case "pending":
-        return (
-          <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-            Beklemede
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-            {status}
-          </span>
-        );
+      } else {
+        console.error("Açıklama güncellenemedi");
+      }
+    } catch (error) {
+      console.error("Açıklama güncelleme hatası:", error);
     }
+    setEditingRefundId(null);
+    setReasonDraft("");
+  };
+
+  const handleCancelReason = () => {
+    setEditingRefundId(null);
+    setReasonDraft("");
   };
 
   const totalRefundAmount = refunds.reduce(
@@ -289,9 +309,6 @@ const RefundsPage: React.FC = () => {
                       💰 İade Tutarı
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      ✅ Durum
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       📝 Açıklama
                     </th>
                   </tr>
@@ -342,10 +359,43 @@ const RefundsPage: React.FC = () => {
                         {refund.refundAmount?.toFixed(2)} ₺
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                        {getStatusBadge(refund.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                        {refund.reason || "-"}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditReason(refund)}
+                            className="text-gray-400 hover:text-blue-500 p-0.5"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          {editingRefundId === refund._id ? (
+                            <>
+                              <textarea
+                                className="px-1 py-0.5 rounded border border-gray-400 text-xs bg-gray-900 text-white w-96 resize"
+                                value={reasonDraft}
+                                onChange={(e) => setReasonDraft(e.target.value)}
+                                rows={2}
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSaveReason(refund)}
+                                className="text-green-500 hover:text-green-700 text-xs"
+                              >
+                                ✔
+                              </button>
+                              <button
+                                onClick={handleCancelReason}
+                                className="text-red-500 hover:text-red-700 text-xs"
+                              >
+                                ✖
+                              </button>
+                            </>
+                          ) : (
+                            <span>{refund.reason || "İade işlemi"}</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

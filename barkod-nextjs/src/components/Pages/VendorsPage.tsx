@@ -22,15 +22,12 @@ const debounce = (func: (search: string) => void, wait: number) => {
 const VendorsPage: React.FC = () => {
   const router = useRouter();
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-
   const [showVendorForm, setShowVendorForm] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
-
-  // Form state for vendor
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [vendorForm, setVendorForm] = useState({
     name: "",
     phone: "",
@@ -40,6 +37,11 @@ const VendorsPage: React.FC = () => {
     contactPerson: "",
     notes: "",
   });
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: "success" | "error" | "warning";
+    show: boolean;
+  }>({ message: "", type: "success", show: false });
 
   const fetchVendors = async (search?: string) => {
     setLoading(true);
@@ -93,7 +95,11 @@ const VendorsPage: React.FC = () => {
       fetchVendors(searchTerm);
     } catch (error) {
       console.error("Tedarikçi kaydedilirken hata:", error);
-      alert("Tedarikçi kaydedilirken hata oluştu!");
+      setNotification({
+        message: "Tedarikçi kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.",
+        type: "error",
+        show: true,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -123,7 +129,11 @@ const VendorsPage: React.FC = () => {
       fetchVendors(searchTerm);
     } catch (error) {
       console.error("Tedarikçi silinirken hata:", error);
-      alert("Tedarikçi silinirken hata oluştu!");
+      setNotification({
+        message: "Tedarikçi silinirken bir hata oluştu. Lütfen tekrar deneyin.",
+        type: "error",
+        show: true,
+      });
     } finally {
       setDeletingId(null);
     }
@@ -382,6 +392,33 @@ const VendorsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Notification */}
+      {notification.show && (
+        <div className="fixed top-4 right-4 z-50">
+          <div
+            className={`px-6 py-4 rounded-lg shadow-lg text-white ${
+              notification.type === "success"
+                ? "bg-green-500"
+                : notification.type === "error"
+                ? "bg-red-500"
+                : "bg-yellow-500"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span>{notification.message}</span>
+              <button
+                onClick={() =>
+                  setNotification({ ...notification, show: false })
+                }
+                className="ml-4 text-white hover:text-gray-200"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
       )}

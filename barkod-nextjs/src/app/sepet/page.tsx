@@ -228,7 +228,7 @@ const SepetPage: React.FC = () => {
           // Stok kontrolü
           if (newQuantity > item.product.stock) {
             setNotification({
-              message: `Yeterli stok yok: ${item.product.name} (Mevcut: ${item.product.stock})`,
+              message: `${item.product.name} için yeterli stok yok. (Mevcut: ${item.product.stock})`,
               type: "warning",
               show: true,
             });
@@ -284,7 +284,8 @@ const SepetPage: React.FC = () => {
           if (!response.ok) {
             console.error("Ürün alış fiyatı güncellenirken hata oluştu");
             setNotification({
-              message: "Ürün alış fiyatı güncellenirken hata oluştu",
+              message:
+                "Ürün alış fiyatı güncellenirken bir hata oluştu. Lütfen tekrar deneyin.",
               type: "error",
               show: true,
             });
@@ -308,7 +309,8 @@ const SepetPage: React.FC = () => {
         } catch (error) {
           console.error("Ürün alış fiyatı güncelleme hatası:", error);
           setNotification({
-            message: "Ürün alış fiyatı güncellenirken hata oluştu",
+            message:
+              "Ürün alış fiyatı güncellenirken bir hata oluştu. Lütfen tekrar deneyin.",
             type: "error",
             show: true,
           });
@@ -324,7 +326,7 @@ const SepetPage: React.FC = () => {
         // Stok kontrolü
         if (product.stock <= 0) {
           setNotification({
-            message: `Ürün stokta yok: ${product.name}`,
+            message: `${product.name} ürünü stokta bulunmuyor.`,
             type: "warning",
             show: true,
           });
@@ -335,7 +337,7 @@ const SepetPage: React.FC = () => {
           // Her seferinde yeni bir satır ekle (birleştirme yapma)
           if (product.stock < 1) {
             setNotification({
-              message: `Ürün stokta yok: ${product.name}`,
+              message: `${product.name} ürünü stokta bulunmuyor.`,
               type: "warning",
               show: true,
             });
@@ -830,10 +832,9 @@ const SepetPage: React.FC = () => {
                             }
                           );
 
-                          if (purchaseResponse.ok) {
-                            const purchaseResult =
-                              await purchaseResponse.json();
+                          const purchaseData = await purchaseResponse.json();
 
+                          if (purchaseResponse.ok) {
                             // Stok sayısını güncelle
                             for (const item of cartItems) {
                               const newStock =
@@ -869,7 +870,7 @@ const SepetPage: React.FC = () => {
                                 0
                               ),
                               description: "",
-                              purchaseOrderId: purchaseResult._id,
+                              purchaseOrderId: purchaseData._id,
                               notes: `Otomatik oluşturulan borç - Sepet alışı`,
                             };
 
@@ -898,9 +899,10 @@ const SepetPage: React.FC = () => {
                               show: true,
                             });
                           } else {
-                            const errorData = await purchaseResponse.json();
                             setNotification({
-                              message: `Alış işlemi sırasında hata: ${errorData.error}`,
+                              message:
+                                purchaseData.error ||
+                                "Alış işlemi sırasında hata oluştu!",
                               type: "error",
                               show: true,
                             });
@@ -908,7 +910,8 @@ const SepetPage: React.FC = () => {
                         } catch (error) {
                           console.error("Alış işlemi hatası:", error);
                           setNotification({
-                            message: "Alış işlemi sırasında hata oluştu!",
+                            message:
+                              "Alış işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin.",
                             type: "error",
                             show: true,
                           });
@@ -966,12 +969,12 @@ const SepetPage: React.FC = () => {
                             body: JSON.stringify(saleData),
                           });
 
-                          if (response.ok) {
-                            const saleResult = await response.json();
+                          const responseData = await response.json();
 
+                          if (response.ok) {
                             // Sale items oluştur
                             const saleItemsData = {
-                              saleId: saleResult._id,
+                              saleId: responseData.sale._id,
                               customerId: selectedCustomer,
                               subCustomerId: selectedSubCustomer || undefined,
                               items: cartItems.map((item) => ({
@@ -999,14 +1002,17 @@ const SepetPage: React.FC = () => {
                             setSelectedPaymentType("nakit");
                             setIsDebt(false);
                             setNotification({
-                              message: "Satış başarıyla tamamlandı!",
+                              message:
+                                responseData.message ||
+                                "Satış başarıyla tamamlandı!",
                               type: "success",
                               show: true,
                             });
                           } else {
-                            const errorData = await response.json();
                             setNotification({
-                              message: `Satış işlemi sırasında hata: ${errorData.error}`,
+                              message:
+                                responseData.error ||
+                                "Satış işlemi sırasında hata oluştu!",
                               type: "error",
                               show: true,
                             });
@@ -1014,7 +1020,8 @@ const SepetPage: React.FC = () => {
                         } catch (error) {
                           console.error("Satış işlemi hatası:", error);
                           setNotification({
-                            message: "Satış işlemi sırasında hata oluştu!",
+                            message:
+                              "Satış işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin.",
                             type: "error",
                             show: true,
                           });

@@ -97,9 +97,26 @@ export async function GET(request, { params }) {
       "debtId barcode refundAmount"
     );
 
+    // SubCustomer için iade filtreleme
+    let filteredRefunds = refunds;
+    if (subCustomerId) {
+      // SubCustomer'a ait borçların ID'lerini bul
+      const subCustomerDebtIds = debts.map((debt) => debt._id.toString());
+      // Sadece bu borçlara ait iadeleri filtrele
+      filteredRefunds = refunds.filter((refund) =>
+        subCustomerDebtIds.includes(refund.debtId.toString())
+      );
+    }
+
+    // Toplam iade hesaplama (SubCustomer'a özel)
+    const totalRefunded = filteredRefunds.reduce(
+      (sum, refund) => sum + refund.refundAmount,
+      0
+    );
+
     // Her borç için iade edilen miktarları hesapla (ürün bazında)
     const debtRefunds = {};
-    refunds.forEach((refund) => {
+    filteredRefunds.forEach((refund) => {
       if (!debtRefunds[refund.debtId]) {
         debtRefunds[refund.debtId] = {};
       }
@@ -109,11 +126,13 @@ export async function GET(request, { params }) {
       debtRefunds[refund.debtId][refund.barcode] += refund.refundAmount;
     });
 
-    // Toplam borç hesaplama (debt.amount zaten refund'lardan düşürülmüş halde geliyor)
+    // Toplam borç hesaplama (Bu artık orijinal satış tutarı olmalı, çünkü refund'lar debt.amount'u düşürmüyor)
     const totalDebt = debts.reduce((sum, debt) => {
-      // debt.amount zaten refund'lardan düşürülmüş halde geliyor, tekrar düşürmeye gerek yok
       return sum + (debt.amount || 0);
     }, 0);
+
+    // Net satış hesaplama: Orijinal satış - Toplam iade
+    const netSales = totalDebt - totalRefunded;
 
     // Müşterinin ödemelerini getir (filtreye göre)
     let payments = [];
@@ -122,17 +141,19 @@ export async function GET(request, { params }) {
     if (filterType === "all" || filterType === "payments") {
       try {
         const paymentQuery = {
-          customerId,
+          customerId: new mongoose.Types.ObjectId(customerId),
           status: "active",
         };
         if (subCustomerId) {
-          paymentQuery.subCustomerId = subCustomerId;
+          paymentQuery.subCustomerId = new mongoose.Types.ObjectId(
+            subCustomerId
+          );
         }
         payments = await CustomerPayment.find(paymentQuery).sort({
           paymentDate: -1,
         });
 
-        // Toplam ödeme hesaplama
+        // Toplam ödeme hesaplama (sadece amount)
         const aggregateMatch = {
           customerId: new mongoose.Types.ObjectId(customerId),
           status: "active",
@@ -142,15 +163,22 @@ export async function GET(request, { params }) {
             subCustomerId
           );
         }
-        const totalPayments = await CustomerPayment.aggregate([
+        const totalPaymentsAggregate = await CustomerPayment.aggregate([
           { $match: aggregateMatch },
-          { $group: { _id: null, total: { $sum: "$amount" } } },
+          {
+            $group: {
+              _id: null,
+              totalPaid: { $sum: "$amount" },
+            },
+          },
         ]);
 
-        totalPaid = totalPayments.length > 0 ? totalPayments[0].total : 0;
+        totalPaid =
+          totalPaymentsAggregate.length > 0
+            ? totalPaymentsAggregate[0].totalPaid
+            : 0;
       } catch (aggregationError) {
         console.error("Ödeme hesaplama hatası:", aggregationError);
-        // Aggregation hatası durumunda basit sorgu kullan
         totalPaid = payments.reduce(
           (sum, payment) => sum + (payment.amount || 0),
           0
@@ -158,7 +186,21 @@ export async function GET(request, { params }) {
       }
     }
 
-    const remainingDebt = Math.max(0, totalDebt - totalPaid);
+    // Net ödeme hesaplama (SubCustomer'a özel)
+    const netPaid = totalPaid;
+
+    // Kalan borç hesaplama (doğru mantık: Orijinal Satış - Toplam İade - Toplam Ödeme)
+    const remainingDebt = Math.max(0, netSales - netPaid);
+
+    // Console log for debugging
+    console.log("=== BAKİYE HESAPLAMA (SUB CUSTOMER) ===");
+    console.log(`Orijinal Toplam Borç: ${totalDebt} TL`);
+    console.log(`Toplam İade: ${totalRefunded} TL`);
+    console.log(`Net Satış: ${netSales} TL`);
+    console.log(`Toplam Ödeme: ${totalPaid} TL`);
+    console.log(`Net Ödeme: ${netPaid} TL`);
+    console.log(`Kalan Borç: ${remainingDebt} TL`);
+    console.log("==========================");
 
     // Borç verilerine iade bilgilerini ekle
     const debtsWithRefunds = debts.map((debt) => {

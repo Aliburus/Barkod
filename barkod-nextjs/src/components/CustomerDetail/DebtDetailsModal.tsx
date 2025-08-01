@@ -16,6 +16,10 @@ interface DebtDetailsModalProps {
   type: "debt" | "payment";
   subCustomerId?: string; // <-- eklendi
   onDataRefresh?: () => void; // İade işleminden sonra veri yenileme için
+  onNotification?: (
+    message: string,
+    type: "success" | "error" | "warning"
+  ) => void;
 }
 
 const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
@@ -28,10 +32,11 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   type,
   subCustomerId, // <-- eklendi
   onDataRefresh, // İade işleminden sonra veri yenileme için
+  onNotification,
 }) => {
-  const [filterType, setFilterType] = useState<"all" | "debts" | "payments">(
-    "all"
-  );
+  const [filterType, setFilterType] = useState<
+    "all" | "debts" | "payments" | "refunds"
+  >("all");
   const [loading, setLoading] = useState(false);
   const [filteredData, setFilteredData] = useState<{
     debts: Debt[];
@@ -42,6 +47,8 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   }>({ debts: [], payments: [], totalDebt: 0, totalPaid: 0, remainingDebt: 0 });
   const [editingDescId, setEditingDescId] = useState<string | null>(null);
   const [descDraft, setDescDraft] = useState<string>("");
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [paymentDescDraft, setPaymentDescDraft] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedExtraFilter, setSelectedExtraFilter] = useState("");
   const [productSearch, setProductSearch] = useState("");
@@ -51,13 +58,126 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   const [refundLoading, setRefundLoading] = useState<string | null>(null);
   const [refunds, setRefunds] = useState<Refund[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+  const [pendingRefund, setPendingRefund] = useState<{
+    debt: Debt;
+    productDetail: {
+      productId?: string;
+      productName?: string;
+      barcode?: string;
+      quantity?: number;
+      price?: number;
+    };
+    index: number;
+  } | null>(null);
+  const [showCustomerRefundModal, setShowCustomerRefundModal] = useState(false);
+  const [customerRefundAmount, setCustomerRefundAmount] = useState("");
+
+  // Tek hesaplama sistemi - tüm sekmeler için ortak
+  const getCalculations = () => {
+    if (!subCustomerId) {
+      return {
+        totalDebt: 0,
+        totalPayments: 0,
+        totalRefunded: 0,
+        remainingDebt: 0,
+        customerRefunds: 0,
+        excessPayment: 0,
+      };
+    }
+
+    // Tüm borçları hesapla
+    const totalDebt = debts
+      .filter((d) => {
+        return (
+          d.subCustomerId === subCustomerId ||
+          (typeof d.subCustomerId === "object" &&
+            d.subCustomerId?._id === subCustomerId)
+        );
+      })
+      .reduce((sum, d) => sum + (d.amount || 0), 0);
+
+    // Tüm ödemeleri hesapla (sadece pozitif olanlar)
+    const totalPayments = payments
+      .filter((p) => {
+        return (
+          p.subCustomerId === subCustomerId ||
+          (typeof p.subCustomerId === "object" &&
+            p.subCustomerId?._id === subCustomerId)
+        );
+      })
+      .filter((p) => p.amount > 0) // Sadece pozitif ödemeler
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    // İade edilen tutarları hesapla
+    const totalRefunded = debts
+      .filter((d) => {
+        return (
+          d.subCustomerId === subCustomerId ||
+          (typeof d.subCustomerId === "object" &&
+            d.subCustomerId?._id === subCustomerId)
+        );
+      })
+      .reduce((sum, d) => sum + (d.refundedAmount || 0), 0);
+
+    // Subcustomer'a yapılan geri ödemeleri hesapla (negatif ödemeler)
+    const customerRefunds = payments
+      .filter((p) => {
+        return (
+          p.subCustomerId === subCustomerId ||
+          (typeof p.subCustomerId === "object" &&
+            p.subCustomerId?._id === subCustomerId)
+        );
+      })
+      .filter((p) => p.amount < 0)
+      .reduce((sum, p) => sum + Math.abs(p.amount || 0), 0);
+
+    // Kalan borç
+    const remainingDebt = Math.max(
+      0,
+      totalDebt - totalPayments - totalRefunded
+    );
+
+    // Fazla ödeme
+    const excessPayment = Math.max(
+      0,
+      totalPayments + totalRefunded - totalDebt - customerRefunds
+    );
+
+    return {
+      totalDebt,
+      totalPayments,
+      totalRefunded,
+      remainingDebt,
+      customerRefunds,
+      excessPayment,
+    };
+  };
+
+  const calculations = getCalculations();
 
   // İade işlemi
   const handleRefund = async (
     debt: Debt,
-    productDetail: any,
+    productDetail: {
+      productId?: string;
+      productName?: string;
+      barcode?: string;
+      quantity?: number;
+      price?: number;
+    },
     index: number
   ) => {
+    // Onay modalını göster
+    setPendingRefund({ debt, productDetail, index });
+    setShowRefundConfirm(true);
+  };
+
+  // İade onayı
+  const confirmRefund = async () => {
+    if (!pendingRefund) return;
+
+    const { debt, productDetail, index } = pendingRefund;
     const refundKey = `${debt._id}-${index}`;
     setRefundLoading(refundKey);
 
@@ -76,13 +196,13 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
         customerId:
           typeof debt.customerId === "string"
             ? debt.customerId
-            : debt.customerId._id,
+            : debt.customerId?._id || "",
         subCustomerId: debt.subCustomerId
           ? typeof debt.subCustomerId === "string"
             ? debt.subCustomerId
             : debt.subCustomerId._id
           : undefined,
-        reason: "",
+        reason: "İade işlemi",
       };
 
       await refundService.createRefund(refundData);
@@ -92,24 +212,19 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
         new Set(prev).add(`${debt._id}-${productDetail.barcode}`)
       );
 
-      // Refunds listesini güncelle
       const newRefunds = await refundService.getRefundsByDebtId(debt._id!);
       setRefunds(newRefunds);
 
-      // Veri yenileme callback'ini çağır
       if (onDataRefresh) {
         onDataRefresh();
       }
 
-      // Modal içindeki verileri hemen yenile (delay olmadan)
       await fetchFilteredData(
         filterType,
         searchTerm,
         selectedExtraFilter,
         productSearch
       );
-
-      // Force refresh to ensure all data is updated
       setTimeout(() => {
         fetchFilteredData(
           filterType,
@@ -118,8 +233,6 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
           productSearch
         );
       }, 500);
-
-      // Additional refresh after a longer delay to ensure database updates are reflected
       setTimeout(() => {
         fetchFilteredData(
           filterType,
@@ -129,24 +242,39 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
         );
       }, 2000);
 
-      // Trigger refresh
       setRefreshTrigger((prev) => prev + 1);
-
-      alert("İade işlemi başarıyla tamamlandı!");
+      onNotification?.("İade işlemi başarıyla tamamlandı!", "success");
     } catch (error) {
       console.error("İade işlemi hatası:", error);
-      alert(
+      onNotification?.(
         error instanceof Error
           ? error.message
-          : "İade işlemi sırasında bir hata oluştu."
+          : "İade işlemi sırasında bir hata oluştu.",
+        "error"
       );
     } finally {
       setRefundLoading(null);
+      setShowRefundConfirm(false);
+      setPendingRefund(null);
     }
   };
 
+  // İade iptali
+  const cancelRefund = () => {
+    setShowRefundConfirm(false);
+    setPendingRefund(null);
+  };
+
   // İade durumunu kontrol et
-  const isProductRefunded = (debt: Debt, item: any) => {
+  const isProductRefunded = (
+    debt: Debt,
+    item: {
+      barcode?: string;
+      productName?: string;
+      quantity?: number;
+      price?: number;
+    }
+  ) => {
     // Önce local state'ten kontrol et
     const refundKey = `${debt._id}-${item.barcode}`;
     if (refundedItems.has(refundKey)) {
@@ -164,7 +292,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
 
   // Filter değiştiğinde backend'den veri çek
   const fetchFilteredData = async (
-    newFilterType: "all" | "debts" | "payments",
+    newFilterType: "all" | "debts" | "payments" | "refunds",
     search?: string,
     extraFilter?: string,
     productName?: string
@@ -211,9 +339,18 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   // İlk yüklemede tüm verileri çek
   React.useEffect(() => {
     if (isOpen) {
-      fetchFilteredData("all");
+      // Props'tan gelen verileri kullan, backend'den tekrar çekme
+      setFilteredData({
+        debts: debts || [],
+        payments: payments || [],
+        totalDebt: debts.reduce((sum, d) => sum + (d.amount || 0), 0),
+        totalPaid: payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+        remainingDebt:
+          debts.reduce((sum, d) => sum + (d.amount || 0), 0) -
+          payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+      });
     }
-  }, [isOpen]);
+  }, [isOpen, debts, payments]);
 
   // İade işleminden sonra verileri yenile
   React.useEffect(() => {
@@ -237,9 +374,24 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
             typeof debts[0].customerId === "string"
               ? debts[0].customerId
               : debts[0].customerId._id;
-          const refundsData = await refundService.getRefundsByCustomerId(
+
+          // SubCustomer için refunds filtreleme
+          let refundsData = await refundService.getRefundsByCustomerId(
             customerId
           );
+
+          if (subCustomerId) {
+            // Sadece bu SubCustomer'ın borçlarına ait refunds'ları filtrele
+            const subCustomerDebtIds = debts.map((debt) => debt._id);
+            refundsData = refundsData.filter((refund) =>
+              subCustomerDebtIds.includes(
+                typeof refund.debtId === "string"
+                  ? refund.debtId
+                  : refund.debtId._id
+              )
+            );
+          }
+
           setRefunds(refundsData);
         } catch (error) {
           console.error("İadeler getirilemedi:", error);
@@ -248,7 +400,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
     };
 
     fetchRefunds();
-  }, [debts]);
+  }, [debts, subCustomerId]);
 
   // Refresh trigger değiştiğinde verileri yenile
   React.useEffect(() => {
@@ -309,9 +461,26 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
   }, [refunds, debts]);
 
   // Filter değiştiğinde veri çek
-  const handleFilterChange = (newFilterType: "all" | "debts" | "payments") => {
+  const handleFilterChange = (
+    newFilterType: "all" | "debts" | "payments" | "refunds"
+  ) => {
     setFilterType(newFilterType);
-    fetchFilteredData(newFilterType);
+    // Props'tan gelen verileri kullan
+    setFilteredData({
+      debts:
+        newFilterType === "all" ||
+        newFilterType === "debts" ||
+        newFilterType === "refunds"
+          ? debts
+          : [],
+      payments:
+        newFilterType === "all" || newFilterType === "payments" ? payments : [],
+      totalDebt: debts.reduce((sum, d) => sum + (d.amount || 0), 0),
+      totalPaid: payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+      remainingDebt:
+        debts.reduce((sum, d) => sum + (d.amount || 0), 0) -
+        payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+    });
   };
 
   const handleSearchChange = (term: string) => {
@@ -357,12 +526,183 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
     setDescDraft("");
   };
 
+  // Ödeme açıklaması edit fonksiyonları
+  const handleEditPaymentDesc = (payment: CustomerPayment) => {
+    setEditingPaymentId(payment._id!);
+    setPaymentDescDraft(payment.description || "");
+  };
+
+  const handleSavePaymentDesc = async (payment: CustomerPayment) => {
+    try {
+      const response = await fetch(`/api/payments/${payment._id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          description: paymentDescDraft,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Açıklama güncellenemedi");
+      }
+
+      // Veri yenileme callback'ini çağır
+      if (onDataRefresh) {
+        onDataRefresh();
+      }
+
+      // Modal içindeki verileri yenile
+      await fetchFilteredData(
+        filterType,
+        searchTerm,
+        selectedExtraFilter,
+        productSearch
+      );
+
+      setEditingPaymentId(null);
+      setPaymentDescDraft("");
+    } catch (error) {
+      console.error("Açıklama güncelleme hatası:", error);
+      onNotification?.(
+        error instanceof Error
+          ? error.message
+          : "Açıklama güncellenirken bir hata oluştu.",
+        "error"
+      );
+    }
+  };
+
+  const handleCancelPaymentDesc = () => {
+    setEditingPaymentId(null);
+    setPaymentDescDraft("");
+  };
+
+  // Subcustomer'a yapılacak geri ödeme işlemi
+  const handleSubCustomerRefund = async (amount: number) => {
+    if (amount <= 0) {
+      onNotification?.("Geçerli bir tutar girin.", "warning");
+      return;
+    }
+
+    try {
+      const refundData = {
+        customerId:
+          typeof debts[0]?.customerId === "string"
+            ? debts[0].customerId
+            : debts[0]?.customerId?._id,
+        subCustomerId: subCustomerId,
+        amount: -amount, // Negatif tutar olarak kaydet
+        paymentDate: new Date().toISOString(),
+        paymentType: "nakit",
+        description: "Subcustomer'a geri ödeme",
+        status: "active",
+      };
+
+      const response = await fetch("/api/customer-payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(refundData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Subcustomer geri ödeme işlemi başarısız");
+      }
+
+      onNotification?.(
+        `Subcustomer'a ${amount.toFixed(2)} TL geri ödeme yapıldı.`,
+        "success"
+      );
+
+      // Veri yenileme callback'ini çağır
+      if (onDataRefresh) {
+        onDataRefresh();
+      }
+
+      // Modal'ı kapat
+      onClose();
+    } catch (error) {
+      console.error("Subcustomer geri ödeme hatası:", error);
+      onNotification?.(
+        "Subcustomer geri ödeme işlemi sırasında bir hata oluştu.",
+        "error"
+      );
+    }
+  };
+
+  // Sekme sayılarını hesapla
+  const getTabCounts = () => {
+    if (!subCustomerId) {
+      return {
+        all: 0,
+        debts: 0,
+        payments: 0,
+        refunds: 0,
+      };
+    }
+
+    // Borç sayısı
+    const debtCount = debts.filter((d) => {
+      return (
+        d.subCustomerId === subCustomerId ||
+        (typeof d.subCustomerId === "object" &&
+          d.subCustomerId?._id === subCustomerId)
+      );
+    }).length;
+
+    // Ödeme sayısı (pozitif ve negatif)
+    const paymentCount = payments.filter((p) => {
+      return (
+        p.subCustomerId === subCustomerId ||
+        (typeof p.subCustomerId === "object" &&
+          p.subCustomerId?._id === subCustomerId)
+      );
+    }).length;
+
+    // İade sayısı
+    let refundCount = 0;
+    debts.forEach((debt) => {
+      if (
+        debt.subCustomerId === subCustomerId ||
+        (typeof debt.subCustomerId === "object" &&
+          debt.subCustomerId?._id === subCustomerId)
+      ) {
+        if (debt.productDetails && Array.isArray(debt.productDetails)) {
+          debt.productDetails.forEach((detail) => {
+            if (isProductRefunded(debt, detail)) {
+              refundCount++;
+            }
+          });
+        }
+      }
+    });
+
+    return {
+      all: debtCount + paymentCount,
+      debts: debtCount,
+      payments: paymentCount,
+      refunds: refundCount,
+    };
+  };
+
+  const tabCounts = getTabCounts();
+
+  // Debug: Sekme sayılarını kontrol et
+  console.log("Debug - Tab Counts:", tabCounts);
+  console.log("Debug - Debts:", debts);
+  console.log("Debug - Payments:", payments);
+  console.log("Debug - SubCustomerId:", subCustomerId);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-0">
-      <div className="bg-white dark:bg-gray-900 rounded-none shadow-xl w-full h-auto max-w-none max-h-none">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-900 rounded-none shadow-xl w-full h-auto max-w-none max-h-none min-h-[600px] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {customerName} - Borç ve Ödeme Detayları
             {customerPhone && (
@@ -392,24 +732,70 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
           </button>
         </div>
         {/* GENEL ÖZET EN ÜSTE ALINDI */}
-        <div className="px-6 pt-4 pb-2">
+        <div className="px-6 pt-4 pb-2 flex-shrink-0">
           <div className="flex flex-wrap gap-6 bg-gray-800/60 dark:bg-gray-800/60 rounded-lg p-4 border border-gray-700">
             <div className="flex-1 min-w-[120px]">
-              <span className="text-gray-300">Toplam Borç:</span>
+              <span className="text-gray-300">Borç:</span>
               <span className="ml-2 font-semibold text-red-500">
-                {filteredData.totalDebt.toFixed(2)} ₺
+                {calculations.remainingDebt.toFixed(2)} ₺
               </span>
             </div>
             <div className="flex-1 min-w-[120px]">
               <span className="text-gray-300">Toplam Ödeme:</span>
               <span className="ml-2 font-semibold text-green-500">
-                {filteredData.totalPaid.toFixed(2)} ₺
+                {calculations.totalPayments.toFixed(2)} ₺
               </span>
             </div>
             <div className="flex-1 min-w-[120px]">
-              <span className="text-gray-300">Kalan:</span>
-              <span className="ml-2 font-semibold text-orange-400">
-                {filteredData.remainingDebt.toFixed(2)} ₺
+              <span className="text-gray-300">İade Edilen Toplam Tutar:</span>
+              <span className="ml-2 font-semibold text-orange-500">
+                {calculations.totalRefunded.toFixed(2)} ₺
+              </span>
+            </div>
+            <div className="flex-1 min-w-[120px]">
+              <span className="text-gray-300">Geri Ödeme:</span>
+              <span className="ml-2 font-semibold text-yellow-500">
+                {calculations.customerRefunds.toFixed(2)} ₺
+              </span>
+              {(() => {
+                if (!subCustomerId) return null;
+
+                // Eğer kalan borç varsa, ödeme gerekli
+                if (calculations.remainingDebt > 0) {
+                  return (
+                    <span className="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded">
+                      {calculations.remainingDebt.toFixed(2)} ₺ ödeme gerekli
+                    </span>
+                  );
+                }
+
+                // Eğer kalan borç yoksa, fazla ödeme var mı kontrol et
+                if (calculations.excessPayment > 0) {
+                  return (
+                    <button
+                      onClick={() => {
+                        setShowCustomerRefundModal(true);
+                        setCustomerRefundAmount("");
+                      }}
+                      className="ml-2 px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                    >
+                      Geri Öde
+                    </button>
+                  );
+                }
+
+                // Eğer sıfır ise, borç yok
+                return (
+                  <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded">
+                    Borç yok
+                  </span>
+                );
+              })()}
+            </div>
+            <div className="flex-1 min-w-[120px]">
+              <span className="text-gray-300">Satış:</span>
+              <span className="ml-2 font-semibold text-blue-500">
+                {calculations.totalDebt.toFixed(2)} ₺
               </span>
             </div>
             {loading && (
@@ -421,10 +807,10 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
             )}
           </div>
         </div>
-        <div className="p-6">
+        <div className="p-6 flex-1 flex flex-col">
           {type === "debt" ? (
             // Borç ve ödeme detayları
-            <div>
+            <div className="flex-1 flex flex-col">
               {/* Filtre Butonları */}
               <div className="mb-4 flex flex-wrap gap-2 items-center">
                 <button
@@ -436,8 +822,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                       : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                   } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
-                  Tümü (
-                  {filteredData.debts.length + filteredData.payments.length})
+                  Tümü ({tabCounts.all})
                 </button>
                 <button
                   onClick={() => handleFilterChange("debts")}
@@ -448,7 +833,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                       : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                   } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
-                  Borçlar ({filteredData.debts.length})
+                  Borçlar ({tabCounts.debts})
                 </button>
                 <button
                   onClick={() => handleFilterChange("payments")}
@@ -459,7 +844,18 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                       : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                   } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
-                  Ödemeler ({filteredData.payments.length})
+                  Ödemeler ({tabCounts.payments})
+                </button>
+                <button
+                  onClick={() => handleFilterChange("refunds")}
+                  disabled={loading}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    filterType === "refunds"
+                      ? "bg-orange-600 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  İadeler ({tabCounts.refunds})
                 </button>
                 {/* Search alanları */}
                 <div className="flex gap-2 items-center ml-4">
@@ -474,11 +870,12 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                 </div>
               </div>
 
-              <div className="mb-4">
+              <div className="mb-4 flex-shrink-0">
                 <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
                   {filterType === "all" && "Tüm İşlem Detayları"}
                   {filterType === "debts" && "Borç Detayları"}
                   {filterType === "payments" && "Ödeme Detayları"}
+                  {filterType === "refunds" && "İade Detayları"}
                 </h4>
                 {loading ? (
                   <div className="flex justify-center items-center py-8">
@@ -493,7 +890,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                     İşlem kaydı bulunamadı.
                   </p>
                 ) : (
-                  <div className="max-h-[400px] overflow-y-auto">
+                  <div className="flex-1 overflow-y-auto max-h-[400px]">
                     <table className="w-full text-xs border-collapse border border-gray-300 dark:border-gray-600">
                       <thead>
                         <tr className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
@@ -516,6 +913,12 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                             Ödeme Tipi
                           </th>
                           <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                            İade Tarihi
+                          </th>
+                          <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
+                            Geri Ödeme
+                          </th>
+                          <th className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-left font-medium text-gray-700 dark:text-gray-300">
                             Açıklama
                           </th>
                         </tr>
@@ -536,10 +939,38 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                             };
                             isFirstItem?: boolean;
                             isRefunded?: boolean;
+                            refundDate?: string;
                           }> = [];
 
+                          // İade tarihi bulma fonksiyonu
+                          const getRefundDate = (
+                            debt: Debt,
+                            item: {
+                              barcode?: string;
+                              productName?: string;
+                              quantity?: number;
+                              price?: number;
+                            }
+                          ) => {
+                            const refundedItem = refunds.find((refund) => {
+                              const refundDebtId =
+                                typeof refund.debtId === "string"
+                                  ? refund.debtId
+                                  : refund.debtId._id;
+                              return (
+                                refundDebtId === debt._id &&
+                                refund.barcode === item.barcode
+                              );
+                            });
+                            return refundedItem?.refundDate;
+                          };
+
                           // Borç kayıtlarını ekle (filtreye göre)
-                          if (filterType === "all" || filterType === "debts") {
+                          if (
+                            filterType === "all" ||
+                            filterType === "debts" ||
+                            filterType === "refunds"
+                          ) {
                             filteredData.debts.forEach((debt) => {
                               let items: Array<{
                                 barcode?: string;
@@ -584,11 +1015,22 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
 
                               if (items.length > 0) {
                                 items.forEach((item, index) => {
-                                  // İade edilmiş ürünleri de göster (filtreleme kaldırıldı)
+                                  // İade edilmiş ürünleri kontrol et
                                   const isRefunded = isProductRefunded(
                                     debt,
                                     item
                                   );
+
+                                  // İadeler tabında sadece iade edilmiş ürünleri göster
+                                  if (filterType === "refunds" && !isRefunded) {
+                                    return;
+                                  }
+
+                                  // Borçlar tabında iade edilmiş ürünleri gösterme
+                                  if (filterType === "debts" && isRefunded) {
+                                    return;
+                                  }
+
                                   allRecords.push({
                                     type: "debt",
                                     date: debt.createdAt,
@@ -596,6 +1038,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                     item,
                                     isFirstItem: index === 0,
                                     isRefunded: isRefunded,
+                                    refundDate: getRefundDate(debt, item),
                                   });
                                 });
                               } else {
@@ -603,6 +1046,9 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                   type: "debt",
                                   date: debt.createdAt,
                                   debt,
+                                  refundDate: getRefundDate(debt, {
+                                    barcode: debt.saleId?.barcode,
+                                  }),
                                 });
                               }
                             });
@@ -613,13 +1059,20 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                             filterType === "all" ||
                             filterType === "payments"
                           ) {
-                            filteredData.payments.forEach((payment) => {
-                              allRecords.push({
-                                type: "payment",
-                                date: payment.paymentDate,
-                                payment,
+                            filteredData.payments
+                              .filter((payment) => {
+                                // "Geri Ödeme" açıklamalı satırları kaldır
+                                return !payment.description
+                                  ?.toLowerCase()
+                                  .includes("geri ödeme");
+                              })
+                              .forEach((payment) => {
+                                allRecords.push({
+                                  type: "payment",
+                                  date: payment.paymentDate,
+                                  payment,
+                                });
                               });
-                            });
                           }
 
                           // Tarihe göre sırala (en yeni en üstte)
@@ -700,19 +1153,53 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                       </span>
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-semibold">
-                                      <span
-                                        className={
-                                          isRefunded
-                                            ? "line-through text-gray-500"
-                                            : ""
-                                        }
-                                      >
-                                        {(
-                                          (item.price || 0) *
-                                          (item.quantity || 1)
-                                        ).toFixed(2)}{" "}
-                                        ₺
-                                      </span>
+                                      {isRefunded ? (
+                                        <span className="text-green-600">
+                                          -
+                                          {(() => {
+                                            // İade edilen ürün için tutar hesapla
+                                            const refundedItem = refunds.find(
+                                              (refund) =>
+                                                debt &&
+                                                refund.debtId === debt._id &&
+                                                refund.barcode === item.barcode
+                                            );
+                                            return refundedItem
+                                              ? refundedItem.refundAmount.toFixed(
+                                                  2
+                                                )
+                                              : (
+                                                  (item.price || 0) *
+                                                  (item.quantity || 1)
+                                                ).toFixed(2);
+                                          })()}{" "}
+                                          ₺
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          {(
+                                            (item.price || 0) *
+                                            (item.quantity || 1)
+                                          ).toFixed(2)}{" "}
+                                          ₺
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                      -
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                      {record.refundDate ? (
+                                        <span className="text-green-600">
+                                          {format(
+                                            parseISO(record.refundDate),
+                                            "dd.MM.yy HH:mm",
+                                            { locale: tr }
+                                          )}
+                                        </span>
+                                      ) : (
+                                        "-"
+                                      )}
                                     </td>
                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
                                       -
@@ -876,6 +1363,97 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                               }
                             } else {
                               const { payment } = record;
+
+                              // Eğer negatif ödeme ise (geri ödeme), ayrı satır olarak render et
+                              if (payment!.amount < 0) {
+                                return (
+                                  <tr
+                                    key={`refund-${payment!._id}`}
+                                    className="hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
+                                  >
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-600 dark:text-gray-400">
+                                      {format(
+                                        parseISO(payment!.paymentDate),
+                                        "dd.MM.yy HH:mm",
+                                        { locale: tr }
+                                      )}
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                      -
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                      -
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                      -
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-red-600 font-semibold">
+                                      {payment!.amount.toFixed(2)} ₺
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                      Geri Ödeme
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                      -
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-yellow-600 font-semibold">
+                                      {Math.abs(payment!.amount).toFixed(2)} ₺
+                                    </td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() =>
+                                            handleEditPaymentDesc(payment!)
+                                          }
+                                          className="text-gray-400 hover:text-blue-500 p-0.5"
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                          }}
+                                        >
+                                          <Pencil size={16} />
+                                        </button>
+                                        {editingPaymentId === payment!._id ? (
+                                          <>
+                                            <textarea
+                                              className="px-1 py-0.5 rounded border border-gray-400 text-xs bg-gray-900 text-white w-96 resize"
+                                              value={paymentDescDraft}
+                                              onChange={(e) =>
+                                                setPaymentDescDraft(
+                                                  e.target.value
+                                                )
+                                              }
+                                              rows={2}
+                                              autoFocus
+                                            />
+                                            <button
+                                              onClick={() =>
+                                                handleSavePaymentDesc(payment!)
+                                              }
+                                              className="text-green-500 hover:text-green-700 text-xs"
+                                            >
+                                              ✔
+                                            </button>
+                                            <button
+                                              onClick={handleCancelPaymentDesc}
+                                              className="text-red-500 hover:text-red-700 text-xs"
+                                            >
+                                              ✖
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <span>
+                                            {payment!.description ||
+                                              "Geri Ödeme"}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              // Normal pozitif ödemeler için mevcut kod
                               return (
                                 <tr
                                   key={`payment-${payment!._id}`}
@@ -914,7 +1492,59 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                       : payment!.paymentType}
                                   </td>
                                   <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                                    {payment!.description || "-"}
+                                    -
+                                  </td>
+                                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                    -
+                                  </td>
+                                  <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() =>
+                                          handleEditPaymentDesc(payment!)
+                                        }
+                                        className="text-gray-400 hover:text-blue-500 p-0.5"
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                        }}
+                                      >
+                                        <Pencil size={16} />
+                                      </button>
+                                      {editingPaymentId === payment!._id ? (
+                                        <>
+                                          <textarea
+                                            className="px-1 py-0.5 rounded border border-gray-400 text-xs bg-gray-900 text-white w-96 resize"
+                                            value={paymentDescDraft}
+                                            onChange={(e) =>
+                                              setPaymentDescDraft(
+                                                e.target.value
+                                              )
+                                            }
+                                            rows={2}
+                                            autoFocus
+                                          />
+                                          <button
+                                            onClick={() =>
+                                              handleSavePaymentDesc(payment!)
+                                            }
+                                            className="text-green-500 hover:text-green-700 text-xs"
+                                          >
+                                            ✔
+                                          </button>
+                                          <button
+                                            onClick={handleCancelPaymentDesc}
+                                            className="text-red-500 hover:text-red-700 text-xs"
+                                          >
+                                            ✖
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <span>
+                                          {payment!.description || "Ödeme"}
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -941,7 +1571,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                       : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                   } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
-                  Tümü ({filteredData.payments.length})
+                  Tümü ({tabCounts.all})
                 </button>
                 <button
                   onClick={() => handleFilterChange("payments")}
@@ -952,7 +1582,7 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                       : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
                   } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
-                  Ödemeler ({filteredData.payments.length})
+                  Ödemeler ({tabCounts.payments})
                 </button>
               </div>
 
@@ -997,6 +1627,12 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                           if (filterType === "payments") return true;
                           return false;
                         })
+                        .filter((payment) => {
+                          // "Geri Ödeme" açıklamalı satırları kaldır
+                          return !payment.description
+                            ?.toLowerCase()
+                            .includes("geri ödeme");
+                        })
                         .map((payment) => (
                           <tr
                             key={payment._id}
@@ -1026,7 +1662,47 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
                                 : payment.paymentType}
                             </td>
                             <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-gray-700 dark:text-gray-300">
-                              {payment.description || "-"}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleEditPaymentDesc(payment)}
+                                  className="text-gray-400 hover:text-blue-500 p-0.5"
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                                {editingPaymentId === payment._id ? (
+                                  <>
+                                    <textarea
+                                      className="px-1 py-0.5 rounded border border-gray-400 text-xs bg-gray-900 text-white w-96 resize"
+                                      value={paymentDescDraft}
+                                      onChange={(e) =>
+                                        setPaymentDescDraft(e.target.value)
+                                      }
+                                      rows={2}
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() =>
+                                        handleSavePaymentDesc(payment)
+                                      }
+                                      className="text-green-500 hover:text-green-700 text-xs"
+                                    >
+                                      ✔
+                                    </button>
+                                    <button
+                                      onClick={handleCancelPaymentDesc}
+                                      className="text-red-500 hover:text-red-700 text-xs"
+                                    >
+                                      ✖
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span>{payment.description || "-"}</span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1038,6 +1714,181 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({
           )}
         </div>
       </div>
+      {showRefundConfirm && pendingRefund && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-70 p-0">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              İade Onayı
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
+              <strong>{pendingRefund.debt.description || "Bu borç"}</strong>
+              <span>
+                {" "}
+                üzerinden{" "}
+                <strong>
+                  {pendingRefund.productDetail.productName ||
+                    pendingRefund.productDetail.barcode}
+                </strong>
+              </span>
+              <span>
+                {" "}
+                adet{" "}
+                <strong>{pendingRefund.productDetail.quantity || 1}</strong>
+              </span>
+              <span>
+                {" "}
+                tutarı{" "}
+                <strong>
+                  {(
+                    (pendingRefund.productDetail.price || 0) *
+                    (pendingRefund.productDetail.quantity || 1)
+                  ).toFixed(2)}{" "}
+                  ₺
+                </strong>
+              </span>
+              <span> iade edilecektir.</span>
+            </p>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={confirmRefund}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 focus:outline-none"
+                disabled={
+                  refundLoading ===
+                  `${pendingRefund.debt._id}-${pendingRefund.index}`
+                }
+              >
+                {refundLoading ===
+                `${pendingRefund.debt._id}-${pendingRefund.index}`
+                  ? "İşleniyor..."
+                  : "İade Et"}
+              </button>
+              <button
+                onClick={cancelRefund}
+                className="px-4 py-2 text-sm rounded-md bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600 focus:outline-none"
+              >
+                İptal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Müşteri Geri Ödeme Modal */}
+      {showCustomerRefundModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-70 p-0">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Müşteri Geri Ödeme
+              </h3>
+              <button
+                onClick={() => setShowCustomerRefundModal(false)}
+                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-700 dark:text-gray-300 mb-4">
+                <strong>{customerName}</strong> müşterisine yapılacak geri ödeme
+                tutarını girin.
+              </p>
+
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Toplam Ödeme:
+                    </span>
+                    <span className="ml-2 font-semibold text-green-600">
+                      {calculations.totalPayments.toFixed(2)} ₺
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      İade Edilen:
+                    </span>
+                    <span className="ml-2 font-semibold text-orange-600">
+                      {calculations.totalRefunded.toFixed(2)} ₺
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Toplam Satış:
+                    </span>
+                    <span className="ml-2 font-semibold text-blue-600">
+                      {calculations.totalDebt.toFixed(2)} ₺
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Hesaplanan Geri Ödeme:
+                    </span>
+                    <span className="ml-2 font-semibold text-yellow-600">
+                      {calculations.excessPayment.toFixed(2)} ₺
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Geri Ödeme Tutarı (₺)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={customerRefundAmount}
+                  onChange={(e) => setCustomerRefundAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="0.00"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowCustomerRefundModal(false)}
+                className="px-4 py-2 text-sm rounded-md bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600 focus:outline-none"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => {
+                  const amount = parseFloat(customerRefundAmount);
+                  if (amount > 0) {
+                    handleSubCustomerRefund(amount);
+                    setShowCustomerRefundModal(false);
+                  } else {
+                    onNotification?.(
+                      "Lütfen geçerli bir tutar girin.",
+                      "warning"
+                    );
+                  }
+                }}
+                className="px-4 py-2 text-sm rounded-md bg-yellow-600 text-white hover:bg-yellow-700 focus:outline-none"
+              >
+                Geri Ödeme Yap
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
