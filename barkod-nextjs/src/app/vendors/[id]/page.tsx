@@ -21,6 +21,7 @@ import {
   SortAsc,
   SortDesc,
   AlertCircle,
+  RotateCcw,
 } from "lucide-react";
 
 // Custom hook for infinite scroll purchase orders
@@ -117,7 +118,7 @@ const useInfinitePurchaseOrders = (vendorId: string, filters: any) => {
     }
   };
 
-  return { orders, loading, hasMore, loadMore };
+  return { orders, setOrders, loading, hasMore, loadMore };
 };
 
 // Custom hook for infinite scroll debts
@@ -343,6 +344,41 @@ const VendorDetailPage: React.FC = () => {
     notes: "",
   });
 
+  // İade modal state'leri
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [refundQuantity, setRefundQuantity] = useState(1);
+  const [refundReason, setRefundReason] = useState("");
+
+  // İade edilen ürünler state'i
+  const [refundedItems, setRefundedItems] = useState<
+    Array<{
+      id: string;
+      date: string;
+      productName: string;
+      barcode: string;
+      quantity: number;
+      unitPrice: number;
+      totalAmount: number;
+      description: string;
+      refundType: "refunded";
+    }>
+  >([]);
+
+  // Backend'den iade verilerini çek
+  const [backendRefunds, setBackendRefunds] = useState<any[]>([]);
+
+  // Notification state
+  const [notification, setNotification] = useState<{
+    show: boolean;
+    type: "success" | "error" | "info";
+    message: string;
+  }>({
+    show: false,
+    type: "info",
+    message: "",
+  });
+
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -376,6 +412,7 @@ const VendorDetailPage: React.FC = () => {
   // Infinite scroll hooks - sadece aktif sekme için yükle
   const {
     orders,
+    setOrders,
     loading: ordersLoading,
     hasMore: ordersHasMore,
     loadMore: loadMoreOrders,
@@ -506,15 +543,145 @@ const VendorDetailPage: React.FC = () => {
           notes: "",
         });
       } else {
-        console.error("Ödeme oluşturulurken hata");
+        const errorData = await response.json();
+        setNotification({
+          show: true,
+          type: "error",
+          message: `Ödeme işlemi başarısız: ${
+            errorData.error || "Bilinmeyen hata"
+          }`,
+        });
       }
     } catch (error) {
       console.error("Ödeme gönderilirken hata:", error);
+      setNotification({
+        show: true,
+        type: "error",
+        message: "Ödeme işlemi sırasında hata oluştu!",
+      });
     }
   };
 
   const handlePaymentFormChange = (field: string, value: string) => {
     setPaymentForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // İade işlemi fonksiyonları
+  const handleRefundClick = (item: any) => {
+    setSelectedItem(item);
+    setRefundQuantity(1);
+    setRefundReason("");
+    setShowRefundModal(true);
+  };
+
+  const handleRefundConfirm = async () => {
+    if (!selectedItem || !vendor) return;
+
+    try {
+      const refundData = {
+        vendorId: vendorId,
+        vendorName: vendor.name,
+        productId: selectedItem.barcode,
+        productName: selectedItem.productName,
+        barcode: selectedItem.barcode,
+        quantity: refundQuantity,
+        refundAmount: selectedItem.unitPrice * refundQuantity,
+        reason: refundReason || "Tedarikçi iadesi",
+        debtId: selectedItem.debtId, // Eğer varsa borç ID'si
+      };
+
+      const response = await fetch("/api/my-refunds", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(refundData),
+      });
+
+      if (response.ok) {
+        // Başarılı iade
+        setNotification({
+          show: true,
+          type: "success",
+          message: "İade işlemi başarıyla tamamlandı!",
+        });
+        setShowRefundModal(false);
+        setSelectedItem(null);
+        setRefundQuantity(1);
+        setRefundReason("");
+
+        // Orders state'ini güncelle - iade edilen ürünün miktarını azalt
+        setOrders((prevOrders: PurchaseOrder[]) =>
+          prevOrders.map((order: PurchaseOrder) => {
+            if (order.items && order.items.length > 0) {
+              const updatedItems = order.items.map((item: any) => {
+                if (item.barcode === selectedItem.barcode) {
+                  return {
+                    ...item,
+                    quantity: Math.max(
+                      0,
+                      (item.quantity || 0) - refundQuantity
+                    ),
+                    totalPrice:
+                      Math.max(0, (item.quantity || 0) - refundQuantity) *
+                      (item.unitPrice || 0),
+                  };
+                }
+                return item;
+              });
+              return { ...order, items: updatedItems };
+            }
+            return order;
+          })
+        );
+
+        // İade edilen ürünü listeye ekle
+        const refundedItem = {
+          id: `refund-${Date.now()}`,
+          date: format(new Date(), "dd.MM.yyyy", { locale: tr }),
+          productName: selectedItem.productName,
+          barcode: selectedItem.barcode,
+          quantity: refundQuantity,
+          unitPrice: selectedItem.unitPrice,
+          totalAmount: selectedItem.unitPrice * refundQuantity,
+          description: `İade edildi - ${refundReason || "Tedarikçi iadesi"}`,
+          refundType: "refunded" as const,
+        };
+        setRefundedItems((prev) => [refundedItem, ...prev]);
+
+        // Backend'den iade verilerini yeniden çek
+        try {
+          const response = await fetch(`/api/my-refunds?vendorId=${vendorId}`);
+          if (response.ok) {
+            const refunds = await response.json();
+            setBackendRefunds(refunds);
+          }
+        } catch (error) {
+          console.error("İade verileri yenilenirken hata:", error);
+        }
+      } else {
+        const error = await response.json();
+        setNotification({
+          show: true,
+          type: "error",
+          message: `İade işlemi başarısız: ${error.error || "Bilinmeyen hata"}`,
+        });
+      }
+    } catch (error) {
+      console.error("İade işlemi hatası:", error);
+      setNotification({
+        show: true,
+        type: "error",
+        message: "İade işlemi sırasında hata oluştu!",
+      });
+    }
+  };
+
+  const handleRefundCancel = () => {
+    setShowRefundModal(false);
+    setSelectedItem(null);
+    setRefundQuantity(1);
+    setRefundReason("");
   };
 
   const getTabData = () => {
@@ -528,6 +695,7 @@ const VendorDetailPage: React.FC = () => {
         unitPrice: number;
         totalAmount: number;
         description: string;
+        refund?: string;
       }> = [];
 
       orders.forEach((order) => {
@@ -535,6 +703,20 @@ const VendorDetailPage: React.FC = () => {
           order.items.forEach((item, index) => {
             // Her ürün için kendi tarihini kullan, yoksa sipariş tarihini kullan
             const itemDate = item.createdAt || order.createdAt;
+
+            // Backend'den gelen iade verilerini kontrol et
+            const backendRefund = backendRefunds.find(
+              (refund) => refund.barcode === item.barcode
+            );
+
+            // Eğer backend'de iade kaydı varsa, miktarı azalt
+            let adjustedQuantity = item.quantity || 0;
+            if (backendRefund) {
+              adjustedQuantity = Math.max(
+                0,
+                adjustedQuantity - backendRefund.quantity
+              );
+            }
 
             allItems.push({
               id: `${order._id || ""}-${item.productId || item.barcode}`,
@@ -545,13 +727,48 @@ const VendorDetailPage: React.FC = () => {
                 : "-",
               productName: item.productName || "-",
               barcode: item.barcode || "-",
-              quantity: item.quantity || 0,
+              quantity: adjustedQuantity,
               unitPrice: item.unitPrice || 0,
-              totalAmount: item.totalPrice || 0,
+              totalAmount: (item.unitPrice || 0) * adjustedQuantity,
               description: index === 0 ? order.notes || "-" : "",
+              refund: adjustedQuantity > 0 ? "button" : "disabled", // Sadece kalan adet varsa iade butonu göster
             });
           });
         }
+      });
+
+      // İade edilen ürünleri de ekle (frontend state)
+      refundedItems.forEach((refundedItem) => {
+        allItems.push({
+          id: refundedItem.id,
+          date: refundedItem.date,
+          productName: refundedItem.productName,
+          barcode: refundedItem.barcode,
+          quantity: refundedItem.quantity,
+          unitPrice: refundedItem.unitPrice,
+          totalAmount: refundedItem.totalAmount,
+          description: refundedItem.description,
+          refund: "refunded", // İade edildi olarak işaretle
+        });
+      });
+
+      // Backend'den gelen iade verilerini de ekle
+      backendRefunds.forEach((refund) => {
+        allItems.push({
+          id: `backend-${refund._id}`,
+          date: refund.createdAt
+            ? format(parseISO(refund.createdAt.toString()), "dd.MM.yyyy", {
+                locale: tr,
+              })
+            : "-",
+          productName: refund.productName || "-",
+          barcode: refund.barcode || "-",
+          quantity: refund.quantity || 0,
+          unitPrice: refund.refundAmount / refund.quantity || 0,
+          totalAmount: refund.refundAmount || 0,
+          description: `İade edildi - ${refund.reason || "Tedarikçi iadesi"}`,
+          refund: "refunded", // İade edildi olarak işaretle
+        });
       });
 
       return allItems;
@@ -688,6 +905,7 @@ const VendorDetailPage: React.FC = () => {
         { key: "unitPrice", label: "Alış Fiyatı" },
         { key: "totalAmount", label: "Toplam Tutar" },
         { key: "description", label: "Açıklama" },
+        { key: "refund", label: "İade Et" },
       ];
     } else if (activeTab === "debts" && showDebtsAndPayments) {
       return [
@@ -739,6 +957,35 @@ const VendorDetailPage: React.FC = () => {
     if (activeTab === "debts") return loadMoreDebts;
     return loadMorePayments;
   };
+
+  // Auto-hide notification after 5 seconds
+  useEffect(() => {
+    if (notification.show) {
+      const timer = setTimeout(() => {
+        setNotification((prev) => ({ ...prev, show: false }));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification.show]);
+
+  // Backend'den iade verilerini çek
+  useEffect(() => {
+    const fetchRefunds = async () => {
+      if (!vendorId) return;
+
+      try {
+        const response = await fetch(`/api/my-refunds?vendorId=${vendorId}`);
+        if (response.ok) {
+          const refunds = await response.json();
+          setBackendRefunds(refunds);
+        }
+      } catch (error) {
+        console.error("İade verileri yüklenirken hata:", error);
+      }
+    };
+
+    fetchRefunds();
+  }, [vendorId]);
 
   const getSortOptions = () => {
     if (activeTab === "orders") {
@@ -817,6 +1064,86 @@ const VendorDetailPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Notification */}
+      {notification.show && (
+        <div
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${
+            notification.type === "success"
+              ? "bg-green-100 border border-green-400 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200"
+              : notification.type === "error"
+              ? "bg-red-100 border border-red-400 text-red-800 dark:bg-red-900 dark:border-red-700 dark:text-red-200"
+              : "bg-blue-100 border border-blue-400 text-blue-800 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-200"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {notification.type === "success" && (
+                <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-3 h-3 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+              )}
+              {notification.type === "error" && (
+                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-3 h-3 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+              )}
+              {notification.type === "info" && (
+                <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-3 h-3 text-white"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+              )}
+              <span className="text-sm font-medium">
+                {notification.message}
+              </span>
+            </div>
+            <button
+              onClick={() =>
+                setNotification((prev) => ({ ...prev, show: false }))
+              }
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-4"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -1176,6 +1503,47 @@ const VendorDetailPage: React.FC = () => {
                           >
                             {item[header.key as keyof typeof item]}
                           </span>
+                        ) : header.key === "refund" &&
+                          activeTab === "orders" ? (
+                          "refund" in item && item.refund === "refunded" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-700 rounded border border-green-300">
+                              <svg
+                                className="w-3 h-3"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              İade Edildi
+                            </span>
+                          ) : "refund" in item && item.refund === "disabled" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded border border-gray-300 cursor-not-allowed">
+                              <svg
+                                className="w-3 h-3"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              Stok Yok
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleRefundClick(item)}
+                              className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded border border-red-300 transition-colors"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              İade Et
+                            </button>
+                          )
                         ) : (
                           item[header.key as keyof typeof item]
                         )}
@@ -1223,6 +1591,21 @@ const VendorDetailPage: React.FC = () => {
             </div>
 
             <form onSubmit={handlePaymentSubmit} className="space-y-4">
+              {/* Mevcut Borç Bilgisi */}
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                    Mevcut Borç:
+                  </span>
+                  <span className="text-lg font-bold text-yellow-800 dark:text-yellow-200">
+                    {remainingDebt.toFixed(2)} ₺
+                  </span>
+                </div>
+                <p className="text-xs text-yellow-600 dark:text-yellow-300 mt-1">
+                  ⚠️ Ödeme tutarı borçtan büyük olamaz
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Tutar (₺)
@@ -1231,6 +1614,7 @@ const VendorDetailPage: React.FC = () => {
                   type="number"
                   step="0.01"
                   required
+                  max={remainingDebt}
                   value={paymentForm.amount}
                   onChange={(e) =>
                     handlePaymentFormChange("amount", e.target.value)
@@ -1238,6 +1622,9 @@ const VendorDetailPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="0.00"
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Maksimum: {remainingDebt.toFixed(2)} ₺
+                </p>
               </div>
 
               <div>
@@ -1319,6 +1706,135 @@ const VendorDetailPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* İade Modal */}
+      {showRefundModal && selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Ürün İadesi
+              </h3>
+              <button
+                onClick={handleRefundCancel}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Ürün Bilgileri */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                  İade Edilecek Ürün
+                </h4>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Ürün:
+                    </span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      {selectedItem.productName}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Barkod:
+                    </span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      {selectedItem.barcode}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Mevcut Adet:
+                    </span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      {selectedItem.quantity}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Birim Fiyat:
+                    </span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      {selectedItem.unitPrice?.toFixed(2)} ₺
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* İade Adedi */}
+              {selectedItem.quantity > 1 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    İade Edilecek Adet
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedItem.quantity}
+                    value={refundQuantity}
+                    onChange={(e) =>
+                      setRefundQuantity(
+                        Math.min(Number(e.target.value), selectedItem.quantity)
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Maksimum: {selectedItem.quantity} adet
+                  </p>
+                </div>
+              )}
+
+              {/* İade Tutarı */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    İade Tutarı:
+                  </span>
+                  <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                    {(selectedItem.unitPrice * refundQuantity).toFixed(2)} ₺
+                  </span>
+                </div>
+              </div>
+
+              {/* İade Sebebi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  İade Sebebi (Opsiyonel)
+                </label>
+                <textarea
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="İade sebebini yazın..."
+                  rows={3}
+                />
+              </div>
+
+              {/* Onay Butonları */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleRefundConfirm}
+                  className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  İade Et
+                </button>
+                <button
+                  onClick={handleRefundCancel}
+                  className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
+                >
+                  İptal
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

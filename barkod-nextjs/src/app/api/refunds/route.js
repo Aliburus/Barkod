@@ -4,6 +4,8 @@ import Refund from "../models/Refund.js";
 import Debt from "../models/Debt.js";
 import Product from "../models/Product.js";
 import CustomerPayment from "../models/CustomerPayment.js";
+import Customer from "../models/Customer.js";
+import SubCustomer from "../models/SubCustomer.js";
 
 // Tüm iadeleri getir
 export async function GET(request) {

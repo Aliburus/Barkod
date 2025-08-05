@@ -231,3 +231,20 @@ export interface Refund {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface MyRefund {
+  _id?: string;
+  vendorId: string | { _id: string; name: string; phone?: string };
+  vendorName: string;
+  productId: string;
+  productName: string;
+  barcode: string;
+  quantity: number;
+  refundAmount: number;
+  debtId?: string | { _id: string; amount: number; description: string };
+  refundDate: string;
+  reason?: string;
+  status: "completed" | "pending" | "cancelled";
+  createdAt: string;
+  updatedAt: string;
+}

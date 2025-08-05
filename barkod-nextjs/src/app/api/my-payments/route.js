@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "../utils/db.js";
 import MyPayment from "../models/MyPayment.js";
+import MyDebt from "../models/MyDebt.js";
 
 export async function GET(request) {
   try {
@@ -105,6 +106,40 @@ export async function POST(request) {
   try {
     await connectDB();
     const body = await request.json();
+
+    const { vendorId, amount } = body;
+
+    // Gerekli alanları kontrol et
+    if (!vendorId) {
+      return NextResponse.json({ error: "vendorId gerekli" }, { status: 400 });
+    }
+
+    if (!amount || amount <= 0) {
+      return NextResponse.json(
+        { error: "Geçerli bir ödeme tutarı gerekli" },
+        { status: 400 }
+      );
+    }
+
+    // Tedarikçiye olan toplam borcu hesapla
+    const totalDebt = await MyDebt.aggregate([
+      { $match: { vendorId: vendorId } },
+      { $group: { _id: null, totalDebt: { $sum: "$amount" } } },
+    ]);
+
+    const currentDebt = totalDebt.length > 0 ? totalDebt[0].totalDebt : 0;
+
+    // Ödeme tutarı borçtan büyük olamaz
+    if (amount > currentDebt) {
+      return NextResponse.json(
+        {
+          error: `Ödeme tutarı borçtan büyük olamaz. Mevcut borç: ${currentDebt.toFixed(
+            2
+          )} ₺, Ödeme tutarı: ${amount.toFixed(2)} ₺`,
+        },
+        { status: 400 }
+      );
+    }
 
     const myPayment = new MyPayment({
       ...body,
